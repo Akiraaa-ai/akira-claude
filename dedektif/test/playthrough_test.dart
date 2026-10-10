@@ -39,7 +39,6 @@ Future<void> openCaseFromMenu(WidgetTester t) async {
   await t.pump(const Duration(milliseconds: 600));
 }
 
-
 void main() {
   setUp(() {
     // Dikey telefon ekranı.

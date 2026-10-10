@@ -7,6 +7,7 @@ class CaseProgress {
     Set<String>? contradictionIds,
     this.wrongAttempts = 0,
     this.hintsUsed = 0,
+    this.freeHintsSpent = 0,
     this.solved = false,
     this.bestClueCount,
     this.introSeen = false,
@@ -23,6 +24,7 @@ class CaseProgress {
       contradictionIds: set('contradictionIds'),
       wrongAttempts: (json['wrongAttempts'] as num?)?.toInt() ?? 0,
       hintsUsed: (json['hintsUsed'] as num?)?.toInt() ?? 0,
+      freeHintsSpent: (json['freeHintsSpent'] as num?)?.toInt() ?? 0,
       solved: json['solved'] as bool? ?? false,
       bestClueCount: (json['bestClueCount'] as num?)?.toInt(),
       introSeen: json['introSeen'] as bool? ?? false,
@@ -36,6 +38,9 @@ class CaseProgress {
   final Set<String> contradictionIds;
   int wrongAttempts;
   int hintsUsed;
+
+  /// Harcanan reklamsız ipucu hakkı.
+  int freeHintsSpent;
   bool solved;
 
   /// Vakanın en az kaç ipucuyla çözüldüğü.
@@ -54,6 +59,7 @@ class CaseProgress {
     contradictionIds.clear();
     wrongAttempts = 0;
     hintsUsed = 0;
+    freeHintsSpent = 0;
   }
 
   Map<String, dynamic> toJson() => {
@@ -62,6 +68,7 @@ class CaseProgress {
     'contradictionIds': contradictionIds.toList(),
     'wrongAttempts': wrongAttempts,
     'hintsUsed': hintsUsed,
+    'freeHintsSpent': freeHintsSpent,
     'solved': solved,
     'bestClueCount': bestClueCount,
     'introSeen': introSeen,

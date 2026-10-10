@@ -221,6 +221,13 @@ class _WrongActions extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (game.data.wrongAnswer.hintPenalty > 0)
+          Text(
+            'İpucu hakkın ${game.data.wrongAnswer.hintPenalty} eksildi. '
+            'Kalan hak: ${game.freeHintsLeft}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppTheme.blood),
+          ),
         const SizedBox(height: 8),
         const Text(
           'Dosya henüz kapanmadı. İpuçlarını ve ifadeleri yeniden gözden geçir.',

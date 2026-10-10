@@ -52,3 +52,13 @@ test/                          → model, oyun mantığı ve baştan sona oynan�
 - Ekran dikey (portre) kilitli; sahne görselleri 9:16.
 - "Neden" seçimi, JSON'daki `reasonOptions` listesinden yapılır; hem suçlu hem gerekçe doğruysa vaka çözülür.
 - Ödüllü reklamın ödülü: sahnede bulunmamış bir ipucunun yerini kısa süre parlatmak.
+
+## Vaka 1 (Şekersiz Kahve) aktarım notları
+Metinler değiştirilmeden `assets/cases/vaka_01.json` dosyasına aktarıldı. Oyun yapısı için verilen kararlar:
+- **Sahneler:** İpuçları üç sahneye dağıtıldı: Çalışma odası (fincan, tepsi, ilaç dolabı), Mutfak (kayıt defteri), Güvenlik kayıtları (kapı kaydı, iki kamera, telefon kaydı). Sahne adları bu yapı için eklendi.
+- **Sorguda açılan ipuçları:** Kerem'in bahçe ifadesine bahçe kamerası ve telefon kaydı birlikte sunulunca çelişki açılır ve "Kerem’in ceket cebi" deftere eklenir. Ceket cebi bulununca "Şişe analizi" kendiliğinden gelir.
+- **Diğer çelişkiler:** "Cebindeki şeker paketleri? → Susuyor." ceket cebi sunulunca; "Oysa Nuri Bey o saatte odadaydı…" koridor kamerası sunulunca açılır. "Çalışma odasında ne yaptın?" sorusu koridor kamerası bulununca görünür.
+- **Neden seçenekleri:** Kaynakta çoktan seçmeli seçenek olmadığı için seçenekler metindeki cümlelerden kuruldu. Doğru cevap çıkarım zincirinin 2. ve 3. adımıdır; diğerleri kırmızı balıklardır (miras, zehre erişim, tepsi, kumar borcu).
+- **İpucu hakkı:** Oyuncu 3 reklamsız ipucu hakkıyla başlar, her yanlış suçlama bir hak eksiltir. Hak bitince ipucu ödüllü reklamla alınır.
+- **Giriş sahnesi:** Seslendirme şimdilik yok; giriş metni daktilo satırları olarak oynar.
+- **"Gece yarısına kadar vaktin var":** Süre sınırı mekaniği eklenmedi, cümle atmosfer metni olarak kaldı.
