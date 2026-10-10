@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "ornek_vaka",
+  "order": 99,
+  "title": "Örnek Vaka: Sahaftaki Boş Kasa",
+  "subtitle": "Test ve şema örneği",
+  "summary": "Yağmurlu bir gecede sahafın kasası boşaltılmış.",
+  "briefing": "Kapanıştan sonra sahafın kasasındaki para kayboldu. Kapı kilitliydi, cam kırılmamıştı.",
+  "coverImage": "ornek_vaka_kapak",
+  "access": { "free": true },
+  "music": { "investigation": "ornek_muzik", "tension": "ornek_gerilim", "finale": "ornek_final" },
+  "intro": {
+    "durationMs": 6000,
+    "background": "ornek_vaka_giris",
+    "rain": true,
+    "events": [
+      { "atMs": 0, "type": "voice", "sound": "ornek_giris_seslendirme" },
+      { "atMs": 0, "type": "text", "text": "Yağmur bütün gece durmadı." },
+      { "atMs": 1500, "type": "sfx", "sound": "gok_gurultusu" },
+      { "atMs": 1500, "type": "flash" },
+      { "atMs": 1600, "type": "shake", "value": 6 },
+      { "atMs": 2500, "type": "text", "speaker": "Komiser", "text": "Kasa boş, kapı kilitli." }
+    ]
+  },
+  "scenes": [
+    { "id": "dukkan", "title": "Dükkân", "image": "ornek_sahne_dukkan", "description": "Tozlu raflar ve tezgâh.", "rain": true },
+    { "id": "depo", "title": "Arka depo", "image": "ornek_sahne_depo", "description": "Kolilerle dolu dar bir oda." }
+  ],
+  "suspects": [
+    { "id": "sahip", "name": "Nuri Bey", "role": "Sahaf sahibi", "statement": "Dükkânı yedide kapattım, anahtar hep bende.", "portrait": "ornek_portre_sahip" },
+    { "id": "cirak", "name": "Deniz", "role": "Çırak", "statement": "Altıda çıktım, sonra hiç gelmedim.", "portrait": "ornek_portre_cirak" },
+    { "id": "musteri", "name": "Selma Hanım", "role": "Daimi müşteri", "statement": "Kapanıştan önce kitap almaya uğradım.", "portrait": "ornek_portre_musteri" },
+    { "id": "komsu", "name": "Kemal", "role": "Yan dükkândaki saatçi", "statement": "Bütün akşam kendi dükkânımdaydım.", "portrait": "ornek_portre_komsu" }
+  ],
+  "clues": [
+    { "id": "islak_semsiye", "sceneId": "dukkan", "area": { "x": 0.1, "y": 0.55, "w": 0.2, "h": 0.15 }, "title": "Islak şemsiye", "description": "Kapının yanında hâlâ damlayan bir şemsiye.", "suspectIds": ["cirak"] },
+    { "id": "kasa", "sceneId": "dukkan", "area": { "x": 0.55, "y": 0.4, "w": 0.3, "h": 0.15 }, "title": "Boş kasa", "description": "Kasa zorlanmamış, anahtarla açılmış.", "suspectIds": ["sahip"] },
+    { "id": "fis", "sceneId": "dukkan", "area": { "x": 0.6, "y": 0.75, "w": 0.2, "h": 0.1 }, "title": "Saat 19:40 tarihli fiş", "description": "Kapanıştan sonra kesilmiş bir satış fişi.", "suspectIds": ["musteri"] },
+    { "id": "yedek_anahtar", "sceneId": "depo", "area": { "x": 0.3, "y": 0.3, "w": 0.2, "h": 0.12 }, "title": "Yedek anahtar kancası", "description": "Kanca boş; yedek anahtar yerinde değil.", "suspectIds": ["sahip", "cirak"] },
+    { "id": "camur", "sceneId": "depo", "area": { "x": 0.5, "y": 0.7, "w": 0.3, "h": 0.12 }, "title": "Çamurlu ayak izi", "description": "Arka kapıdan giren küçük numara bir ayakkabı izi.", "suspectIds": ["cirak"] },
+    { "id": "itiraf", "title": "Deniz'in kaçamak cevabı", "description": "Deniz yedek anahtarı aldığını kabul etti.", "suspectIds": ["cirak"] }
+  ],
+  "interrogations": [
+    { "id": "s1", "suspectId": "cirak", "question": "Akşam dükkâna döndün mü?", "answer": "Hayır, altıda çıktım ve eve gittim.", "contradiction": { "clueId": "islak_semsiye", "text": "Deniz şemsiyeye bakıp sustu: \"Belki bir ara uğramışımdır...\"" } },
+    { "id": "s2", "suspectId": "cirak", "question": "Yedek anahtar nerede?", "answer": "Bilmiyorum, hep kancada durur.", "requiresClueIds": ["yedek_anahtar"], "contradiction": { "clueId": "camur", "text": "\"Tamam! Anahtarı ben aldım ama sadece kitabımı almak için.\"", "unlocksClueId": "itiraf" } },
+    { "id": "s3", "suspectId": "musteri", "question": "Ne zaman alışveriş yaptınız?", "answer": "Kapanmadan hemen önce, yediye doğru." },
+    { "id": "s4", "suspectId": "sahip", "question": "Kasayı kim açabilir?", "answer": "Sadece ben, bir de yedek anahtarı bilen." },
+    { "id": "s5", "suspectId": "komsu", "question": "Bir ses duydunuz mu?", "answer": "Arka kapının gıcırtısını duydum, sekize doğru." }
+  ],
+  "solution": {
+    "culpritId": "cirak",
+    "correctReasonId": "r2",
+    "reasonOptions": [
+      { "id": "r1", "text": "Fiş kapanıştan sonra kesildi." },
+      { "id": "r2", "text": "Yedek anahtarı aldı ve arka kapıdan döndü." },
+      { "id": "r3", "text": "Kasanın anahtarı yalnızca sahipteydi." }
+    ],
+    "explanation": "Kasa anahtarla açıldı ve yedek anahtar kayıptı.",
+    "deductionChain": ["Kasa zorlanmamış.", "Yedek anahtar yok.", "Çamurlu iz arka kapıdan geliyor.", "Islak şemsiye Deniz'in döndüğünü gösteriyor."],
+    "finale": { "title": "Dosya kapandı", "paragraphs": ["Deniz başını eğdi.", "Para depodaki kolilerin arasından çıktı."], "image": "ornek_final" }
+  },
+  "wrongAnswer": {
+    "title": "Yanlış kişi",
+    "paragraphs": ["Suçladığın kişinin sağlam bir tanığı var.", "Gerçek suçlu hâlâ ortalıkta."],
+    "wrongReasonText": "Doğru kişiyi buldun ama gerekçen mahkemede çürür."
+  }
+}
