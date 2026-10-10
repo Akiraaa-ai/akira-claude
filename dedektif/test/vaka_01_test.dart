@@ -109,7 +109,7 @@ void main() {
     await askAndPresent('kerem_1', 'bahce_kamerasi');
     await askAndPresent('kerem_2', 'ceket_cebi');
     await askAndPresent('kerem_3', 'koridor_kamerasi');
-    await t.pageBack();
+    await t.tap(find.byType(BackButton));
     await t.pumpAndSettle();
 
     await tap(t, find.text('Suçluyu seç'));
