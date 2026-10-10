@@ -110,7 +110,7 @@ void main() {
       findsOneWidget,
     );
     await tap(t, find.text('Devam'));
-    await t.pageBack();
+    await t.tap(find.byType(BackButton));
     await t.pumpAndSettle();
 
     // Suçlama.

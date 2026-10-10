@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 
 import 'core/theme.dart';
@@ -26,6 +27,10 @@ class DedektifApp extends StatelessWidget {
         title: 'Dedektif',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.build(),
+        // Sistem metinleri (geri, menü, iptal...) Türkçe görünsün.
+        locale: const Locale('tr'),
+        supportedLocales: const [Locale('tr')],
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
         // Her ekran titreyebilsin diye en dışa sarılır.
         builder: (context, child) => ScreenShake(child: child!),
         home: const MainMenuScreen(),
