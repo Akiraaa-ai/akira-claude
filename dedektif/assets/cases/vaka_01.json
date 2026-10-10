@@ -1,0 +1,395 @@
+{
+  "schemaVersion": 1,
+  "id": "vaka_01",
+  "order": 1,
+  "title": "Şekersiz Kahve",
+  "subtitle": "Vaka 1",
+  "summary": "Antika koleksiyoncusu Nuri Aksoy, deri koltuğunda, yarısı içilmiş bir fincanın yanında ölü yatıyor.",
+  "briefing": "Polis geldiğinde doktor tek cümle söylüyor: “Kahveyle alınmış bir zehir. Tepkiyi hızlı verdi, birkaç dakikada bitmiş.”\n\nDedektif olarak sana yalıda kalan dört kişiyle konuşmak, odayı incelemek ve katili bulmak düşüyor. Gece yarısına kadar vaktin var.",
+  "coverImage": "vaka_01_kapak",
+  "access": {
+    "free": true
+  },
+  "freeHints": 3,
+  "music": {
+    "investigation": "vaka_01_muzik",
+    "tension": "vaka_01_gerilim",
+    "finale": "vaka_01_final"
+  },
+  "intro": {
+    "durationMs": 43225,
+    "background": "vaka_01_giris",
+    "rain": true,
+    "events": [
+      {
+        "atMs": 500,
+        "type": "text",
+        "text": "Yağmurlu bir ekim akşamı."
+      },
+      {
+        "atMs": 3275,
+        "type": "text",
+        "text": "Boğaz’a bakan eski yalının çalışma odasında tek lamba yanıyor."
+      },
+      {
+        "atMs": 8085,
+        "type": "text",
+        "text": "Odada kitaplar, saatler, yüzlerce yıllık eşya var."
+      },
+      {
+        "atMs": 12235,
+        "type": "text",
+        "text": "Saat 21:40'ta kâhya Hasan kapıyı çalıyor, cevap alamıyor, içeri giriyor."
+      },
+      {
+        "atMs": 17595,
+        "type": "text",
+        "text": "Antika koleksiyoncusu Nuri Aksoy, deri koltuğunda, yarısı içilmiş bir fincanın yanında ölü yatıyor."
+      },
+      {
+        "atMs": 19395,
+        "type": "shake",
+        "value": 6
+      },
+      {
+        "atMs": 24440,
+        "type": "text",
+        "text": "Polis geldiğinde doktor tek cümle söylüyor: “Kahveyle alınmış bir zehir. Tepkiyi hızlı verdi, birkaç dakikada bitmiş.”"
+      },
+      {
+        "atMs": 32330,
+        "type": "text",
+        "text": "Dedektif olarak sana yalıda kalan dört kişiyle konuşmak, odayı incelemek ve katili bulmak düşüyor."
+      },
+      {
+        "atMs": 39120,
+        "type": "text",
+        "text": "Gece yarısına kadar vaktin var."
+      }
+    ]
+  },
+  "scenes": [
+    {
+      "id": "calisma_odasi",
+      "title": "Çalışma odası",
+      "image": "vaka_01_sahne_calisma_odasi",
+      "description": "Odada kitaplar, saatler, yüzlerce yıllık eşya var.",
+      "rain": true
+    },
+    {
+      "id": "mutfak",
+      "title": "Mutfak",
+      "image": "vaka_01_sahne_mutfak",
+      "description": ""
+    },
+    {
+      "id": "guvenlik",
+      "title": "Güvenlik kayıtları",
+      "image": "vaka_01_sahne_guvenlik",
+      "description": ""
+    }
+  ],
+  "suspects": [
+    {
+      "id": "selma",
+      "name": "Selma Aksoy",
+      "role": "eş, 58",
+      "portrait": "vaka_01_portre_selma",
+      "description": "Otuz yıllık evli. Sakin, kontrollü ama gözleri kızarık. Mirasın büyük kısmı ona kalıyor.",
+      "statement": "Nuri benim hayatımdı. Yemekten sonra mutfaktaydım, aşçı Güler’le yarınki misafir menüsünü konuşuyorduk. Neden bunu bana soruyorsunuz, suçluymuşum gibi?"
+    },
+    {
+      "id": "kerem",
+      "name": "Kerem Aksoy",
+      "role": "yeğen, 31",
+      "portrait": "vaka_01_portre_kerem",
+      "description": "Sık sık iş değiştiriyor, kumar borcu olduğu söyleniyor. Ayda bir uğrar. Bu akşam “teyzesini görmeye” gelmiş.",
+      "statement": "Akşam yemeğinden sonra bahçede telefonla konuştum, içeri hiç girmedim. Amcamla aram iyiydi, evet, para konusunda biraz gerilim vardı, ama kim kimden para istemedi ki?"
+    },
+    {
+      "id": "aylin",
+      "name": "Dr. Aylin Demirtaş",
+      "role": "aile doktoru, 45",
+      "portrait": "vaka_01_portre_aylin",
+      "description": "Yirmi yıldır aileyi tanıyor. Nuri Bey’in tüm ilaçlarını o yazıyor. Zehirli maddelere erişimi var.",
+      "statement": "Yemeğe davetliydim, 21:15'te ayrıldım çünkü nöbetçi hastam vardı. Nuri’nin tansiyonuyla şekeri benim sorumluluğumdu. Buna inanamıyorum."
+    },
+    {
+      "id": "hasan",
+      "name": "Hasan Usta",
+      "role": "kâhya, 60",
+      "portrait": "vaka_01_portre_hasan",
+      "description": "Kırk yıldır yalıda. Nuri Bey’in her alışkanlığını bilir. Mutfaktan kahve tepsisini götüren o.",
+      "statement": "Efendimin kahvesini ben pişirir, ben götürürüm. 21:15'te tepsiyi masaya bıraktım, kimseyle konuşmadan çıktım. Allah şahit, ben o kahveye bir şey koymadım."
+    }
+  ],
+  "clues": [
+    {
+      "id": "kahve_fincani",
+      "sceneId": "calisma_odasi",
+      "area": {
+        "x": 0.38,
+        "y": 0.56,
+        "w": 0.18,
+        "h": 0.09
+      },
+      "title": "Kahve fincanı",
+      "description": "Fincanın dibinde erimemiş küçük şeker taneleri var. Kahve yarıya kadar içilmiş. Not: Biri kahveye şeker atmış.",
+      "suspectIds": []
+    },
+    {
+      "id": "kahve_tepsisi",
+      "sceneId": "calisma_odasi",
+      "area": {
+        "x": 0.6,
+        "y": 0.6,
+        "w": 0.3,
+        "h": 0.1
+      },
+      "title": "Kahve tepsisi",
+      "description": "Tepsi hâlâ masada. Üzerinde fincan, bir su bardağı ve kahve kaşığı var, şeker yok. Şeker tepsiyle gelmemiş.",
+      "suspectIds": [
+        "hasan"
+      ]
+    },
+    {
+      "id": "ilac_dolabi",
+      "sceneId": "calisma_odasi",
+      "area": {
+        "x": 0.05,
+        "y": 0.22,
+        "w": 0.22,
+        "h": 0.2
+      },
+      "title": "İlaç dolabı",
+      "description": "Nuri Bey’in diyabet ilaçları, doktorun not defteri: “Şekerli içecek kesinlikle yasak.” Nuri Bey şeker yasaklı bir hasta.",
+      "suspectIds": [
+        "aylin"
+      ]
+    },
+    {
+      "id": "mutfak_defteri",
+      "sceneId": "mutfak",
+      "area": {
+        "x": 0.55,
+        "y": 0.45,
+        "w": 0.25,
+        "h": 0.12
+      },
+      "title": "Mutfak kayıt defteri (Hasan’ın tuttuğu not)",
+      "description": "“21:10 efendi için kahve, şekersiz, her zamanki.” Hasan kahveyi şekersiz hazırlamış.",
+      "suspectIds": [
+        "hasan"
+      ]
+    },
+    {
+      "id": "kapi_kaydi",
+      "sceneId": "guvenlik",
+      "area": {
+        "x": 0.08,
+        "y": 0.2,
+        "w": 0.38,
+        "h": 0.14
+      },
+      "title": "Giriş-çıkış kaydı (kapı sistemi)",
+      "description": "Dr. Aylin 21:15'te çıkmış. Doktorun ifadesi doğru, evde değildi.",
+      "suspectIds": [
+        "aylin"
+      ]
+    },
+    {
+      "id": "koridor_kamerasi",
+      "sceneId": "guvenlik",
+      "area": {
+        "x": 0.54,
+        "y": 0.2,
+        "w": 0.38,
+        "h": 0.14
+      },
+      "title": "Koridor kamerası",
+      "description": "21:15'ten sonra çalışma odasına sadece Kerem giriyor (21:22 giriş, 21:25 çıkış). Selma ve Hasan o saatte görünmüyor. Kerem odaya girmiş, ama “hiç girmedim” demişti.",
+      "suspectIds": [
+        "kerem"
+      ]
+    },
+    {
+      "id": "bahce_kamerasi",
+      "sceneId": "guvenlik",
+      "area": {
+        "x": 0.54,
+        "y": 0.42,
+        "w": 0.38,
+        "h": 0.14
+      },
+      "title": "Bahçe kamerası",
+      "description": "21:00-21:40 arası bahçe boş, kimse görünmüyor. Kerem’in bahçe ifadesi çürüyor.",
+      "suspectIds": [
+        "kerem"
+      ]
+    },
+    {
+      "id": "telefon_kaydi",
+      "sceneId": "guvenlik",
+      "area": {
+        "x": 0.08,
+        "y": 0.66,
+        "w": 0.3,
+        "h": 0.12
+      },
+      "title": "Kerem’in telefon kaydı",
+      "description": "Son arama 21:05'te bitmiş. Bahçede telefonla konuşma ifadesi yarım doğru çıkıyor.",
+      "suspectIds": [
+        "kerem"
+      ]
+    },
+    {
+      "id": "ceket_cebi",
+      "title": "Kerem’in ceket cebi",
+      "description": "İçinde kafede verilen tek kullanımlık şeker paketleri ve içi boş bir küçük şişe var. Şeker taşıyor ve zehir şişesi olabilir.",
+      "suspectIds": [
+        "kerem"
+      ]
+    },
+    {
+      "id": "sise_analizi",
+      "unlockedByClueIds": [
+        "ceket_cebi"
+      ],
+      "title": "Şişe analizi",
+      "description": "Şişede kalan kalıntı, otopsi raporundaki zehirle aynı. Şişe zehri taşımış.",
+      "suspectIds": [
+        "kerem"
+      ]
+    }
+  ],
+  "interrogations": [
+    {
+      "id": "selma_1",
+      "suspectId": "selma",
+      "question": "Mutfaktaydın, kimi gördün?",
+      "answer": "Güler vardı, yarım saat bulaşıkla uğraştık."
+    },
+    {
+      "id": "selma_2",
+      "suspectId": "selma",
+      "question": "Mirastan haberin var mıydı?",
+      "answer": "Gerginleşiyor: “Haberim vardı, ama bu beni katil yapmaz!”"
+    },
+    {
+      "id": "aylin_1",
+      "suspectId": "aylin",
+      "question": "Zehre erişimin var mı?",
+      "answer": "Evet, ama kayıtlarım düzenli, eksik bir şey yok."
+    },
+    {
+      "id": "aylin_2",
+      "suspectId": "aylin",
+      "question": "Şeker hakkında ne söylersin?",
+      "answer": "Nuri’ye şeker kesinlikle yasaktı, onu sürekli uyarırdım."
+    },
+    {
+      "id": "hasan_1",
+      "suspectId": "hasan",
+      "question": "Kahveyi nasıl hazırladın?",
+      "answer": "Şekersiz, her zamanki gibi. Kırk yıldır öyle içer."
+    },
+    {
+      "id": "hasan_2",
+      "suspectId": "hasan",
+      "question": "Odaya biri girdi mi?",
+      "answer": "Ben çıkarken hayır."
+    },
+    {
+      "id": "kerem_1",
+      "suspectId": "kerem",
+      "question": "Bahçede miydin?",
+      "answer": "Evet, telefonla konuştum.",
+      "contradiction": {
+        "clueIds": [
+          "bahce_kamerasi",
+          "telefon_kaydi"
+        ],
+        "text": "Belki içeri girmişimdir, hatırlamıyorum.",
+        "unlocksClueId": "ceket_cebi"
+      }
+    },
+    {
+      "id": "kerem_2",
+      "suspectId": "kerem",
+      "question": "Amcanın kahvesini nasıl içtiğini biliyor muydun?",
+      "answer": "Hayır, ben ne bileyim, ayda bir geliyorum.",
+      "contradiction": {
+        "clueIds": [
+          "ceket_cebi"
+        ],
+        "text": "Cebindeki şeker paketleri?\nSusuyor."
+      }
+    },
+    {
+      "id": "kerem_3",
+      "suspectId": "kerem",
+      "question": "Çalışma odasında ne yaptın?",
+      "answer": "Sadece para konusunu konuşmaya gittim, amcam yoktu.",
+      "requiresClueIds": [
+        "koridor_kamerasi"
+      ],
+      "contradiction": {
+        "clueIds": [
+          "koridor_kamerasi"
+        ],
+        "text": "Oysa Nuri Bey o saatte odadaydı ve kayıt bunu gösteriyor."
+      }
+    }
+  ],
+  "solution": {
+    "culpritId": "kerem",
+    "correctReasonId": "seker",
+    "reasonOptions": [
+      {
+        "id": "miras",
+        "text": "Mirasın büyük kısmı ona kalıyor."
+      },
+      {
+        "id": "zehir",
+        "text": "Zehirli maddelere erişimi var."
+      },
+      {
+        "id": "tepsi",
+        "text": "Mutfaktan kahve tepsisini götüren o."
+      },
+      {
+        "id": "borc",
+        "text": "Kumar borcu olduğu söyleniyor."
+      },
+      {
+        "id": "seker",
+        "text": "Kahveye şeker atılmış, çünkü zehir acı ve katil bunu gizlemek istemiş. Nuri Bey şekersiz içer; şekerle gizlemeye çalışan biri bunu bilmiyor demek."
+      }
+    ],
+    "explanation": "",
+    "deductionChain": [
+      "Zehir kahveye konmuş.",
+      "Kahveye şeker atılmış, çünkü zehir acı ve katil bunu gizlemek istemiş.",
+      "Nuri Bey şekersiz içer. Eşi, doktoru ve kâhyası bunu çok iyi bilir. Şekerle gizlemeye çalışan biri bunu bilmiyor demek.",
+      "21:15'ten sonra odaya sadece Kerem girmiş ve bunu saklamış.",
+      "Kerem ayda bir uğradığı için amcasının alışkanlığını bilmiyor."
+    ],
+    "finale": {
+      "title": "",
+      "image": "vaka_01_final",
+      "paragraphs": [
+        "Dedektif yalının salonunda herkesi topluyor. Yağmur camlara vuruyor.",
+        "“Katil, Nuri Bey’i tanıyan biri olsaydı kahvesine şeker atmazdı. Hasan kırk yıllık kâhyası, Selma Hanım otuz yıllık eşi, Dr. Aylin onun şekerini her ay ölçen doktoru. Hepsi onun kahvesini şekersiz içtiğini bilir. Sadece bir kişi bilmiyordu: ayda bir uğrayan yeğen.”",
+        "“Kerem, sen 21:22'de çalışma odasına girdin, zehri şeker paketleriyle birlikte kahveye karıştırdın ve bahçeye çıkıp telefon konuşması yaptığını söyledin. Ama kamera, telefon kaydı ve cebindeki boş şişe bunun tersini söylüyor.”",
+        "Kerem’in yüzü beyazlıyor. Polis kelepçeyi takıyor. Selma bir an gözlerini kapatıyor, Hasan sessizce başını eğiyor."
+      ]
+    }
+  },
+  "wrongAnswer": {
+    "title": "",
+    "hintPenalty": 1,
+    "paragraphs": [
+      "Kanıtların hepsini birleştirmedin. Kahveye neden şeker atıldığını düşün. Kim bunu bilmeden yapmış olabilir?"
+    ]
+  }
+}

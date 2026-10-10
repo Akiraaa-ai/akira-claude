@@ -32,6 +32,7 @@ void main() {
   });
 
   test('doğru ipucu çelişki açar ve yeni ipucu ekler', () {
+    game.collectClue('camur');
     expect(game.presentClue('s2', 'kasa'), PresentResult.noEffect);
     expect(game.presentClue('s2', 'camur'), PresentResult.contradiction);
     expect(game.isFound('itiraf'), isTrue);

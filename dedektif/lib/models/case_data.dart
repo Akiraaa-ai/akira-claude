@@ -55,6 +55,7 @@ class CaseData {
     required this.interrogations,
     required this.solution,
     required this.wrongAnswer,
+    this.freeHints = 0,
   });
 
   factory CaseData.fromJson(Map<String, dynamic> json) {
@@ -87,6 +88,7 @@ class CaseData {
       solution: Solution.fromJson(
         _req<Map<String, dynamic>>(json, 'solution', id),
       ),
+      freeHints: (json['freeHints'] as num?)?.toInt() ?? 0,
       wrongAnswer: WrongAnswer.fromJson(
         _req<Map<String, dynamic>>(json, 'wrongAnswer', id),
       ),
@@ -110,6 +112,9 @@ class CaseData {
   final Solution solution;
   final WrongAnswer wrongAnswer;
 
+  /// Reklamsız kullanılabilen ipucu hakkı. Bitince ipucu ödüllü reklamla alınır.
+  final int freeHints;
+
   Suspect suspect(String id) => suspects.firstWhere((s) => s.id == id);
   Clue clue(String id) => clues.firstWhere((c) => c.id == id);
   Scene scene(String id) => scenes.firstWhere((s) => s.id == id);
@@ -118,6 +123,36 @@ class CaseData {
 
   /// Sahnede dokunularak bulunabilen ipuçları.
   List<Clue> get sceneClues => clues.where((c) => c.sceneId != null).toList();
+
+  /// Oyuncunun tüm yolları deneyerek ulaşabileceği ipuçları
+  /// (sahne + otomatik açılan + çelişkiyle açılan).
+  Set<String> reachableClueIds() {
+    final found = {
+      for (final c in clues)
+        if (c.sceneId != null) c.id,
+    };
+    var changed = true;
+    while (changed) {
+      changed = false;
+      for (final c in clues) {
+        if (!found.contains(c.id) &&
+            c.unlockedByClueIds.isNotEmpty &&
+            c.unlockedByClueIds.every(found.contains)) {
+          changed |= found.add(c.id);
+        }
+      }
+      for (final q in interrogations) {
+        final con = q.contradiction;
+        final unlock = con?.unlocksClueId;
+        if (con == null || unlock == null) continue;
+        if (q.requiresClueIds.every(found.contains) &&
+            con.clueIds.every(found.contains)) {
+          changed |= found.add(unlock);
+        }
+      }
+    }
+    return found;
+  }
 
   /// Veri tutarlılığını kontrol eder; hata listesini döner (boşsa vaka geçerli).
   List<String> validate() {
@@ -149,6 +184,11 @@ class CaseData {
       if (c.sceneId != null && c.area == null) {
         errors.add('İpucu ${c.id}: sahnedeki ipucunun dokunma alanı yok');
       }
+      for (final u in c.unlockedByClueIds) {
+        if (!clueIds.contains(u)) {
+          errors.add('İpucu ${c.id}: açılması için bilinmeyen ipucu $u');
+        }
+      }
       for (final s in c.suspectIds) {
         if (!suspectIds.contains(s)) {
           errors.add('İpucu ${c.id}: bilinmeyen şüpheli $s');
@@ -166,10 +206,10 @@ class CaseData {
       }
       final con = q.contradiction;
       if (con != null) {
-        if (!clueIds.contains(con.clueId)) {
-          errors.add(
-            'Sorgu ${q.id}: çelişki için bilinmeyen ipucu ${con.clueId}',
-          );
+        for (final id in con.clueIds) {
+          if (!clueIds.contains(id)) {
+            errors.add('Sorgu ${q.id}: çelişki için bilinmeyen ipucu $id');
+          }
         }
         final unlock = con.unlocksClueId;
         if (unlock != null && !clueIds.contains(unlock)) {
@@ -177,6 +217,13 @@ class CaseData {
             'Sorgu ${q.id}: çelişkinin açtığı bilinmeyen ipucu $unlock',
           );
         }
+      }
+    }
+    // Her ipucu oyunda bir yolla elde edilebilmeli.
+    final reachable = reachableClueIds();
+    for (final c in clues) {
+      if (!reachable.contains(c.id)) {
+        errors.add('İpucu ${c.id}: oyunda hiçbir yolla bulunamıyor');
       }
     }
     if (!suspectIds.contains(solution.culpritId)) {
@@ -305,6 +352,7 @@ class Clue {
     this.area,
     this.suspectIds = const [],
     this.image,
+    this.unlockedByClueIds = const [],
   });
 
   factory Clue.fromJson(Map<String, dynamic> json) {
@@ -318,6 +366,7 @@ class Clue {
       area: area is Map<String, dynamic> ? HotArea.fromJson(area) : null,
       suspectIds: _strList(json, 'suspectIds'),
       image: _optStr(json, 'image'),
+      unlockedByClueIds: _strList(json, 'unlockedByClueIds'),
     );
   }
 
@@ -325,13 +374,16 @@ class Clue {
   final String title;
   final String description;
 
-  /// Null ise ipucu sahnede değildir, sorgudaki bir çelişkiyle açılır.
+  /// Null ise ipucu sahnede değildir: bir çelişkiyle ya da [unlockedByClueIds] ile açılır.
   final String? sceneId;
   final HotArea? area;
   final List<String> suspectIds;
 
   /// İsteğe bağlı yakın çekim görseli.
   final String? image;
+
+  /// Bu ipuçlarının hepsi bulununca kendiliğinden deftere eklenir (ör. laboratuvar sonucu).
+  final List<String> unlockedByClueIds;
 }
 
 /// Şüpheliye sorulabilecek bir soru.
@@ -373,18 +425,26 @@ class Interrogation {
 /// Belirli ipucu sunulunca açılan çelişki.
 class Contradiction {
   const Contradiction({
-    required this.clueId,
+    required this.clueIds,
     required this.text,
     this.unlocksClueId,
   });
 
-  factory Contradiction.fromJson(Map<String, dynamic> json) => Contradiction(
-    clueId: _req<String>(json, 'clueId', 'çelişki'),
-    text: _req<String>(json, 'text', 'çelişki'),
-    unlocksClueId: _optStr(json, 'unlocksClueId'),
-  );
+  /// Tek kanıt için "clueId", birden çok kanıt için "clueIds" yazılabilir.
+  factory Contradiction.fromJson(Map<String, dynamic> json) {
+    final ids = json['clueIds'] != null
+        ? _strList(json, 'clueIds')
+        : [_req<String>(json, 'clueId', 'çelişki')];
+    if (ids.isEmpty) throw CaseFormatException('Çelişkinin kanıtı yok');
+    return Contradiction(
+      clueIds: ids,
+      text: _req<String>(json, 'text', 'çelişki'),
+      unlocksClueId: _optStr(json, 'unlocksClueId'),
+    );
+  }
 
-  final String clueId;
+  /// Çelişkiyi açan kanıtlar. Hepsi defterde olmalı; biri sunulunca çelişki açılır.
+  final List<String> clueIds;
 
   /// Çelişki açılınca gösterilen metin (şüphelinin tepkisi).
   final String text;
@@ -461,6 +521,7 @@ class WrongAnswer {
     required this.paragraphs,
     this.wrongReasonText,
     this.image,
+    this.hintPenalty = 0,
   });
 
   factory WrongAnswer.fromJson(Map<String, dynamic> json) => WrongAnswer(
@@ -468,7 +529,11 @@ class WrongAnswer {
     paragraphs: _strList(json, 'paragraphs'),
     wrongReasonText: _optStr(json, 'wrongReasonText'),
     image: _optStr(json, 'image'),
+    hintPenalty: (json['hintPenalty'] as num?)?.toInt() ?? 0,
   );
+
+  /// Her yanlış suçlamada eksilen ipucu hakkı.
+  final int hintPenalty;
 
   final String title;
 

@@ -57,7 +57,8 @@ class _SceneScreenState extends State<SceneScreen> {
       );
       return;
     }
-    final earned = await s.ads.showRewarded();
+    // Önce reklamsız ipucu hakkı harcanır, bitince ödüllü reklam istenir.
+    final earned = game.spendFreeHint() || await s.ads.showRewarded();
     if (!mounted) return;
     if (!earned) {
       messenger.showSnackBar(
@@ -199,10 +200,16 @@ class _SceneScreenState extends State<SceneScreen> {
                   ],
                 ),
               ),
-              IconButton.filledTonal(
-                tooltip: 'İpucu (reklam izle)',
-                onPressed: () => _askHint(scene),
-                icon: const Icon(Icons.lightbulb_outline),
+              Badge.count(
+                count: game.freeHintsLeft,
+                isLabelVisible: game.freeHintsLeft > 0,
+                child: IconButton.filledTonal(
+                  tooltip: game.freeHintsLeft > 0
+                      ? 'İpucu (${game.freeHintsLeft} hak)'
+                      : 'İpucu (reklam izle)',
+                  onPressed: () => _askHint(scene),
+                  icon: const Icon(Icons.lightbulb_outline),
+                ),
               ),
             ],
           ),

@@ -77,6 +77,14 @@ class _InterrogationScreenState extends State<InterrogationScreen> {
         messenger.showSnackBar(
           const SnackBar(content: Text('Bu çelişkiyi zaten yakaladın.')),
         );
+      case PresentResult.needsMore:
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Bu kanıt işe yarıyor ama tek başına yetmiyor. Destekleyen bir kanıt daha bul.',
+            ),
+          ),
+        );
       case PresentResult.noEffect:
         audio.playSfx(InterrogationSounds.wrong);
         messenger.showSnackBar(

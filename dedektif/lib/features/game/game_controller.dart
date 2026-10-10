@@ -5,7 +5,7 @@ import '../../models/progress.dart';
 import '../../services/progress_service.dart';
 
 /// Bir ipucunu bir ifadeye sunmanın sonucu.
-enum PresentResult { contradiction, alreadyFound, noEffect }
+enum PresentResult { contradiction, alreadyFound, needsMore, noEffect }
 
 /// Suçlama sonucunun ayrıntısı.
 class AccusationResult {
@@ -50,6 +50,41 @@ class GameController extends ChangeNotifier {
   /// Sahnede ipucuna dokunuldu. Yeni bulunduysa true döner.
   bool collectClue(String clueId) {
     if (!progress.foundClueIds.add(clueId)) return false;
+    _autoUnlock();
+    _changed();
+    return true;
+  }
+
+  /// Koşulu sağlanan ipuçlarını (unlockedByClueIds) deftere ekler.
+  void _autoUnlock() {
+    var added = true;
+    while (added) {
+      added = false;
+      for (final c in data.clues) {
+        if (c.unlockedByClueIds.isNotEmpty &&
+            c.unlockedByClueIds.every(isFound) &&
+            progress.foundClueIds.add(c.id)) {
+          added = true;
+        }
+      }
+    }
+  }
+
+  // ---- İpucu hakkı ----
+
+  /// Kalan reklamsız ipucu hakkı (yanlış suçlamalar hakkı eksiltir).
+  int get freeHintsLeft {
+    final left =
+        data.freeHints -
+        progress.freeHintsSpent -
+        progress.wrongAttempts * data.wrongAnswer.hintPenalty;
+    return left < 0 ? 0 : left;
+  }
+
+  /// Ücretsiz hak varsa harcar ve true döner; yoksa ipucu reklamla alınmalı.
+  bool spendFreeHint() {
+    if (freeHintsLeft <= 0) return false;
+    progress.freeHintsSpent++;
     _changed();
     return true;
   }
@@ -92,12 +127,18 @@ class GameController extends ChangeNotifier {
   PresentResult presentClue(String questionId, String clueId) {
     final q = data.interrogation(questionId);
     final con = q.contradiction;
-    if (con == null || con.clueId != clueId) return PresentResult.noEffect;
-    if (!progress.contradictionIds.add(questionId)) {
+    if (con == null || !con.clueIds.contains(clueId)) {
+      return PresentResult.noEffect;
+    }
+    if (progress.contradictionIds.contains(questionId)) {
       return PresentResult.alreadyFound;
     }
+    // Birden çok kanıt gerekiyorsa hepsi defterde olmalı.
+    if (!con.clueIds.every(isFound)) return PresentResult.needsMore;
+    progress.contradictionIds.add(questionId);
     final unlock = con.unlocksClueId;
     if (unlock != null) progress.foundClueIds.add(unlock);
+    _autoUnlock();
     _changed();
     return PresentResult.contradiction;
   }

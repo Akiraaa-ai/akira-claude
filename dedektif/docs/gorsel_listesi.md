@@ -9,15 +9,16 @@ Sahne görsellerinde ipucu dokunma alanları görselin oranına göre (0–1) ta
 | Ad | Tür | Boyut | Nerede |
 |---|---|---|---|
 | `menu_arkaplan` | Arka plan (dikey) | 1080×1920 px (9:16) | Ana menü |
-| `ornek_vaka_kapak` | Kapak | 1280×720 px (16:9) | ornek_vaka: vaka seçimi kartı |
-| `ornek_vaka_giris` | Arka plan (dikey) | 1080×1920 px (9:16) | ornek_vaka: giriş sahnesi |
-| `ornek_sahne_dukkan` | Sahne (dikey) | 1080×1920 px (9:16) | ornek_vaka: sahne "Dükkân" |
-| `ornek_sahne_depo` | Sahne (dikey) | 1080×1920 px (9:16) | ornek_vaka: sahne "Arka depo" |
-| `ornek_portre_sahip` | Portre | 600×800 px (3:4) | ornek_vaka: Nuri Bey (Sahaf sahibi) |
-| `ornek_portre_cirak` | Portre | 600×800 px (3:4) | ornek_vaka: Deniz (Çırak) |
-| `ornek_portre_musteri` | Portre | 600×800 px (3:4) | ornek_vaka: Selma Hanım (Daimi müşteri) |
-| `ornek_portre_komsu` | Portre | 600×800 px (3:4) | ornek_vaka: Kemal (Yan dükkândaki saatçi) |
-| `ornek_final` | Arka plan (dikey) | 1080×1920 px (9:16) | ornek_vaka: final sahnesi |
+| `vaka_01_kapak` | Kapak | 1280×720 px (16:9) | vaka_01: vaka seçimi kartı |
+| `vaka_01_giris` | Arka plan (dikey) | 1080×1920 px (9:16) | vaka_01: giriş sahnesi |
+| `vaka_01_sahne_calisma_odasi` | Sahne (dikey) | 1080×1920 px (9:16) | vaka_01: sahne "Çalışma odası" |
+| `vaka_01_sahne_mutfak` | Sahne (dikey) | 1080×1920 px (9:16) | vaka_01: sahne "Mutfak" |
+| `vaka_01_sahne_guvenlik` | Sahne (dikey) | 1080×1920 px (9:16) | vaka_01: sahne "Güvenlik kayıtları" |
+| `vaka_01_portre_selma` | Portre | 600×800 px (3:4) | vaka_01: Selma Aksoy (eş, 58) |
+| `vaka_01_portre_kerem` | Portre | 600×800 px (3:4) | vaka_01: Kerem Aksoy (yeğen, 31) |
+| `vaka_01_portre_aylin` | Portre | 600×800 px (3:4) | vaka_01: Dr. Aylin Demirtaş (aile doktoru, 45) |
+| `vaka_01_portre_hasan` | Portre | 600×800 px (3:4) | vaka_01: Hasan Usta (kâhya, 60) |
+| `vaka_01_final` | Arka plan (dikey) | 1080×1920 px (9:16) | vaka_01: final sahnesi |
 
 ## Sesler
 
@@ -32,8 +33,6 @@ Sahne görsellerinde ipucu dokunma alanları görselin oranına göre (0–1) ta
 | `yanlis` | Genel: Sunulan ipucu çelişmeyince |
 | `cozuldu` | Genel: Vaka çözülünce |
 | `yanlis_suclama` | Genel: Yanlış suçlamada |
-| `ornek_giris_seslendirme` | ornek_vaka: giriş voice (0 ms) |
-| `gok_gurultusu` | ornek_vaka: giriş sfx (1500 ms) |
-| `ornek_muzik` | ornek_vaka: soruşturma müziği (döngü) |
-| `ornek_gerilim` | ornek_vaka: suçlama gerilim müziği (döngü) |
-| `ornek_final` | ornek_vaka: final müziği |
+| `vaka_01_muzik` | vaka_01: soruşturma müziği (döngü) |
+| `vaka_01_gerilim` | vaka_01: suçlama gerilim müziği (döngü) |
+| `vaka_01_final` | vaka_01: final müziği |
