@@ -20,7 +20,25 @@ const FACE_META = [
 ];
 
 
-// ══════════ FOOTBALL CAREER SIMULATOR v33.0 ══════════
+// ══════════ FOOTBALL CAREER SIMULATOR v34.0 ══════════
+//
+// ─── v34: HATA DÜZELTMELERİ ve KARİYER ODAĞI ─────────────────────────
+//  · Kariyeri .json dosyasına indir / dosyadan boş slota yükle (slot ekranı
+//    ve Ayarlar > Veri). Tarayıcı ya da dosya konumu değişince kayıt kaybı biter.
+//  · Kayıt artık her setState'te değil, kısa gecikmeyle tek yazımda; sayfa
+//    kapanırken ve slot ekranına dönerken bekleyen kayıt hemen yazılır.
+//    Kayıt hatası (depolama dolu vb.) oyuncuya gösterilir, tek tıkla yedek iner.
+//  · migrateSave: eski / içe aktarılan kayıtlar yüklemede doğrulanıp yükseltilir
+//  · GAME_VERSION v34.0 (ekranlarda v31 / v9 yazıyordu)
+//  · 25 sn'lik açılış filmi atlanabilir; bir kez görülünce tekrar gösterilmez
+//  · ⚡ HEMEN OYNA: rastgele genç oyuncu, Süper Lig'de orta ölçekli kulüp
+//  · Ls* yatay ekranları <LsX/> yerine LsX() ile çağrılıyor: her render'da
+//    alt ağaç sıfırdan kurulmuyor (kaydırma/animasyon sıfırlanması bitti)
+//  · Yatay maç ekranında kadro dışı / cezalı / sakatken "Haftayı Geç" ve
+//    "Yedek Takımda Oyna" yoktu, kariyer tıkanıyordu — eklendi
+//  · Maç günü hakemi her render'da değişmiyor
+//  · Futbol odaklı mod (varsayılan açık): Özel Hayat menüsü gizlenir,
+//    Ayarlar > Oynanış'tan geri açılır
 //
 // ─── v33: GÖRSEL DİL ve MEKANİK SİMÜLASYON ───────────────────────────
 //  · 40 ikonluk SVG seti — arayüzdeki 1597 emoji'nin yerine tek çizim
@@ -271,7 +289,7 @@ const FACE_META = [
 const SAVE_PREFIX = "fc_v29_slot";   // v30 yalnızca görsel: kayıt biçimi değişmedi, kariyerler korunur
 const SAVE_SLOTS = 3;                         // üç bağımsız kariyer
 const LEGACY_SAVE_KEYS = ["fc_v28_slot1","fc_v27_slot1","fc_v26","fc_v25","fc_v24","fc_v23","fc_v22","fc_v21"];
-const GAME_VERSION = "v31.0";
+const GAME_VERSION = "v34.0";
 const slotKey = (n) => `${SAVE_PREFIX}${n}`;
 // Kaydedilecek alanların tam listesi — yeni bir state eklersen buraya da ekle.
 const SAVE_FIELDS = [
@@ -281,21 +299,109 @@ const SAVE_FIELDS = [
   "leagueScorers","europeanSpot","titlesWonThisSeason","freeAgent","rivalDMLog","market","portfolio",
   "euroCup","seasonObjectives","matchObjectives","lastHeat",
 ];
+// Kayıt yükü: SAVE_FIELDS + sürüm etiketi. Dışa aktarma da aynı biçimi kullanır.
+const buildSavePayload = (d, slot = 1) => {
+  const payload = { _version: GAME_VERSION, _savedAt: Date.now(), _slot: slot };
+  for (const k of SAVE_FIELDS) if (d[k] !== undefined) payload[k] = d[k];
+  return payload;
+};
+// Başarılıysa null, değilse oyuncuya gösterilecek hata metni döner.
+// (Eskiden hata yalnızca konsola yazılıyordu; oyuncu kaydın düştüğünü fark etmiyordu.)
 const saveGame = (d, slot = 1) => {
   try {
-    const payload = { _version: GAME_VERSION, _savedAt: Date.now(), _slot: slot };
-    for (const k of SAVE_FIELDS) if (d[k] !== undefined) payload[k] = d[k];
-    localStorage.setItem(slotKey(slot), JSON.stringify(payload));
-  } catch(e) { console.warn("Kayıt hatası:", e); }
+    localStorage.setItem(slotKey(slot), JSON.stringify(buildSavePayload(d, slot)));
+    return null;
+  } catch(e) {
+    console.warn("Kayıt hatası:", e);
+    const full = e && (e.name === "QuotaExceededError" || e.code === 22);
+    return full ? "Tarayıcı depolaması dolu, ilerleme kaydedilemedi. Ayarlar'dan kariyeri dosyaya indir."
+                : "İlerleme kaydedilemedi. Ayarlar'dan kariyeri dosyaya indirerek yedek al.";
+  }
+};
+// Eski sürüm kayıtlarını bugünkü biçime yükseltir. Eksik alanlar oyun içinde
+// zaten varsayılanlarla dolduruluyor; burada yalnızca yapısal düzeltmeler var.
+const migrateSave = (d) => {
+  if (!d || typeof d !== "object" || !d.player || typeof d.player !== "object") return null;
+  const out = { ...d };
+  if (!out.club || typeof out.club !== "object" || !out.club.name) return null;
+  if (!Number.isFinite(out.season) || out.season < 1) out.season = 1;
+  if (!Number.isFinite(out.week) || out.week < 1) out.week = 1;
+  for (const k of ["standings","log","teammates","fixtures","seasonHistory","leagueScorers","rpLog","playerDiary","rivalDMLog"])
+    if (out[k] !== undefined && out[k] !== null && !Array.isArray(out[k])) delete out[k];
+  out._loadedFrom = out._version || "eski";
+  out._version = GAME_VERSION;
+  return out;
 };
 const loadSlot = (slot) => {
   try {
     const s = localStorage.getItem(slotKey(slot));
     if (!s) return null;
-    const d = JSON.parse(s);
-    return (d && d.player) ? d : null;
+    return migrateSave(JSON.parse(s));
   } catch(e) { return null; }
 };
+// ── Dosyaya dışa / dosyadan içe aktarma ──
+// Kayıtlar tarayıcıya ve dosya konumuna bağlı olduğu için kariyer kolayca
+// kaybolabiliyordu. Artık her kariyer .json dosyası olarak indirilip başka bir
+// tarayıcıda / bilgisayarda geri yüklenebilir.
+const SAVE_FILE_TAG = "nextgent-career";
+const exportSaveData = (d, slot) => {
+  const payload = { _format: SAVE_FILE_TAG, ...(d && d._version ? d : buildSavePayload(d || {}, slot)) };
+  const safe = (payload.player?.name || "kariyer").replace(/[^\p{L}\p{N}_-]+/gu, "_").slice(0, 32);
+  const fname = `NextGent_${safe}_S${payload.season || 1}H${payload.week || 1}.json`;
+  try {
+    const json = JSON.stringify(payload);
+    const a = document.createElement("a");
+    // Oyun çoğunlukla çift tıklanıp file:// adresinden açılıyor; Chrome orada blob
+    // bağlantılarında dosya adını yok sayıp "download" diye kaydediyor. data: adresi
+    // adı koruyor, bu yüzden file:// altında onu kullan.
+    let url = null;
+    if (location.protocol === "file:") a.href = "data:application/json;charset=utf-8," + encodeURIComponent(json);
+    else { url = URL.createObjectURL(new Blob([json], { type: "application/json" })); a.href = url; }
+    a.download = fname;
+    document.body.appendChild(a); a.click(); a.remove();
+    if (url) setTimeout(() => URL.revokeObjectURL(url), 2000);
+    return null;
+  } catch(e) { return "Dosya oluşturulamadı: " + (e?.message || e); }
+};
+const exportSlot = (slot) => {
+  const d = loadSlot(slot);
+  if (!d) return "Bu slotta kayıt yok.";
+  return exportSaveData(d, slot);
+};
+// Dosyayı okuyup slota yazar. Sonuç: {ok:true,name} ya da {ok:false,error}
+const importSaveFile = (file, slot) => new Promise((resolve) => {
+  if (!file) return resolve({ ok:false, error:"Dosya seçilmedi." });
+  if (file.size > 15 * 1024 * 1024) return resolve({ ok:false, error:"Dosya çok büyük, bu bir NextGent kaydı değil gibi görünüyor." });
+  const r = new FileReader();
+  r.onerror = () => resolve({ ok:false, error:"Dosya okunamadı." });
+  r.onload = () => {
+    try {
+      const raw = JSON.parse(String(r.result || ""));
+      const d = migrateSave(raw);
+      if (!d) return resolve({ ok:false, error:"Bu dosya geçerli bir NextGent kariyer kaydı değil." });
+      delete d._format;
+      d._slot = slot; d._savedAt = Date.now();
+      localStorage.setItem(slotKey(slot), JSON.stringify(d));
+      resolve({ ok:true, name:d.player.name });
+    } catch(e) {
+      resolve({ ok:false, error: e?.name === "QuotaExceededError" ? "Tarayıcı depolaması dolu." : "Dosya bozuk ya da tanınmayan biçimde." });
+    }
+  };
+  r.readAsText(file);
+});
+// Gizli bir <input type=file> açar; seçilen dosyayı onFile'a verir.
+const pickFile = (onFile) => {
+  const inp = document.createElement("input");
+  inp.type = "file";   // accept filtresi yok: uzantısı kaybolmuş yedekler de seçilebilsin, içerik zaten doğrulanıyor
+  inp.onchange = () => { const f = inp.files && inp.files[0]; if (f) onFile(f); };
+  inp.click();
+};
+// ── Oyun tercihleri (kayıttan bağımsız, tarayıcıya özel) ──
+const PREF_SPLASH_SEEN = "fc_splash_seen";
+const PREF_FOCUS = "fc_focus_mode";   // "1" = futbol odaklı mod (yan sistemler gizli)
+const getPref = (k, def = null) => { try { const v = localStorage.getItem(k); return v === null ? def : v; } catch(e) { return def; } };
+const setPref = (k, v) => { try { localStorage.setItem(k, v); } catch(e) {} };
+const isFocusMode = () => getPref(PREF_FOCUS, "1") === "1";
 // Tüm slotların özetini döndürür (yükleme ekranı için)
 const listSlots = () => {
   const out = [];
@@ -948,6 +1054,20 @@ const POS_CHANGE_MIN_MATCHES={1:10,2:20,3:35};  // Minimum maç sayısı
 function ageGrow(age,diff){
   const b=age<=19?1:age<=23?.65:age<=27?.3:age<=31?.12:age<=34?.04:0;
   return b*(diff?.growMod||1);
+}
+
+// "Hemen Oyna": rastgele 17-19 yaş oyuncu, Süper Lig'de orta ölçekli (prestij 3-5) kulüp.
+const QUICK_FIRST=["Arda","Kerem","Emir","Yusuf","Mert","Kaan","Efe","Barış","Can","Deniz","Ozan","Berk","Eren","Umut","Batuhan"];
+const QUICK_LAST=["Yılmaz","Kaya","Demir","Şahin","Çelik","Aydın","Öztürk","Arslan","Doğan","Koç","Kurt","Özdemir","Aksoy","Erdem","Polat"];
+function mkQuickStart(){
+  const pos=pick(["ST","ST","CAM","CM","LW","RW","CB","CDM","LB","RB"]);
+  const age=rand(17,19);
+  const pool=CLUBS.filter(c=>c.leagueId==="superlig"&&c.prestige>=3&&c.prestige<=5);
+  const club=pool.length?pick(pool):pick(CLUBS.filter(c=>c.leagueId==="superlig"));
+  const player=mkPlayer({name:`${pick(QUICK_FIRST)} ${pick(QUICK_LAST)}`,age,nat:NATS[0],pos,foot:pick(["Sağ","Sağ","Sol"])});
+  player.avatar={skin:rand(0,AV_SKIN.length-1),hair:rand(0,AV_HAIR.length-1),
+    hairStyle:rand(0,AV_HAIR_STYLE.length-1),expr:1,beard:0,tattoo:0};
+  return {player,club};
 }
 
 function getInterestedClubs(age,lgId,academy){
@@ -4856,12 +4976,12 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
   };
 
   if(landscape){
-    if(phase==="result") return <LsResult/>;
-    if(phase==="press")  return <LsPress/>;
+    if(phase==="result") return LsResult();
+    if(phase==="press")  return LsPress();
     // canlı faz: yarı arası / kritik an / mini oyun modalleri portre akışın aynısı,
     // altlarındaki ana panel yatay olur.
     return(<>
-      <LsLive/>
+      {LsLive()}
       {burst&&<ComicBurst kind={burst.kind} onDone={()=>setBurst(null)}/>}
       <Confetti active={confActive}/>
       {showGoalAnim&&<GoalAnimation goals={liveScore.home} playerName={player.name}
@@ -7033,7 +7153,7 @@ function CharCreate({onStart,onBack}){
     <div style={{position:"fixed",inset:0,background:"radial-gradient(ellipse 80% 50% at 50% -10%,#00d4ff15,transparent)",pointerEvents:"none"}}/>
     <div style={{position:"relative",width:"100%",maxWidth:420,zIndex:1}}>
       <div style={{textAlign:"center",marginBottom:18}}>
-        <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:10,letterSpacing:1,color:C.accent,marginBottom:5}}>⚽ FOOTBALL CAREER v9</div>
+        <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:10,letterSpacing:1,color:C.accent,marginBottom:5}}>⚽ FOOTBALL CAREER {GAME_VERSION}</div>
         <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:20,fontWeight:900,color:C.text,lineHeight:1.2}}>
           {["KARAKTERİNİ","ZORLUK","LİGİNİ","KULÜBÜNÜ"][step]}<br/><span style={{color:C.accent}}>{["OLUŞTUR","SEÇ","SEÇ","SEÇ"][step]}</span>
         </div>
@@ -7649,14 +7769,50 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
   const burnoutWarned=useRef(false);
   const [gameBurst,setGameBurst]=useState(null);   // seviye/şampiyonluk patlaması
 
+  // ── KAYIT ──
+  // Bir hafta ilerletmek onlarca setState tetikliyor; eskiden her biri tüm
+  // kariyeri yeniden JSON'a çevirip localStorage'a yazıyordu. Artık değişiklikler
+  // kısa bir gecikmeyle tek yazıma birleşiyor, sayfa kapanırken / slot ekranına
+  // dönerken bekleyen kayıt hemen yazılıyor ve hata olursa oyuncu görüyor.
+  const [saveError,setSaveError]=useState(null);
+  const saveTimer=useRef(null);
+  const pendingSave=useRef(null);
+  const flushSave=useCallback(()=>{
+    if(saveTimer.current){clearTimeout(saveTimer.current);saveTimer.current=null;}
+    const d=pendingSave.current; pendingSave.current=null;
+    if(!d) return;
+    const err=saveGame(d,slot);
+    setSaveError(prev=>prev===err?prev:err);
+  },[slot]);
+  // Slot silindiğinde bekleyen kayıt onu geri yaratmasın.
+  const cancelSave=()=>{
+    if(saveTimer.current){clearTimeout(saveTimer.current);saveTimer.current=null;}
+    pendingSave.current=null;
+  };
+  const exitGame=()=>{flushSave();if(onExit)onExit();};
   useEffect(()=>{
-    saveGame({player,club,season,week,diffId,tactic,contract,standings,rival,seasonHistory,social,log,
+    const onHide=()=>flushSave();
+    const onVis=()=>{if(document.visibilityState==="hidden")flushSave();};
+    window.addEventListener("pagehide",onHide);
+    window.addEventListener("beforeunload",onHide);
+    document.addEventListener("visibilitychange",onVis);
+    return()=>{
+      window.removeEventListener("pagehide",onHide);
+      window.removeEventListener("beforeunload",onHide);
+      document.removeEventListener("visibilitychange",onVis);
+      flushSave();
+    };
+  },[flushSave]);
+  useEffect(()=>{
+    pendingSave.current={player,club,season,week,diffId,tactic,contract,standings,rival,seasonHistory,social,log,
       teammates,fixtures,weather,trained,girlfriend,rpLog,manager,playerDiary,careerRecords,
       followers,wheelSpinsLeft,transferBan,leagueScorers,europeanSpot,titlesWonThisSeason,freeAgent,rivalDMLog,
-      market,portfolio,euroCup,seasonObjectives,matchObjectives,lastHeat},slot);
+      market,portfolio,euroCup,seasonObjectives,matchObjectives,lastHeat};
+    if(saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current=setTimeout(flushSave,500);
   },[player,club,season,week,contract,standings,rival,seasonHistory,social,log,teammates,fixtures,weather,
      trained,girlfriend,rpLog,manager,playerDiary,careerRecords,followers,wheelSpinsLeft,
-     transferBan,leagueScorers,europeanSpot,titlesWonThisSeason,freeAgent,rivalDMLog,diffId,tactic,market,portfolio,euroCup,seasonObjectives,matchObjectives,lastHeat,slot]);
+     transferBan,leagueScorers,europeanSpot,titlesWonThisSeason,freeAgent,rivalDMLog,diffId,tactic,market,portfolio,euroCup,seasonObjectives,matchObjectives,lastHeat,flushSave]);
 
   // Sezon hedefleri yoksa (yeni kariyer / eski kayıt) bir kez üret
   useEffect(()=>{
@@ -9049,7 +9205,9 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
   ];
   // ══════════ YATAY EKRANLAR ══════════
   const landscape=useLandscape();
-  const refName=useRef(`${pick(TEAMMATE_FIRST_NAMES)} ${pick(TEAMMATE_LAST_NAMES)}`);
+  // Hakem adı sezon+haftadan türetilir: aynı maçta ekran her yenilendiğinde değişmez.
+  const refereeFor=(sn,wk)=>{const h=(sn*131+wk*17)>>>0;
+    return `${TEAMMATE_FIRST_NAMES[h%TEAMMATE_FIRST_NAMES.length]} ${TEAMMATE_LAST_NAMES[(h*7+3)%TEAMMATE_LAST_NAMES.length]}`;};
   const levelPct=(()=>{
     const cur=xpForLevel(player.level||1), next=xpForLevel((player.level||1)+1);
     return next>cur?((player.xp-cur)/(next-cur))*100:0;
@@ -9416,12 +9574,11 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
     const table=sortTable(standings);
     const myPos=table.findIndex(t=>t.isMe)+1;
     const opPos=table.findIndex(t=>t.name===fo.name)+1;
-    const ref=`${pick(TEAMMATE_FIRST_NAMES)} ${pick(TEAMMATE_LAST_NAMES)}`;
     const wIco=/Yağmur/i.test(weather?.name||"")?"rain":/Kar/i.test(weather?.name||"")?"snow"
       :/Rüzgar|Fırtına/i.test(weather?.name||"")?"wind":/Bulut|Kapalı/i.test(weather?.name||"")?"cloud":"sun";
     const rows=[
       ["stadium","Stadyum",fo.isHome?`${club.name} Arena`:`${fo.name} Arena`],
-      ["squad","Hakem",refName.current],
+      ["squad","Hakem",refereeFor(season,week)],
       [wIco,"Hava",`${weather?.name||"Açık"}, ${12+((week*3)%14)}°C`],
       ["clock","Tahmini başlangıç",`${18+(week%3)}:00`],
     ];
@@ -9558,6 +9715,20 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
     {gameBurst&&<ComicBurst kind={gameBurst.kind} text={gameBurst.text} onDone={()=>setGameBurst(null)}/>}
 
     {/* TOAST */}
+    {saveError&&<div role="alert" style={{position:"fixed",bottom:12,left:"50%",transform:"translateX(-50%)",zIndex:1001,
+      maxWidth:"min(440px,calc(100vw - 24px))",background:C.card,border:`1px solid ${C.red}`,borderRadius:10,
+      padding:"9px 12px",display:"flex",alignItems:"center",gap:10,boxShadow:`0 4px 18px ${C.red}44`}}>
+      <span style={{fontSize:16}}>⚠️</span>
+      <span style={{flex:1,fontSize:11,color:C.text,lineHeight:1.4}}>{saveError}</span>
+      <Btn v="red" style={{fontSize:10,padding:"6px 10px",flexShrink:0}}
+        onClick={()=>{const err=exportSaveData(buildSavePayload(pendingSave.current||{player,club,season,week,diffId,tactic,contract,
+          standings,rival,seasonHistory,social,log,teammates,fixtures,weather,trained,girlfriend,rpLog,manager,playerDiary,
+          careerRecords,followers,wheelSpinsLeft,transferBan,leagueScorers,europeanSpot,titlesWonThisSeason,freeAgent,
+          rivalDMLog,market,portfolio,euroCup,seasonObjectives,matchObjectives,lastHeat},slot),slot);
+          notify(err||"💾 Yedek indirildi",err?C.red:C.green);}}>İndir</Btn>
+      <button onClick={()=>setSaveError(null)} aria-label="Kapat"
+        style={{background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:14}}>✕</button>
+    </div>}
     {toast&&<div style={{position:"fixed",top:10,left:"50%",transform:"translateX(-50%)",background:C.card,border:`1px solid ${toast.c}`,borderRadius:9,padding:"7px 14px",zIndex:1000,color:toast.c,fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:12,whiteSpace:"nowrap",boxShadow:`0 4px 16px ${toast.c}44`}}>{toast.msg}</div>}
 
     {/* MODALS */}
@@ -10044,7 +10215,8 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
     </div>}
 
     {showGameSettings&&<SettingsModal onClose={()=>setShowGameSettings(false)}
-      onWipe={()=>{setShowGameSettings(false);if(onExit)onExit();}}/>}
+      slot={slot} onExport={()=>{flushSave();return exportSlot(slot);}}
+      onWipe={()=>{cancelSave();setShowGameSettings(false);if(onExit)onExit();}}/>}
 
     {/* ══════════ GELİŞİM: YETENEK PUANI ve ROZETLER ══════════ */}
     {showPerks&&<div style={{position:"fixed",inset:0,background:"#000000f2",zIndex:430,overflowY:"auto",padding:16}}>
@@ -10560,8 +10732,12 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           </div>
         </Card>
 
+        <Btn v="ghost" style={{width:"100%",marginBottom:8}}
+          onClick={()=>{flushSave();const err=exportSlot(slot);notify(err||"💾 Kariyer dosyası indirildi",err?C.red:C.green);}}>
+          💾 Kariyeri Dosyaya İndir (hatıra)
+        </Btn>
         <Btn v="gold" style={{width:"100%",padding:14,fontSize:14}}
-          onClick={()=>{clearSlot(slot);onExit?onExit():window.location.reload();}}>
+          onClick={()=>{cancelSave();clearSlot(slot);onExit?onExit():window.location.reload();}}>
           🔄 YENİ KARİYERE BAŞLA
         </Btn>
         <Btn v="ghost" style={{width:"100%",marginTop:8}} onClick={()=>setCareerEnd(null)}>
@@ -11211,21 +11387,21 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             </button>
           ))}
           <div style={{height:1,background:C.border,margin:"8px 0"}}/>
-          {/* Özel */}
-          <button onClick={()=>{setShowDrawer(false);setShowRPMenu(true);}}
+          {/* Özel — futbol odaklı modda gizli (Ayarlar > Oynanış) */}
+          {!isFocusMode()&&<button onClick={()=>{setShowDrawer(false);setShowRPMenu(true);}}
             style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"9px 10px",borderRadius:8,border:"none",background:"transparent",cursor:"pointer",color:"#f472b6",textAlign:"left",marginBottom:1}}
             onMouseOver={e=>e.currentTarget.style.background="#f472b612"}
             onMouseOut={e=>e.currentTarget.style.background="transparent"}>
             <span style={{fontSize:16,width:22,textAlign:"center"}}>❤️</span>
             <span style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:13,letterSpacing:0}}>Özel Hayat</span>
-          </button>
+          </button>}
           <button onClick={()=>{setShowGameSettings(true);setShowDrawer(false);}}
             style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"9px 10px",borderRadius:8,
               border:"none",background:`${C.muted}14`,cursor:"pointer",color:C.text,textAlign:"left",
               marginBottom:4,fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:13}}>
             <span style={{fontSize:16}}>⚙️</span> Ayarlar
           </button>
-          <button onClick={()=>{if(onExit){onExit();}}}
+          <button onClick={exitGame}
             style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"9px 10px",borderRadius:8,
               border:"none",background:`${C.red}14`,cursor:"pointer",color:C.red,textAlign:"left",
               marginBottom:4,fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:13}}>
@@ -11361,7 +11537,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
       : {padding:"13px 13px 88px",position:"relative",zIndex:1}}>
 
     {/* ── ANA (yatay) ── */}
-    {tab==="Ana"&&landscape&&<LsMainMenu/>}
+    {tab==="Ana"&&landscape&&LsMainMenu()}
     {/* ── ANA (dikey) ── */}
     {tab==="Ana"&&!landscape&&<div className="si">
 
@@ -11686,7 +11862,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
       {log.length>0&&<Card><Lbl>Log</Lbl>{log.slice(0,7).map(l=>(<div key={l.id} style={{fontSize:9,color:C.muted,borderBottom:`1px solid ${C.border}`,paddingBottom:3,marginBottom:3}}><span style={{color:C.accent,fontSize:8}}>S{l.season}·H{l.week} </span>{l.msg}</div>))}</Card>}
     </div>}
 
-    {tab==="Maç"&&!player.academy&&landscape&&<LsMatchDay/>}
+    {tab==="Maç"&&!player.academy&&landscape&&LsMatchDay()}
     {tab==="Maç"&&!player.academy&&!landscape&&<div className="si">
       {player.injuryWeeks>0?(<Card glow gc={C.red} style={{textAlign:"center",padding:20}}>
         <div style={{fontSize:32,marginBottom:6}}>🚑</div>
@@ -12204,7 +12380,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
     {tab==="Kadro"&&<TeammatesTab player={player} club={club} teammates={teammates}/>}
 
     {/* ── TRANSFER ── */}
-    {tab==="Transfer"&&landscape&&<LsTransferDesk/>}
+    {tab==="Transfer"&&landscape&&LsTransferDesk()}
     {tab==="Transfer"&&!landscape&&<div className="si">
       {/* Transfer dönemi ve sözleşme durumu */}
       <Card style={{marginBottom:9,borderColor:isTransferWindow(week,SEASON_WEEKS)?C.green+"44":C.border}}>
@@ -12612,15 +12788,21 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
     {/* ═══ ALT AKSİYON BARI (yatay) ═══ */}
     {landscape&&(()=>{
       const blocked=week>SEASON_WEEKS||player.retired||freeAgent||player.injuryWeeks>0||player.banWeeks>0;
+      // Cezalı / sakat / kulüpsüz ya da kadro dışıyken yatay maç ekranında haftayı
+      // ilerletecek düğme yoktu: oyuncu "Ana Menü"ye dönmeyi bilmezse kariyer tıkanıyordu.
+      const canSkip=!player.retired&&week<=SEASON_WEEKS&&(freeAgent||player.banWeeks>0||player.injuryWeeks>0||myRole.id==="out");
+      const canReserve=myRole.id==="out"&&!player.injuryWeeks&&!player.banWeeks&&!freeAgent&&!player.retired&&week<=SEASON_WEEKS;
       if(tab==="Maç"&&!player.academy) return(<ActionBar
         back={()=>{setNavTab("Ana");}}
         secondary={[
           {label:"Taktikler",ico:"tactics",onClick:()=>setShowSquadStatus(true)},
           {label:"Basın",ico:"mic",onClick:()=>openPress("pre")},
-          {label:"Hızlı Simülasyon",ico:"skip",disabled:blocked,
-           onClick:()=>{ if(blocked){notify("Şu an maç oynayamazsın.",C.orange);return;} setShowMatch(true); }},
+          canReserve?{label:"Yedek Takımda Oyna",ico:"squad",onClick:playReserveMatch}:null,
+          canSkip&&!blocked?{label:"Haftayı Geç",ico:"skip",onClick:skipWeek}
+            :{label:"Hızlı Simülasyon",ico:"skip",disabled:blocked,
+              onClick:()=>{ if(blocked){notify("Şu an maç oynayamazsın.",C.orange);return;} setShowMatch(true); }},
         ]}
-        primary={{label:"Maça Başla",ico:"ball",disabled:blocked,
+        primary={blocked&&canSkip?{label:"Haftayı Geç",ico:"skip",onClick:skipWeek}:{label:"Maça Başla",ico:"ball",disabled:blocked,
           onClick:()=>{
             if(freeAgent){notify("Kulübün yok — önce bir teklifi kabul et!",C.orange);setShowFreeAgency(true);return;}
             if(player.injuryWeeks>0){notify(`🚑 Sakatsın — ${player.injuryWeeks} hafta daha yok.`,C.red);return;}
@@ -13112,6 +13294,10 @@ function SplashScreen({onDone}){
   return(
     <div style={{position:"fixed",inset:0,zIndex:9999,background:"#040710",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",overflow:"hidden",fontFamily:"'Fredoka',sans-serif"}}>
       <style>{SPLASH_CSS_STR}</style>
+      <button onClick={()=>onDone()} aria-label="Açılış filmini atla"
+        style={{position:"absolute",right:18,bottom:18,zIndex:5,padding:"8px 16px",borderRadius:99,
+          border:"1px solid #ffffff33",background:"#ffffff12",color:"#fff",cursor:"pointer",
+          fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:13,letterSpacing:0.3}}>Atla ›</button>
 
       {/* --- Arka plan: parçacıklar --- */}
       {particles.map(p=>(
@@ -13157,7 +13343,7 @@ function SplashScreen({onDone}){
         }}>
           FOOTBALL<br/><span style={{color:C.gold}}>CAREER</span>
         </div>
-        <div style={{fontSize:9,color:C.muted,letterSpacing:1,marginTop:6}}>v9 — Kariyer Simülasyonu</div>
+        <div style={{fontSize:9,color:C.muted,letterSpacing:1,marginTop:6}}>{GAME_VERSION} — Kariyer Simülasyonu</div>
         <div style={{
           width:160,height:2,margin:"8px auto 0",
           background:`linear-gradient(90deg,transparent,${C.accent},transparent)`,
@@ -13371,8 +13557,10 @@ function SplashScreen({onDone}){
 // ══════════════════════════════════════════════════════════════════
 //  AYARLAR MENÜSÜ — ses, simülasyon hızı, veri sıfırlama
 // ══════════════════════════════════════════════════════════════════
-function SettingsModal({onClose,onWipe}){
+function SettingsModal({onClose,onWipe,slot,onExport}){
   useThemeTick();
+  const [focus,setFocus]=useState(isFocusMode);
+  const [exportMsg,setExportMsg]=useState(null);
   const [themeId,setThemeId]=useState(ACTIVE_THEME.id);
   const [on,setOn]=useState(sfxSettings.on);
   const [vol,setVol]=useState(sfxSettings.vol);
@@ -13477,9 +13665,35 @@ function SettingsModal({onClose,onWipe}){
         <div style={{fontSize:10,color:C.muted,marginTop:8}}>Canlı maçta olayların akış hızı.</div>
       </Card>
 
+      {/* OYNANIŞ */}
+      <Card style={{marginBottom:10}}>
+        <Lbl c={C.accent}>OYNANIŞ</Lbl>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:12}}>Futbol odaklı mod</div>
+            <div style={{fontSize:10,color:C.muted,marginTop:3,lineHeight:1.5}}>
+              Açıkken özel hayat / gece kulübü menüsü gizlenir; oyun sahadaki kariyerine odaklanır.
+            </div>
+          </div>
+          <button aria-pressed={focus} onClick={()=>{const n=!focus;setFocus(n);setPref(PREF_FOCUS,n?"1":"0");playSfx("tab");}}
+            style={{width:52,height:28,borderRadius:14,border:`1px solid ${focus?C.green:C.border}`,flexShrink:0,
+              background:focus?`${C.green}33`:C.card2,cursor:"pointer",position:"relative",padding:0}}>
+            <span style={{position:"absolute",top:3,left:focus?26:3,width:20,height:20,borderRadius:10,
+              background:focus?C.green:C.muted,transition:"left .18s ease"}}/>
+          </button>
+        </div>
+      </Card>
+
       {/* VERİ */}
       <Card>
         <Lbl c={C.red}>VERİ</Lbl>
+        {onExport&&<>
+          <Btn v="pri" style={{width:"100%",fontSize:12,marginBottom:6}}
+            onClick={()=>{const err=onExport();setExportMsg(err?{t:err,c:C.red}:{t:"Kariyer dosyası indirildi. Başka bir tarayıcıda slot ekranındaki \"Dosyadan Yükle\" ile açabilirsin.",c:C.green});}}>
+            💾 Bu Kariyeri Dosyaya İndir
+          </Btn>
+          {exportMsg&&<div style={{fontSize:10,color:exportMsg.c,marginBottom:8,lineHeight:1.5}}>{exportMsg.t}</div>}
+        </>}
         {!confirmWipe
           ? <Btn v="red" style={{width:"100%",fontSize:12}} onClick={()=>setConfirmWipe(true)}>
               🗑️ Tüm Kayıtları Sil
@@ -13503,14 +13717,16 @@ export default function App(){
   // CSS text-transform:uppercase Türkçe kurallarını ancak dil "tr" ise uygular
   // (aksi halde "Teklif" → "TEKLIF" oluyor, "TEKLİF" olması gerekiyor).
   useEffect(()=>{ try{ document.documentElement.lang="tr"; }catch(e){} },[]);
-  const [splash,setSplash]=useState(true);
+  const [splash,setSplash]=useState(()=>getPref(PREF_SPLASH_SEEN)!=="1");
+  const [menuMsg,setMenuMsg]=useState(null);   // slot ekranı bildirimi {t,c}
+  const flash=(t,c=C.green)=>{setMenuMsg({t,c});setTimeout(()=>setMenuMsg(m=>m&&m.t===t?null:m),4000);};
   const [gd,setGd]=useState(null);
   const [slots,setSlots]=useState(()=>{migrateLegacy();return listSlots();});
   const [showSettings,setShowSettings]=useState(false);
   const [confirmDel,setConfirmDel]=useState(null);
   const refresh=()=>setSlots(listSlots());
 
-  if(splash) return <SplashScreen onDone={()=>setSplash(false)}/>;
+  if(splash) return <SplashScreen onDone={()=>{setPref(PREF_SPLASH_SEEN,"1");setSplash(false);}}/>;
 
   // Yeni kariyer → karakter oluşturma
   if(gd&&gd.__new) return <CharCreate onStart={(p,c,d)=>{
@@ -13540,6 +13756,15 @@ export default function App(){
         <div style={{fontSize:10,color:C.muted,letterSpacing:0.6,marginTop:4}}>KARİYER SİMÜLATÖRÜ {GAME_VERSION}</div>
       </div>
 
+      {menuMsg&&<div role="status" style={{marginBottom:10,padding:"8px 11px",borderRadius:R.sm,fontSize:11,lineHeight:1.5,
+        border:`1px solid ${menuMsg.c}`,background:`${menuMsg.c}14`,color:menuMsg.c}}>{menuMsg.t}</div>}
+
+      {slots.some(s=>s.empty)&&<Btn v="gold" style={{width:"100%",padding:"13px",fontSize:14,marginBottom:6,letterSpacing:0.3}}
+        onClick={()=>{const free=slots.find(s=>s.empty);const q=mkQuickStart();clearSlot(free.slot);
+          setGd({player:q.player,club:q.club,diffId:"pro",saved:null,slot:free.slot});}}>⚡ HEMEN OYNA</Btn>}
+      {slots.some(s=>s.empty)&&<div style={{fontSize:10,color:C.muted,textAlign:"center",marginBottom:16}}>
+        Rastgele genç bir oyuncuyla Süper Lig'de orta ölçekli bir kulüpte başla</div>}
+
       <Lbl>KARİYER SLOTLARI</Lbl>
       {slots.map(sl=>(
         <Card key={sl.slot} glow={!sl.empty} gc={C.accent}
@@ -13552,8 +13777,13 @@ export default function App(){
                   <div style={{fontSize:12,fontWeight:700,color:C.muted}}>Slot {sl.slot} — Boş</div>
                   <div style={{fontSize:10,color:C.muted,marginTop:2}}>Yeni bir kariyer başlat</div>
                 </div>
-                <Btn v="pri" style={{fontSize:11,padding:"8px 13px"}}
-                  onClick={()=>setGd({__new:true,slot:sl.slot})}>Başla</Btn>
+                <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                  <Btn v="pri" style={{fontSize:11,padding:"8px 13px"}}
+                    onClick={()=>setGd({__new:true,slot:sl.slot})}>Başla</Btn>
+                  <Btn v="ghost" style={{fontSize:10,padding:"6px 10px"}}
+                    onClick={()=>pickFile(async f=>{const r=await importSaveFile(f,sl.slot);refresh();
+                      flash(r.ok?`📂 ${r.name} kariyeri ${sl.slot}. slota yüklendi.`:r.error,r.ok?C.green:C.red);})}>📂 Dosyadan Yükle</Btn>
+                </div>
               </div>
             : <>
                 <div style={{display:"flex",alignItems:"center",gap:11}}>
@@ -13601,6 +13831,8 @@ export default function App(){
                     </div>
                   : <div style={{display:"flex",gap:7}}>
                       <Btn v="ghost" style={{flex:1,fontSize:11}} onClick={()=>setConfirmDel(sl.slot)}>🗑️ Sil</Btn>
+                      <Btn v="ghost" style={{flex:1,fontSize:11}}
+                        onClick={()=>{const err=exportSlot(sl.slot);flash(err||"💾 Kariyer dosyası indirildi.",err?C.red:C.green);}}>💾 İndir</Btn>
                       <Btn v="gold" style={{flex:2,fontSize:12}}
                         onClick={()=>{const d=loadSlot(sl.slot);
                           if(d)setGd({player:d.player,club:d.club,diffId:d.diffId||"pro",saved:d,slot:sl.slot});}}>
@@ -13612,7 +13844,7 @@ export default function App(){
       ))}
 
       <div style={{fontSize:10,color:C.muted,textAlign:"center",marginTop:14,lineHeight:1.7}}>
-        Üç kariyeri aynı anda sürdürebilirsin.<br/>Kayıtlar tarayıcında saklanır.
+        Üç kariyeri aynı anda sürdürebilirsin.<br/>Kayıtlar tarayıcında saklanır; kaybetmemek için<br/>ara sıra "💾 İndir" ile dosyaya yedek al.
       </div>
     </div>
   </div>);
