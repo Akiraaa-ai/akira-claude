@@ -40,6 +40,12 @@ const FACE_META = [
 //  · Futbol odaklı mod (varsayılan açık): Özel Hayat menüsü gizlenir,
 //    Ayarlar > Oynanış'tan geri açılır
 //
+// ─── v34.1: GÖRSEL YENİLEME ───────────────────────────────────────────
+//  · "Kulüp Renkleri" teması (yeni varsayılan): arayüz, birincil düğmeler ve
+//    sahne ışığı oyuncunun kulübünün rengine bürünür; transferde değişir
+//  · Küçük yazılar (7–11px) bir-iki punto büyütüldü
+//  · Ana ekran: iki armalı "maç günü" vitrini + FUT kartı ve göstergeler
+//
 // ─── v33: GÖRSEL DİL ve MEKANİK SİMÜLASYON ───────────────────────────
 //  · 40 ikonluk SVG seti — arayüzdeki 1597 emoji'nin yerine tek çizim
 //    dili (24×24 grid, boyuta göre ölçeklenen kontur, currentColor).
@@ -289,7 +295,7 @@ const FACE_META = [
 const SAVE_PREFIX = "fc_v29_slot";   // v30 yalnızca görsel: kayıt biçimi değişmedi, kariyerler korunur
 const SAVE_SLOTS = 3;                         // üç bağımsız kariyer
 const LEGACY_SAVE_KEYS = ["fc_v28_slot1","fc_v27_slot1","fc_v26","fc_v25","fc_v24","fc_v23","fc_v22","fc_v21"];
-const GAME_VERSION = "v34.0";
+const GAME_VERSION = "v34.1";
 const slotKey = (n) => `${SAVE_PREFIX}${n}`;
 // Kaydedilecek alanların tam listesi — yeni bir state eklersen buraya da ekle.
 const SAVE_FIELDS = [
@@ -2333,6 +2339,21 @@ function mkTeammates(playerPos,clubPrestige){
 
 const THEMES=[
   {
+    // Varsayılan: arayüz oyuncunun kulübünün renklerini alır (applyClubTint).
+    // Aşağıdaki değerler kulüp yokken (slot ekranı) kullanılan nötr taban.
+    id:"club", name:"Kulüp Renkleri", desc:"Arayüz kulübünün renklerine bürünür · her transferde değişir",
+    c:{
+      bg:"#0a0f16", card:"#121a24", card2:"#19232f", border:"#2a3746", ink:"#04070b",
+      accent:"#38d39f", gold:"#fbbf24", green:"#4ade80", lime:"#a3e635", sky:"#22d3ee",
+      red:"#f87171", purple:"#a78bfa", pink:"#f472b6", orange:"#fb923c",
+      muted:"#93a3b5", text:"#ffffff", cream:"#eef3f8",
+    },
+    bg:"",
+    beams:true, crowd:true, circle:false,
+    shape:{radius:12, border:1, hardShadow:false},
+    font:{disp:"'Saira Condensed',sans-serif", ui:"'Inter',sans-serif", num:"'Saira Condensed',sans-serif"},
+  },
+  {
     id:"pro", name:"Profesyonel", desc:"Koyu lacivert + lime · stadyum gecesi",
     // Yatay mockup'lardan alınan palet
     c:{
@@ -2393,12 +2414,62 @@ const THEMES=[
     font:{disp:"'Bungee',sans-serif", ui:"'Fredoka',sans-serif", num:"'Baloo 2',sans-serif"},
   },
 ];
-const THEME_KEY="fc_theme";
+const THEME_KEY="fc_theme_v34";   // v34: yeni varsayılan tema herkese bir kez uygulansın
 const themeById=id=>THEMES.find(t=>t.id===id)||THEMES[0];
-let ACTIVE_THEME=(()=>{ try{ return themeById(localStorage.getItem(THEME_KEY)||"pro"); }catch(e){ return THEMES[0]; } })();
+let ACTIVE_THEME=(()=>{ try{ return themeById(localStorage.getItem(THEME_KEY)||"club"); }catch(e){ return THEMES[0]; } })();
+
+// ── Renk yardımcıları (kulüp teması için) ──
+const hexRgb=h=>{h=String(h||"#000").replace("#","");if(h.length===3)h=h.split("").map(x=>x+x).join("");
+  const n=parseInt(h.slice(0,6),16)||0;return[(n>>16)&255,(n>>8)&255,n&255];};
+const rgbHex=([r,g,b])=>"#"+[r,g,b].map(v=>Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,"0")).join("");
+const mixHex=(a,b,t)=>{const A=hexRgb(a),B=hexRgb(b);return rgbHex(A.map((v,i)=>v+(B[i]-v)*t));};
+const lumHex=h=>{const c=hexRgb(h).map(v=>{v/=255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4);});
+  return 0.2126*c[0]+0.7152*c[1]+0.0722*c[2];};
+const contrastHex=(a,b)=>{const x=lumHex(a),y=lumHex(b);return(Math.max(x,y)+0.05)/(Math.min(x,y)+0.05);};
+const satHex=h=>{const [r,g,b]=hexRgb(h).map(v=>v/255);const mx=Math.max(r,g,b),mn=Math.min(r,g,b);return mx===0?0:(mx-mn)/mx;};
+// Kulüp temasında birincil düğmenin rengi (BTN_SKIN aşağıda tanımlı olduğu için ayrı tutulur)
+let CLUB_BTN=null;
+let TINT_CLUB=null;
+// Kulübün rengini okunur bir vurguya çevirip paleti ve sahneyi ona göre boyar.
+function applyClubTint(club){
+  const t=THEMES[0];
+  TINT_CLUB=club||null;
+  const base={bg:"#0a0f16",card:"#121a24",card2:"#19232f",border:"#2a3746"};
+  if(!club){
+    Object.assign(t.c,base,{accent:"#38d39f"});
+    t.bg=`radial-gradient(ellipse 70% 45% at 50% -8%, #38d39f22, transparent 70%),
+      radial-gradient(ellipse 60% 40% at 50% 104%, #1d5c33aa, transparent 72%),
+      linear-gradient(180deg,#0a0f16,#0b141c 60%,#0a1712)`;
+    CLUB_BTN=null;
+  } else {
+    let col=club.color||"#38d39f";
+    let ks=null; try{ ks=getKitStyle(club); }catch(e){}
+    const alt=ks?.secondColor;
+    // Beyaz/gri formalı kulüpler: ikinci renk doygunsa onu kullan
+    if(satHex(col)<0.25&&alt&&satHex(alt)>0.35) col=alt;
+    else if(satHex(col)<0.18) col="#e9c46a";
+    let acc=col, k=0;
+    while(contrastHex(acc,"#0c1219")<5&&k<10){acc=mixHex(acc,"#ffffff",0.14);k++;}
+    const deep=mixHex(col,"#05080c",0.8);
+    Object.assign(t.c,{
+      bg:mixHex(col,"#070b10",0.92), card:mixHex(col,"#0f151d",0.92),
+      card2:mixHex(col,"#151d27",0.89), border:mixHex(col,"#283442",0.78), accent:acc,
+    });
+    const alt2=alt&&satHex(alt)>0.3&&contrastHex(alt,"#0c1219")>3?alt:"#ffffff";
+    t.bg=`radial-gradient(ellipse 75% 50% at 50% -10%, ${col}55, transparent 68%),
+      radial-gradient(ellipse 40% 30% at 92% 8%, ${alt2}1c, transparent 70%),
+      radial-gradient(ellipse 60% 38% at 50% 104%, #1d5c33aa, transparent 72%),
+      linear-gradient(180deg, ${deep} 0%, ${mixHex(col,"#070b10",0.9)} 45%, #08110d 100%)`;
+    const fg=contrastHex(acc,"#0b0f14")>=contrastHex(acc,"#ffffff")?"#0b0f14":"#ffffff";
+    CLUB_BTN={bg:`linear-gradient(180deg,${mixHex(acc,"#ffffff",0.18)},${acc})`,fg,sh:mixHex(acc,"#000000",0.45),glow:acc};
+  }
+  // C aşağıda tanımlanıyor; ilk çağrı applyTheme içinden, C hazır olduktan sonra gelir.
+  if(ACTIVE_THEME.id==="club"&&typeof C_READY!=="undefined"&&C_READY) Object.assign(C,t.c);
+}
 
 // Canlı palet ve şekil tokenları
 const C={...ACTIVE_THEME.c};
+var C_READY=true;
 const S={xs:4,sm:7,md:11,lg:15,xl:22};
 const R={sm:7,md:10,lg:13,xl:17};
 let BW=ACTIVE_THEME.shape.border;
@@ -2409,6 +2480,7 @@ const PANEL_SHADOW=()=>ACTIVE_THEME.shape.hardShadow?`0 5px 0 ${C.ink}`:`0 10px 
 
 function applyTheme(id){
   ACTIVE_THEME=themeById(id);
+  if(id==="club") applyClubTint(TINT_CLUB);
   Object.assign(C,ACTIVE_THEME.c);
   Object.assign(R,ACTIVE_THEME.shape.radius===20
     ? {sm:10,md:16,lg:22,xl:28}
@@ -2423,6 +2495,11 @@ applyTheme(ACTIVE_THEME.id);
 // (Inline style'lar her render'da C'den okuduğu için re-render yeterli.)
 const themeSubs=new Set();
 function setTheme(id){ applyTheme(id); themeSubs.forEach(fn=>{try{fn(x=>x+1);}catch(e){}}); }
+// Kulüp değişince (yeni kariyer, transfer) arayüzü yeniden boya
+function tintForClub(club){
+  applyClubTint(club);
+  if(ACTIVE_THEME.id==="club") themeSubs.forEach(fn=>{try{fn(x=>x+1);}catch(e){}});
+}
 function useThemeTick(){
   const [,bump]=useState(0);
   useEffect(()=>{themeSubs.add(bump);return()=>{themeSubs.delete(bump);};},[]);
@@ -2542,7 +2619,7 @@ const BTN_SKIN={
   ghost: {bg:"linear-gradient(180deg,#20334577,#16242f99)", fg:"#cfe0ee", sh:"#060d15", glow:"#273c4f"},
 };
 const Btn=({onClick,children,v="pri",disabled,style={}})=>{
-  const sk=BTN_SKIN[v]||BTN_SKIN.pri;
+  const sk=(v==="pri"&&CLUB_BTN&&ACTIVE_THEME.id==="club")?CLUB_BTN:(BTN_SKIN[v]||BTN_SKIN.pri);
   const hard=ACTIVE_THEME.shape.hardShadow;
   const _click=e=>{ if(!disabled){ playSfx("click"); onClick&&onClick(e);} };
   const isCta=v==="pri"||v==="gold"||v==="green"||v==="sky";
@@ -2611,14 +2688,14 @@ function ComicBurst({kind,text,onDone,ms=1250}){
 // Son maçların reyting grafiği
 const FormSpark=({ratings=[],height=32})=>{
   const data=ratings.slice(-8);
-  if(!data.length)return <div style={{height,display:"flex",alignItems:"center",fontSize:10,color:C.muted}}>Henüz maç yok</div>;
+  if(!data.length)return <div style={{height,display:"flex",alignItems:"center",fontSize:11.5,color:C.muted}}>Henüz maç yok</div>;
   return(<div style={{display:"flex",alignItems:"flex-end",gap:3,height}}>
     {data.map((r,i)=>{
       const h=Math.max(12,Math.min(100,((r-3)/7)*100));
       const c=r>=8?C.gold:r>=7?C.green:r>=6?C.orange:C.red;
       return(<div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
         <div style={{width:"100%",height:`${h}%`,background:`linear-gradient(180deg,${c},${c}55)`,borderRadius:3,minHeight:4}}/>
-        <span style={{fontSize:7,color:i===data.length-1?c:C.muted,fontWeight:i===data.length-1?700:400}}>{r.toFixed(1)}</span>
+        <span style={{fontSize:9,color:i===data.length-1?c:C.muted,fontWeight:i===data.length-1?700:400}}>{r.toFixed(1)}</span>
       </div>);
     })}
   </div>);
@@ -2643,7 +2720,7 @@ const StatBox=({icon,value,label,color=C.accent,onClick})=>{
     {icon&&<div style={{fontSize:16,lineHeight:1.1}}>{icon}</div>}
     <div style={{fontFamily:F.mono,fontSize:19,fontWeight:800,color,marginTop:2,lineHeight:1,
       textShadow:hard?`0 2px 0 ${C.ink}`:"none"}}>{value}</div>
-    <div style={{fontSize:10,color:C.muted,fontWeight:500,marginTop:3}}>{label}</div>
+    <div style={{fontSize:11.5,color:C.muted,fontWeight:500,marginTop:3}}>{label}</div>
   </div>);};
 const Lbl=({c,children,style={}})=>{
   const hard=ACTIVE_THEME.shape.hardShadow;
@@ -2682,11 +2759,11 @@ const Bdg=({children,c=C.accent,style={}})=>{
   return(<span style={{display:"inline-flex",alignItems:"center",gap:3,
     background:`${c}${hard?"2a":"1c"}`,color:c,
     border:hard?`2px solid ${c}`:`1px solid ${c}66`,borderRadius:999,padding:hard?"2px 9px":"3px 10px",
-    fontSize:11,fontFamily:F.cond,fontWeight:600,whiteSpace:"nowrap",...style}}>{children}</span>);};
+    fontSize:12.5,fontFamily:F.cond,fontWeight:600,whiteSpace:"nowrap",...style}}>{children}</span>);};
 const LgBdg=({leagueId})=>{const lg=getLg(leagueId);return(<span style={{display:"inline-flex",alignItems:"center",gap:5,
   background:`${lg.color}2a`,border:`2px solid ${lg.color}`,borderRadius:999,padding:"3px 10px"}}>
   <span style={{fontSize:12}}>{lg.emoji}</span>
-  <span style={{fontSize:11,fontFamily:F.cond,fontWeight:700,color:lg.color}}>{lg.country} {lg.name}</span></span>);};
+  <span style={{fontSize:12.5,fontFamily:F.cond,fontWeight:700,color:lg.color}}>{lg.country} {lg.name}</span></span>);};
 const Tabs=({tabs,active,onChange})=>{
   const hard=ACTIVE_THEME.shape.hardShadow;
   return(<div style={{display:"flex",gap:5,background:`${C.bg}cc`,borderRadius:999,
@@ -3023,11 +3100,11 @@ const PlayerCard=({player,club})=>{
         {(()=>{const ks=getKitStyle(club);return(<ClubKit color={club.color} secondColor={ks.secondColor} stripes={ks.stripes} hoops={ks.hoops} size={56}/>);})()}
         <OVR value={player.overall} size={44}/>
         <Bdg c={pc}>{player.pos}</Bdg>
-        <div style={{fontSize:9,color:C.muted,textAlign:"center"}}>Form:<span style={{color:Number(fa)>=7?C.green:Number(fa)>=5.5?C.gold:C.red,fontWeight:700}}> {fa}</span></div>
+        <div style={{fontSize:10.5,color:C.muted,textAlign:"center"}}>Form:<span style={{color:Number(fa)>=7?C.green:Number(fa)>=5.5?C.gold:C.red,fontWeight:700}}> {fa}</span></div>
       </div>
       <div style={{flex:1,minWidth:0}}>
         <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:14,fontWeight:900,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{player.name}</div>
-        <div style={{fontSize:10,color:C.muted,marginTop:2}}>{player.nat} · {player.age} yaş · {player.foot}</div>
+        <div style={{fontSize:11.5,color:C.muted,marginTop:2}}>{player.nat} · {player.age} yaş · {player.foot}</div>
         <div style={{display:"flex",gap:4,marginTop:5,flexWrap:"wrap"}}>
           <LgBdg leagueId={club.leagueId}/>
           <Bdg c={C.gold}>POT {player.potential}</Bdg>
@@ -3041,7 +3118,7 @@ const PlayerCard=({player,club})=>{
     <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:5,marginTop:11}}>
       {[["HIZ",player.pace],["ŞUT",player.shooting],["PAS",player.passing],["DRB",player.dribbling],["DEF",player.defending],["FİZ",player.physical]].map(([l,v])=>{
         const sc=v>=80?C.green:v>=65?C.accent:v>=50?C.gold:C.red;
-        return <div key={l} style={{background:C.bg,borderRadius:7,padding:"5px 0",textAlign:"center"}}><div style={{fontSize:15,fontWeight:900,fontFamily:"'Baloo 2',sans-serif",color:sc}}>{v}</div><div style={{fontSize:8,color:C.muted}}>{l}</div></div>;
+        return <div key={l} style={{background:C.bg,borderRadius:7,padding:"5px 0",textAlign:"center"}}><div style={{fontSize:15,fontWeight:900,fontFamily:"'Baloo 2',sans-serif",color:sc}}>{v}</div><div style={{fontSize:9.5,color:C.muted}}>{l}</div></div>;
       })}
     </div>
   </div>);
@@ -3082,23 +3159,23 @@ function PenaltyGame({player,onDone}){
     <Card glow gc={C.gold} style={{maxWidth:330,width:"100%",textAlign:"center"}}>
       <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:15,color:C.gold,marginBottom:4}}>⚽ PENALTİ!</div>
       {!shot&&(<>
-        <div style={{fontSize:11,color:C.muted,marginBottom:10}}>Çubuğu izle, köşe seç!</div>
+        <div style={{fontSize:12.5,color:C.muted,marginBottom:10}}>Çubuğu izle, köşe seç!</div>
         <div style={{position:"relative",height:16,background:C.card2,borderRadius:8,marginBottom:13,overflow:"hidden"}}>
           <div style={{position:"absolute",left:"35%",right:"35%",top:0,bottom:0,background:`${C.green}33`,borderRadius:8}}/>
           <div style={{position:"absolute",top:0,bottom:0,width:13,background:C.gold,borderRadius:7,left:`${barPos}%`,transform:"translateX(-50%)",transition:"left .028s"}}/>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:6}}>
-          {CORNERS.slice(0,3).map((c,i)=>(<Btn key={c} v="ghost" onClick={()=>shoot(c,i)} style={{fontSize:10,padding:"7px 3px"}}>{c}</Btn>))}
+          {CORNERS.slice(0,3).map((c,i)=>(<Btn key={c} v="ghost" onClick={()=>shoot(c,i)} style={{fontSize:11.5,padding:"7px 3px"}}>{c}</Btn>))}
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}}>
-          {CORNERS.slice(3).map((c,i)=>(<Btn key={c} v="ghost" onClick={()=>shoot(c,i+3)} style={{fontSize:10,padding:"7px 3px"}}>{c}</Btn>))}
+          {CORNERS.slice(3).map((c,i)=>(<Btn key={c} v="ghost" onClick={()=>shoot(c,i+3)} style={{fontSize:11.5,padding:"7px 3px"}}>{c}</Btn>))}
         </div>
       </>)}
       {shot&&(<div className="pop">
         <div style={{fontSize:42,marginBottom:6}}>{outcome==="goal"?"⚽":outcome==="save"?"🧤":"😱"}</div>
         <div style={{fontFamily:F.disp,fontSize:16,color:scored?C.green:C.red}}>
           {outcome==="goal"?"GOL!":outcome==="save"?"KALECİ KURTARDI!":"DIŞARI!"}</div>
-        <div style={{fontSize:11,color:C.muted,marginTop:4}}>{shot}</div>
+        <div style={{fontSize:12.5,color:C.muted,marginTop:4}}>{shot}</div>
       </div>)}
     </Card>
   </div>);
@@ -3238,14 +3315,14 @@ function FreekickGame({player,onDone}){
     <Card glow gc={C.orange} style={{maxWidth:340,width:"100%"}}>
       <div style={{textAlign:"center",marginBottom:10}}>
         <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:15,color:C.orange}}>🌀 FRİKİK!</div>
-        {phase!=="result"&&<div style={{fontSize:10,color:C.muted,marginTop:2}}>{phaseHints[phase]}</div>}
+        {phase!=="result"&&<div style={{fontSize:11.5,color:C.muted,marginTop:2}}>{phaseHints[phase]}</div>}
       </div>
 
       {/* Aşama indikatörleri */}
       {phase!=="result"&&(<div style={{display:"flex",gap:4,justifyContent:"center",marginBottom:12}}>
         {["aim","power","curve"].map(p=>(
           <div key={p} style={{display:"flex",alignItems:"center",gap:4}}>
-            <div style={{padding:"3px 8px",borderRadius:6,fontSize:9,fontFamily:"'Fredoka',sans-serif",fontWeight:700,
+            <div style={{padding:"3px 8px",borderRadius:6,fontSize:10.5,fontFamily:"'Fredoka',sans-serif",fontWeight:700,
               background:phase===p?`${C.orange}33`:p==="aim"&&(phase==="power"||phase==="curve")||p==="power"&&phase==="curve"?`${C.green}22`:`${C.border}`,
               color:phase===p?C.orange:p==="aim"&&(phase==="power"||phase==="curve")||p==="power"&&phase==="curve"?C.green:C.muted,
               border:`1px solid ${phase===p?C.orange:C.border}`,
@@ -3264,7 +3341,7 @@ function FreekickGame({player,onDone}){
       {/* Kontrol çubukları */}
       {phase==="aim"&&(<>
         <div style={{marginBottom:6}}>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:C.muted,marginBottom:3}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:10.5,color:C.muted,marginBottom:3}}>
             <span>◀ Sol köşe</span><span style={{color:C.orange,fontWeight:700}}>{phaseLabels.aim}</span><span>Sağ köşe ▶</span>
           </div>
           <div style={{position:"relative",height:18,background:C.card2,borderRadius:9,overflow:"hidden",marginBottom:10}}>
@@ -3281,7 +3358,7 @@ function FreekickGame({player,onDone}){
 
       {phase==="power"&&(<>
         <div style={{marginBottom:6}}>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:C.muted,marginBottom:3}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:10.5,color:C.muted,marginBottom:3}}>
             <span>Hafif</span><span style={{color:C.accent,fontWeight:700}}>{phaseLabels.power}</span><span>Maksimum</span>
           </div>
           <div style={{position:"relative",height:18,background:C.card2,borderRadius:9,overflow:"hidden",marginBottom:4}}>
@@ -3289,14 +3366,14 @@ function FreekickGame({player,onDone}){
             <div style={{position:"absolute",left:"55%",right:"20%",top:0,bottom:0,background:`${C.green}22`,borderRadius:9}}/>
             <div style={{position:"absolute",top:1,bottom:1,width:14,background:C.accent,borderRadius:7,left:`${powerPos}%`,transform:"translateX(-50%)",boxShadow:`0 0 6px ${C.accent}99`,transition:"left .028s"}}/>
           </div>
-          <div style={{textAlign:"center",fontSize:10,color:C.accent,fontFamily:"'Baloo 2',sans-serif",marginBottom:6}}>{Math.round(powerPos)}%</div>
+          <div style={{textAlign:"center",fontSize:11.5,color:C.accent,fontFamily:"'Baloo 2',sans-serif",marginBottom:6}}>{Math.round(powerPos)}%</div>
         </div>
         <Btn v="pri" onClick={lockPower} style={{width:"100%",fontSize:13,letterSpacing:0}}>💥 GÜÇ KİLİTLE!</Btn>
       </>)}
 
       {phase==="curve"&&(<>
         <div style={{marginBottom:6}}>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:C.muted,marginBottom:3}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:10.5,color:C.muted,marginBottom:3}}>
             <span>◀ Sola eğri</span><span style={{color:C.purple,fontWeight:700}}>{phaseLabels.curve}</span><span>Sağa eğri ▶</span>
           </div>
           <div style={{position:"relative",height:18,background:C.card2,borderRadius:9,overflow:"hidden",marginBottom:4}}>
@@ -3305,7 +3382,7 @@ function FreekickGame({player,onDone}){
             <div style={{position:"absolute",top:1,bottom:1,width:14,background:C.purple,borderRadius:7,left:`${curvePos}%`,transform:"translateX(-50%)",boxShadow:`0 0 6px ${C.purple}99`,transition:"left .028s"}}/>
             <div style={{position:"absolute",top:0,bottom:0,left:"50%",width:1,background:"#ffffff22"}}/>
           </div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:8,color:C.muted,marginBottom:6,paddingLeft:4,paddingRight:4}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:9.5,color:C.muted,marginBottom:6,paddingLeft:4,paddingRight:4}}>
             <span>{curvePos<42?"← Eğri":curvePos>58?"→ Eğri":"⊙ Düz"}</span>
             <span style={{color:C.purple}}>{Math.round(Math.abs(curvePos-50)*2)}° eğri</span>
           </div>
@@ -3314,7 +3391,7 @@ function FreekickGame({player,onDone}){
       </>)}
 
       {phase==="result"&&result&&(<div className="pop" style={{textAlign:"center",marginTop:4}}>
-        <div style={{display:"flex",justifyContent:"center",gap:14,fontSize:10,color:C.muted}}>
+        <div style={{display:"flex",justifyContent:"center",gap:14,fontSize:11.5,color:C.muted}}>
           <span>🎯 Hedef: <b style={{color:C.orange}}>{Math.round(100-Math.abs(result.locked.aim-50)*2)}%</b></span>
           <span>💥 Güç: <b style={{color:C.accent}}>{Math.round(result.locked.power)}%</b></span>
           <span>🌀 Eğri: <b style={{color:C.purple}}>{Math.round(Math.abs(result.locked.curve-50)*2)}°</b></span>
@@ -3628,7 +3705,7 @@ function GoalAnimation({goals, playerName, onClose}) {
             textShadow:`0 0 20px ${C.green}`,letterSpacing:1,lineHeight:1}}>
             ⚽ G O L !
           </div>
-          <div style={{fontSize:11,color:C.muted,marginTop:3,fontFamily:"'Fredoka',sans-serif",fontWeight:700,letterSpacing:0.3}}>
+          <div style={{fontSize:12.5,color:C.muted,marginTop:3,fontFamily:"'Fredoka',sans-serif",fontWeight:700,letterSpacing:0.3}}>
             {playerName.toUpperCase()} · {goalType.label.toUpperCase()}
           </div>
         </div>
@@ -4051,7 +4128,7 @@ function MomentumBar({value}){
   const color = norm > 0.6 ? C.green : norm > 0.4 ? C.gold : C.red;
   return(
     <div style={{marginBottom:6}}>
-      <div style={{display:"flex",justifyContent:"space-between",fontSize:8,color:C.muted,marginBottom:2}}>
+      <div style={{display:"flex",justifyContent:"space-between",fontSize:9.5,color:C.muted,marginBottom:2}}>
         <span>RAKİP BASKISI</span><span>BİZİM BASKIMIZ</span>
       </div>
       <div style={{height:6,background:C.card2,borderRadius:3,overflow:"hidden",position:"relative"}}>
@@ -4508,7 +4585,7 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
         <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:16,padding:"8px 18px",
           background:`linear-gradient(180deg,${C.bg}f5,${C.bg}b0)`,
           borderBottom:`1px solid ${C.border}`}}>
-          <Bdg c={role.c} style={{fontSize:9}}>{role.icon} {role.label}
+          <Bdg c={role.c} style={{fontSize:10.5}}>{role.icon} {role.label}
             {role.minutes<90&&role.minutes>0?` · ${role.minutes}'`:""}</Bdg>
           <div style={{display:"flex",alignItems:"center",gap:11,flex:1,justifyContent:"center",
             minWidth:0}}>
@@ -4522,7 +4599,7 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
               <div style={{fontFamily:F.mono,fontSize:31,fontWeight:900,color:sc,lineHeight:1}}>
                 {my}<span style={{color:C.muted,margin:"0 7px"}}>-</span>{th}
               </div>
-              <div style={{fontFamily:F.mono,fontSize:11,fontWeight:900,marginTop:3,
+              <div style={{fontFamily:F.mono,fontSize:12.5,fontWeight:900,marginTop:3,
                 color:showLive?C.green:C.muted}}>{showLive?`${clock}'`:"MAÇ SONU"}</div>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:8,flex:1,minWidth:0}}>
@@ -4534,7 +4611,7 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
           <div style={{width:210,flexShrink:0}}>
             <MomentumBar value={momentum}/>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-              marginTop:5,fontSize:10,color:C.muted}}>
+              marginTop:5,fontSize:11.5,color:C.muted}}>
               <span style={{fontFamily:F.mono,fontWeight:700,
                 color:liveXg.us>=liveXg.them?C.green:C.muted}}>{liveXg.us.toFixed(2)}</span>
               <span style={{letterSpacing:.5,color:C.gold,fontWeight:700}}>xG</span>
@@ -4549,7 +4626,7 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
           <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:11,minHeight:0}}>
             <Panel title="Saha" style={{flex:1,minHeight:0}} bodyStyle={{padding:"10px 12px",
               display:"flex",flexDirection:"column",overflow:"hidden"}}
-              right={<span style={{fontSize:10,color:C.muted,fontFamily:F.cond,fontWeight:700}}>
+              right={<span style={{fontSize:11.5,color:C.muted,fontFamily:F.cond,fontWeight:700}}>
                 <span style={{display:"inline-block",width:7,height:7,borderRadius:4,
                   background:C.gold,marginRight:4}}/>SEN
                 <span style={{display:"inline-block",width:7,height:7,borderRadius:4,
@@ -4577,7 +4654,7 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
                   background:`${C.card}e0`,backdropFilter:"blur(8px)",border:`1px solid ${C.border}`}}>
                   <div style={{display:"flex",justifyContent:"center"}}><Ico n={ic} size={17} c={c}/></div>
                   <div style={{fontFamily:F.mono,fontSize:16,fontWeight:900,color:c,marginTop:2}}>{v}</div>
-                  <div style={{fontSize:8.5,color:C.muted,marginTop:2,letterSpacing:.3}}>{trU(l)}</div>
+                  <div style={{fontSize:10,color:C.muted,marginTop:2,letterSpacing:.3}}>{trU(l)}</div>
                 </div>))}
             </div>
           </div>
@@ -4586,12 +4663,12 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
           <Panel title="Maç Akışı" style={{width:"33%",maxWidth:430}}
             bodyStyle={{display:"flex",flexDirection:"column-reverse",justifyContent:"flex-end"}}
             right={idx<evList.length&&!showHalftime
-              ? <span style={{fontSize:10,color:C.green,fontFamily:F.cond,fontWeight:700}}>● SÜRÜYOR</span>
+              ? <span style={{fontSize:11.5,color:C.green,fontFamily:F.cond,fontWeight:700}}>● SÜRÜYOR</span>
               : null}>
             {events.map((e,i)=>(
               <div key={i} className="si" style={{display:"flex",gap:9,alignItems:"flex-start",
                 padding:"7px 0",borderBottom:`1px solid ${C.border}44`}}>
-                <span style={{fontFamily:F.mono,fontSize:10.5,color:C.muted,width:28,flexShrink:0,
+                <span style={{fontFamily:F.mono,fontSize:12,color:C.muted,width:28,flexShrink:0,
                   paddingTop:2,textAlign:"right"}}>{e.min}'</span>
                 <span style={{flexShrink:0,paddingTop:1}}>
                   <Ico n={EV_ICON[e.type]||"ball"} size={14} c={evC[e.type]||C.muted}/></span>
@@ -4633,7 +4710,7 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
         <div style={{flex:1,minHeight:0,display:"flex",gap:14,padding:"14px 16px"}}>
           <Panel title="Soru" glow gc={C.purple} style={{width:"40%",maxWidth:460}}>
             <div style={{fontSize:14,lineHeight:1.65,color:C.text}}>{pressQ.q}</div>
-            <div style={{fontSize:11,color:C.muted,marginTop:13,lineHeight:1.55}}>
+            <div style={{fontSize:12.5,color:C.muted,marginTop:13,lineHeight:1.55}}>
               Verdiğin cevap moralini, şöhretini, hocanın güvenini ve taraftar sevgisini etkiler.
               Medya becerin ({player.mediaSkill??40}) yükseldikçe riskli cevaplar daha çok işe yarar.
             </div>
@@ -4724,8 +4801,8 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
             </div>
           </div>
           <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
-            <Bdg c={role.c} style={{fontSize:9}}>{role.icon} {role.label}</Bdg>
-            <Bdg c={C.muted} style={{fontSize:9}}>{weather?.icon} {weather?.name}</Bdg>
+            <Bdg c={role.c} style={{fontSize:10.5}}>{role.icon} {role.label}</Bdg>
+            <Bdg c={C.muted} style={{fontSize:10.5}}>{weather?.icon} {weather?.name}</Bdg>
           </div>
         </div>
 
@@ -4734,14 +4811,14 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
           <Panel title="Maç Raporu" glow gc={rc} style={{flex:1,minWidth:0}}
             right={<button onClick={()=>setShowStats(v=>!v)} style={{background:"transparent",
               border:`1px solid ${C.border}`,borderRadius:R.sm,padding:"3px 9px",color:C.accent,
-              fontSize:10.5,cursor:"pointer",fontFamily:F.cond,fontWeight:700}}>
+              fontSize:12,cursor:"pointer",fontFamily:F.cond,fontWeight:700}}>
               {showStats?"İSTATİSTİK":"MAÇ AKIŞI"}</button>}>
             {showStats
               ? <div style={{display:"flex",flexDirection:"column-reverse"}}>
                   {events.map((e,i)=>(
                     <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start",padding:"5px 0",
                       borderBottom:`1px solid ${C.border}44`}}>
-                      <span style={{fontFamily:F.mono,fontSize:10,color:C.muted,width:30,flexShrink:0,
+                      <span style={{fontFamily:F.mono,fontSize:11.5,color:C.muted,width:30,flexShrink:0,
                         paddingTop:1}}>{e.min}'</span>
                       <span style={{fontSize:12,color:evC[e.type]||C.text,lineHeight:1.5,flex:1}}>{e.text}</span>
                     </div>))}
@@ -4756,9 +4833,9 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
                         color:stats.xg>=stats.xgOpp?C.green:C.text}}>{stats.xg.toFixed(2)}</div>
                     </div>
                     <div style={{textAlign:"center",flexShrink:0}}>
-                      <div style={{fontSize:11,color:C.gold,fontFamily:F.cond,fontWeight:700,
+                      <div style={{fontSize:12.5,color:C.gold,fontFamily:F.cond,fontWeight:700,
                         letterSpacing:.5}}>xG</div>
-                      <div style={{fontSize:9,color:C.muted,marginTop:2}}>beklenen gol</div>
+                      <div style={{fontSize:10.5,color:C.muted,marginTop:2}}>beklenen gol</div>
                     </div>
                     <div style={{flex:1,textAlign:"center"}}>
                       <div style={{fontFamily:F.mono,fontSize:21,fontWeight:900,
@@ -4768,9 +4845,9 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
                   {cmp.map(([l,a,b,suf])=>{
                     const tot=(a+b)||1, pa=(a/tot)*100;
                     return(<div key={l} style={{marginBottom:10}}>
-                      <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,marginBottom:4}}>
                         <span style={{fontFamily:F.mono,fontWeight:900,color:a>=b?C.green:C.muted}}>{a}{suf}</span>
-                        <span style={{color:C.muted,fontSize:11}}>{l}</span>
+                        <span style={{color:C.muted,fontSize:12.5}}>{l}</span>
                         <span style={{fontFamily:F.mono,fontWeight:900,color:b>a?C.red:C.muted}}>{b}{suf}</span>
                       </div>
                       <div style={{display:"flex",height:6,borderRadius:3,overflow:"hidden",background:"#00000055"}}>
@@ -4783,7 +4860,7 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
                   {stats&&<div style={{marginTop:14,paddingTop:13,
                     borderTop:`1px solid ${C.border}`,display:"flex",gap:14}}>
                     <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:11,color:C.muted,letterSpacing:.4,fontWeight:700,
+                      <div style={{fontSize:12.5,color:C.muted,letterSpacing:.4,fontWeight:700,
                         marginBottom:9}}>SENİN MAÇIN</div>
                       {[["boot","İsabetli şut / şut",`${stats.myShotsOnTarget}/${stats.myShots}`],
                         ["chart","Tamamlanan pas",stats.myPasses],
@@ -4798,9 +4875,9 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
                     </div>
                     <div style={{width:"52%",maxWidth:380}}>
                       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>
-                        <span style={{fontSize:11,color:C.muted,letterSpacing:.4,fontWeight:700}}>
+                        <span style={{fontSize:12.5,color:C.muted,letterSpacing:.4,fontWeight:700}}>
                           ŞUT HARİTASI</span>
-                        <span style={{marginLeft:"auto",fontSize:9.5,color:C.muted,
+                        <span style={{marginLeft:"auto",fontSize:11,color:C.muted,
                           display:"flex",alignItems:"center",gap:9}}>
                           <span style={{display:"inline-flex",alignItems:"center",gap:4}}>
                             <span style={{width:7,height:7,borderRadius:9,background:C.gold}}/>senin</span>
@@ -4812,7 +4889,7 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
                       </div>
                       <ShotMap flow={flow} clubColor={club.color}
                         oppColor={oppClub?.color||C.red} height={150}/>
-                      <div style={{fontSize:9.5,color:C.muted,marginTop:6,lineHeight:1.45}}>
+                      <div style={{fontSize:11,color:C.muted,marginTop:6,lineHeight:1.45}}>
                         Daire büyüklüğü şutun xG'si, dolu daire gol. Toplam
                         <strong style={{color:C.text}}> {flow.shots.filter(s=>s.team==="us").length} </strong>
                         şutumuzun <strong style={{color:C.text}}>
@@ -4833,7 +4910,7 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
                 justifyContent:"center",boxShadow:`0 0 24px ${tone(finalRating*10,75,55,35)}33`}}>
                 <div style={{fontFamily:F.mono,fontSize:27,fontWeight:900,lineHeight:1,
                   color:tone(finalRating*10,75,55,35)}}>{finalRating.toFixed(1)}</div>
-                <div style={{fontSize:8.5,color:C.muted,letterSpacing:.8,marginTop:3}}>REYTİNG</div>
+                <div style={{fontSize:10,color:C.muted,letterSpacing:.8,marginTop:3}}>REYTİNG</div>
               </div>
               <div style={{flex:1,minWidth:0}}>
                 {finalMotm
@@ -4847,12 +4924,12 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
                       {finalRating>=7.5?"Güçlü bir performans.":finalRating>=6.5?"Kabul edilebilir bir maç."
                        :"Hoca bundan memnun değil."}</div>}
                 <div style={{display:"flex",gap:7,marginTop:9,flexWrap:"wrap"}}>
-                  {res.red?<Bdg c={C.red} style={{fontSize:9}}><Ico n="card" size={11} c={C.red}/> Kırmızı</Bdg>
-                    :res.yellow?<Bdg c={C.gold} style={{fontSize:9}}>
+                  {res.red?<Bdg c={C.red} style={{fontSize:10.5}}><Ico n="card" size={11} c={C.red}/> Kırmızı</Bdg>
+                    :res.yellow?<Bdg c={C.gold} style={{fontSize:10.5}}>
                       <Ico n="card" size={11} c={C.gold}/> {res.yellow} Sarı</Bdg>:null}
-                  {res.oppScore===0&&<Bdg c={C.sky} style={{fontSize:9}}>
+                  {res.oppScore===0&&<Bdg c={C.sky} style={{fontSize:10.5}}>
                     <Ico n="shield" size={11} c={C.sky}/> Gol yemedik</Bdg>}
-                  {finalGoals>=3&&<Bdg c={C.purple} style={{fontSize:9}}>
+                  {finalGoals>=3&&<Bdg c={C.purple} style={{fontSize:10.5}}>
                     <Ico n="flame" size={11} c={C.purple}/> Hat-trick</Bdg>}
                 </div>
               </div>
@@ -4865,7 +4942,7 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
                   background:`${C.bg}aa`,border:`1px solid ${C.border}`}}>
                   <div style={{display:"flex",justifyContent:"center"}}><Ico n={ic} size={15} c={c}/></div>
                   <div style={{fontFamily:F.mono,fontSize:15,fontWeight:900,color:c,marginTop:2}}>{v}</div>
-                  <div style={{fontSize:8.5,color:C.muted,marginTop:2,letterSpacing:.3}}>{trU(l)}</div>
+                  <div style={{fontSize:10,color:C.muted,marginTop:2,letterSpacing:.3}}>{trU(l)}</div>
                 </div>))}
             </div>
 
@@ -4881,12 +4958,12 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
                   display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
                   <div style={{fontFamily:F.mono,fontSize:15,fontWeight:900,color:C.gold,
                     lineHeight:1}}>{xp.total}</div>
-                  <div style={{fontSize:8,color:C.muted}}>XP</div>
+                  <div style={{fontSize:9.5,color:C.muted}}>XP</div>
                 </div>
               </div>
               <div style={{flex:1,minWidth:0}}>
                 {xp.rows.map((r,i)=>(
-                  <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:11,
+                  <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12.5,
                     padding:"2px 0"}}>
                     <span style={{color:C.muted,overflow:"hidden",textOverflow:"ellipsis",
                       whiteSpace:"nowrap"}}>{r.label}</span>
@@ -4901,11 +4978,11 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
             {[["Menajer Güveni",trustNow,trustDelta,C.sky],
               ["Taraftar Sevgisi",fanNow,fanDelta,C.pink]].map(([l,v,d,c])=>(
               <div key={l} style={{marginBottom:10}}>
-                <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,marginBottom:4}}>
                   <span style={{color:C.muted}}>{l}</span>
                   <span style={{fontWeight:700}}>
                     {v}
-                    <span style={{color:d>0?C.green:d<0?C.red:C.muted,marginLeft:6,fontSize:10.5}}>
+                    <span style={{color:d>0?C.green:d<0?C.red:C.muted,marginLeft:6,fontSize:12}}>
                       {d>0?`+${d}`:d<0?`${d}`:"±0"}
                     </span>
                   </span>
@@ -4916,7 +4993,7 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
                     background:`linear-gradient(90deg,${c}88,${c})`}}/>
                 </div>
               </div>))}
-            <div style={{fontSize:10.5,color:C.muted,lineHeight:1.5,marginTop:2}}>
+            <div style={{fontSize:12,color:C.muted,lineHeight:1.5,marginTop:2}}>
               Zihin yorgunluğu: <strong style={{color:finalMentalCost>12?C.red:C.text}}>−{finalMentalCost}</strong>
             </div>
           </Panel>
@@ -4943,16 +5020,16 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
       <div style={{background:`linear-gradient(160deg,${club.color}1a,${C.card})`,border:`1px solid ${C.border}`,
         borderRadius:R.lg,padding:big?16:13,marginBottom:S.md}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-          <Bdg c={role.c} style={{fontSize:8}}>{role.icon} {role.label}{role.minutes<90&&role.minutes>0?` · ${role.minutes}'`:""}</Bdg>
-          <span style={{fontFamily:F.mono,fontSize:11,fontWeight:900,color:showLive?C.green:C.muted}}>
+          <Bdg c={role.c} style={{fontSize:9.5}}>{role.icon} {role.label}{role.minutes<90&&role.minutes>0?` · ${role.minutes}'`:""}</Bdg>
+          <span style={{fontFamily:F.mono,fontSize:12.5,fontWeight:900,color:showLive?C.green:C.muted}}>
             {showLive?`${clock}'`:"MAÇ SONU"}
           </span>
-          <Bdg c={C.muted} style={{fontSize:8}}>{weather?.icon} {weather?.name}</Bdg>
+          <Bdg c={C.muted} style={{fontSize:9.5}}>{weather?.icon} {weather?.name}</Bdg>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:6}}>
           <div style={{flex:1,textAlign:"center"}}>
             <ClubKit color={club.color} size={big?38:30}/>
-            <div style={{fontSize:10,fontWeight:700,marginTop:4,fontFamily:F.cond,
+            <div style={{fontSize:11.5,fontWeight:700,marginTop:4,fontFamily:F.cond,
               overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{club.name}</div>
           </div>
           <div style={{textAlign:"center",flexShrink:0,minWidth:88}}>
@@ -4962,7 +5039,7 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
           </div>
           <div style={{flex:1,textAlign:"center"}}>
             <ClubKit color={oppClub?.color||C.muted} size={big?38:30}/>
-            <div style={{fontSize:10,fontWeight:700,marginTop:4,fontFamily:F.cond,
+            <div style={{fontSize:11.5,fontWeight:700,marginTop:4,fontFamily:F.cond,
               overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{oppName}</div>
           </div>
         </div>
@@ -5008,7 +5085,7 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
                 :liveScore.home<liveScore.away?C.red:C.gold}}>
               {liveScore.home} - {liveScore.away}
             </div>
-            <div style={{fontSize:11,color:C.muted,marginTop:4}}>{club.name} vs {oppName}</div>
+            <div style={{fontSize:12.5,color:C.muted,marginTop:4}}>{club.name} vs {oppName}</div>
           </div>
           <div style={{background:C.bg,borderRadius:R.md,padding:12,marginBottom:13,fontSize:12,
             color:C.muted,lineHeight:1.6}}>
@@ -5093,9 +5170,9 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
             color:liveScore.home>liveScore.away?C.green:liveScore.home<liveScore.away?C.red:C.gold}}>
             {liveScore.home} - {liveScore.away}
           </div>
-          <div style={{fontSize:10,color:C.muted,marginTop:3}}>{club.name} vs {oppName}</div>
+          <div style={{fontSize:11.5,color:C.muted,marginTop:3}}>{club.name} vs {oppName}</div>
         </div>
-        <div style={{background:C.bg,borderRadius:R.sm,padding:11,marginBottom:12,fontSize:11,color:C.muted,lineHeight:1.6}}>
+        <div style={{background:C.bg,borderRadius:R.sm,padding:11,marginBottom:12,fontSize:12.5,color:C.muted,lineHeight:1.6}}>
           {liveScore.home>liveScore.away?"💬 Teknik direktör: \"Böyle devam, konsantrasyonu kaybetmeyin!\""
            :liveScore.home<liveScore.away?"💬 Teknik direktör: \"Daha fazla istemelisiniz! Baskıyı artırın.\""
            :"💬 Teknik direktör: \"Bir gol bu maçı çözer. Cesur olun.\""}
@@ -5112,7 +5189,7 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
         <div style={{textAlign:"center",marginBottom:12}}>
           <div style={{fontSize:34}}>{currentMoment.icon}</div>
           <div style={{fontFamily:F.mono,fontSize:15,fontWeight:900,color:currentMoment.color,marginTop:5}}>{currentMoment.label}</div>
-          <div style={{fontSize:11,color:C.muted,marginTop:6,lineHeight:1.6}}>{currentMoment.desc}</div>
+          <div style={{fontSize:12.5,color:C.muted,marginTop:6,lineHeight:1.6}}>{currentMoment.desc}</div>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:7}}>
           {currentMoment.choices.map((ch,i)=>(
@@ -5146,7 +5223,7 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
     {/* ── TARAFTAR YORUMU ── */}
     {fanComment&&<div className="pop" style={{position:"fixed",bottom:16,left:"50%",transform:"translateX(-50%)",
       background:C.card,border:`1px solid ${C.accent}55`,borderRadius:20,padding:"8px 16px",zIndex:300,
-      fontSize:11,color:C.text,maxWidth:"90%",textAlign:"center"}}>{fanComment}</div>}
+      fontSize:12.5,color:C.text,maxWidth:"90%",textAlign:"center"}}>{fanComment}</div>}
 
     {/* ── ANA PANEL ── */}
     <div style={{maxWidth:480,margin:"0 auto",padding:S.lg}}>
@@ -5161,13 +5238,13 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
             momentum={momentum} clubColor={club.color} oppColor={oppClub?.color}
             tick={idx} height={172}/>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:5}}>
-            <span style={{fontSize:8,color:C.muted,letterSpacing:0,fontFamily:F.cond,fontWeight:700}}>
+            <span style={{fontSize:9.5,color:C.muted,letterSpacing:0,fontFamily:F.cond,fontWeight:700}}>
               <span style={{display:"inline-block",width:7,height:7,borderRadius:4,background:C.gold,marginRight:4}}/>
               SEN
               <span style={{display:"inline-block",width:7,height:7,borderRadius:4,background:club.color,margin:"0 4px 0 10px"}}/>
               {club.name.toUpperCase()}
             </span>
-            <span style={{fontSize:8,color:C.muted,letterSpacing:0,fontFamily:F.cond,fontWeight:700}}>
+            <span style={{fontSize:9.5,color:C.muted,letterSpacing:0,fontFamily:F.cond,fontWeight:700}}>
               {(oppName||"RAKİP").toUpperCase()}
               <span style={{display:"inline-block",width:7,height:7,borderRadius:4,
                 background:oppClub?.color||"#ddd",marginLeft:4}}/>
@@ -5180,7 +5257,7 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
           <div style={{flex:"0 0 86px",background:`linear-gradient(160deg,${tone(liveRating*10)}18,${C.card})`,
             border:`1px solid ${tone(liveRating*10)}44`,borderRadius:R.sm,padding:"9px 4px",textAlign:"center",
             display:"flex",flexDirection:"column",justifyContent:"center"}}>
-            <div style={{fontSize:7,color:C.muted,letterSpacing:0.3}}>CANLI REYTİNG</div>
+            <div style={{fontSize:9,color:C.muted,letterSpacing:0.3}}>CANLI REYTİNG</div>
             <div style={{fontFamily:F.mono,fontSize:23,fontWeight:900,color:tone(liveRating*10),lineHeight:1.15}}>
               {liveRating.toFixed(1)}
             </div>
@@ -5189,24 +5266,24 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
             {[["⚽",liveScore.home,"GOL"],["🎯",extraAssists+events.filter(e=>e.type==="assist").length,"ASİST"],
               ["👟",liveStats.sut,"ŞUT"],["📊",liveStats.pas,"PAS"]].map(([ic,v,l])=>(
               <div key={l} style={{background:C.card,borderRadius:R.sm,padding:"6px 4px",textAlign:"center",border:`1px solid ${C.border}`}}>
-                <span style={{fontSize:10}}>{ic}</span>
+                <span style={{fontSize:11.5}}>{ic}</span>
                 <span style={{fontFamily:F.mono,fontSize:13,fontWeight:900,marginLeft:5}}>{v}</span>
-                <div style={{fontSize:7,color:C.muted,letterSpacing:0}}>{l}</div>
+                <div style={{fontSize:9,color:C.muted,letterSpacing:0}}>{l}</div>
               </div>))}
           </div>
         </div>
 
         {/* Hız kontrolü + hızlı simülasyon */}
         <div style={{display:"flex",gap:5,marginBottom:S.md,alignItems:"center"}}>
-          <span style={{fontSize:9,color:C.muted,letterSpacing:0,fontFamily:F.cond,fontWeight:700}}>HIZ</span>
+          <span style={{fontSize:10.5,color:C.muted,letterSpacing:0,fontFamily:F.cond,fontWeight:700}}>HIZ</span>
           {[1,2,4].map(sp=>(
             <button key={sp} onClick={()=>setSpeed(sp)} style={{padding:"5px 11px",borderRadius:R.sm,cursor:"pointer",
               border:`1px solid ${speed===sp?C.accent:C.border}`,background:speed===sp?`${C.accent}22`:C.card2,
-              color:speed===sp?C.accent:C.muted,fontFamily:F.cond,fontWeight:700,fontSize:11}}>{sp}x</button>
+              color:speed===sp?C.accent:C.muted,fontFamily:F.cond,fontWeight:700,fontSize:12.5}}>{sp}x</button>
           ))}
           <button onClick={quickSim} style={{marginLeft:"auto",padding:"6px 13px",borderRadius:R.sm,cursor:"pointer",
             border:`1px solid ${C.gold}55`,background:`${C.gold}18`,color:C.gold,
-            fontFamily:F.cond,fontWeight:700,fontSize:11}}>⚡ Maçı Bitir</button>
+            fontFamily:F.cond,fontWeight:700,fontSize:12.5}}>⚡ Maçı Bitir</button>
         </div>
 
         {/* Maç akışı */}
@@ -5216,12 +5293,12 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
             {events.map((e,i)=>(
               <div key={i} className="si" style={{display:"flex",gap:8,alignItems:"flex-start",padding:"5px 0",
                 borderBottom:`1px solid ${C.border}44`}}>
-                <span style={{fontFamily:F.mono,fontSize:9,color:C.muted,width:26,flexShrink:0,paddingTop:1}}>{e.min}'</span>
-                <span style={{fontSize:11,color:evC[e.type]||C.text,lineHeight:1.5,flex:1}}>{e.text}</span>
+                <span style={{fontFamily:F.mono,fontSize:10.5,color:C.muted,width:26,flexShrink:0,paddingTop:1}}>{e.min}'</span>
+                <span style={{fontSize:12.5,color:evC[e.type]||C.text,lineHeight:1.5,flex:1}}>{e.text}</span>
               </div>))}
           </div>
           {idx<evList.length&&!showHalftime&&
-            <div style={{textAlign:"center",color:C.muted,fontSize:10,paddingTop:8}}>● maç sürüyor…</div>}
+            <div style={{textAlign:"center",color:C.muted,fontSize:11.5,paddingTop:8}}>● maç sürüyor…</div>}
         </Card>
       </>}
 
@@ -5257,8 +5334,8 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
             color:finalWon?C.green:finalDraw?C.gold:C.red}}>
             {finalWon?"🎉 GALİBİYET":finalDraw?"🤝 BERABERLİK":"😞 MAĞLUBİYET"}
           </div>
-          <div style={{fontSize:10,color:C.muted,marginTop:4}}>{club.name} {finalTeamScore}–{res.oppScore} {oppName}</div>
-          <div style={{fontSize:10,color:role.c,marginTop:4}}>{role.icon} {role.label} · {role.minutes} dakika oynadın</div>
+          <div style={{fontSize:11.5,color:C.muted,marginTop:4}}>{club.name} {finalTeamScore}–{res.oppScore} {oppName}</div>
+          <div style={{fontSize:11.5,color:role.c,marginTop:4}}>{role.icon} {role.label} · {role.minutes} dakika oynadın</div>
           {res.motm&&<div style={{marginTop:8}}><Bdg c={C.gold}>⭐ MAÇIN ADAMI</Bdg></div>}
         </Card>
 
@@ -5280,7 +5357,7 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:S.md}}>
             <Lbl style={{margin:0}}>MAÇ İSTATİSTİKLERİ</Lbl>
             <button onClick={()=>setShowStats(v=>!v)} style={{background:"transparent",border:"none",
-              color:C.accent,fontSize:10,cursor:"pointer",fontFamily:F.cond,fontWeight:700,letterSpacing:0}}>
+              color:C.accent,fontSize:11.5,cursor:"pointer",fontFamily:F.cond,fontWeight:700,letterSpacing:0}}>
               {showStats?"GİZLE ▴":"TÜMÜ ▾"}
             </button>
           </div>
@@ -5290,16 +5367,16 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
             <div style={{textAlign:"center",flex:1}}>
               <div style={{fontFamily:F.mono,fontSize:19,fontWeight:900,
                 color:stats.xg>=stats.xgOpp?C.green:C.text}}>{stats.xg.toFixed(2)}</div>
-              <div style={{fontSize:8,color:C.muted,letterSpacing:0}}>{club.name.slice(0,12)}</div>
+              <div style={{fontSize:9.5,color:C.muted,letterSpacing:0}}>{club.name.slice(0,12)}</div>
             </div>
             <div style={{textAlign:"center",flexShrink:0}}>
-              <div style={{fontSize:9,color:C.gold,letterSpacing:0.3,fontFamily:F.cond,fontWeight:700}}>xG</div>
-              <div style={{fontSize:7,color:C.muted,marginTop:2}}>beklenen gol</div>
+              <div style={{fontSize:10.5,color:C.gold,letterSpacing:0.3,fontFamily:F.cond,fontWeight:700}}>xG</div>
+              <div style={{fontSize:9,color:C.muted,marginTop:2}}>beklenen gol</div>
             </div>
             <div style={{textAlign:"center",flex:1}}>
               <div style={{fontFamily:F.mono,fontSize:19,fontWeight:900,
                 color:stats.xgOpp>stats.xg?C.red:C.text}}>{stats.xgOpp.toFixed(2)}</div>
-              <div style={{fontSize:8,color:C.muted,letterSpacing:0}}>{(oppName||"Rakip").slice(0,12)}</div>
+              <div style={{fontSize:9.5,color:C.muted,letterSpacing:0}}>{(oppName||"Rakip").slice(0,12)}</div>
             </div>
           </div>
           {/* Karşılaştırma barları */}
@@ -5317,9 +5394,9 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
           ).map(([l,a,b,suf])=>{
             const tot=(a+b)||1, pa=(a/tot)*100;
             return(<div key={l} style={{marginBottom:9}}>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:4}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:11.5,marginBottom:4}}>
                 <span style={{fontFamily:F.mono,fontWeight:900,color:a>=b?C.green:C.muted}}>{a}{suf}</span>
-                <span style={{color:C.muted,fontSize:9,letterSpacing:0}}>{l}</span>
+                <span style={{color:C.muted,fontSize:10.5,letterSpacing:0}}>{l}</span>
                 <span style={{fontFamily:F.mono,fontWeight:900,color:b>a?C.red:C.muted}}>{b}{suf}</span>
               </div>
               <div style={{display:"flex",height:5,borderRadius:3,overflow:"hidden",background:"#00000055"}}>
@@ -5345,7 +5422,7 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
           <Lbl c={C.gold}>KAZANILAN XP</Lbl>
           {xp.rows.map((r,i)=>(
             <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",
-              borderBottom:`1px solid ${C.border}44`,fontSize:11}}>
+              borderBottom:`1px solid ${C.border}44`,fontSize:12.5}}>
               <span style={{color:C.muted}}>{r.label}</span>
               <span style={{fontFamily:F.mono,fontWeight:700,
                 color:r.c==="green"?C.green:r.c==="gold"?C.gold:r.c==="red"?C.red:r.c==="accent"?C.accent:C.text}}>
@@ -5353,7 +5430,7 @@ function LiveMatch({player,club,tactic,weather,diffMod,onDone,fixtures,week,team
               </span>
             </div>))}
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:9,marginTop:4}}>
-            <span style={{fontSize:11,color:C.text,fontFamily:F.cond,fontWeight:700,letterSpacing:0}}>TOPLAM</span>
+            <span style={{fontSize:12.5,color:C.text,fontFamily:F.cond,fontWeight:700,letterSpacing:0}}>TOPLAM</span>
             <span style={{fontFamily:F.mono,fontSize:18,fontWeight:900,color:C.gold}}>+{xp.total} XP</span>
           </div>
         </Card>
@@ -5537,16 +5614,16 @@ function TurkeyCupModal({player,club,onClose,onWin}){
         <div style={{textAlign:"center",marginBottom:14}}>
           <div style={{fontSize:28}}>🏅</div>
           <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:13,color:"#e8163e",letterSpacing:0.3}}>ZİRAAT TÜRKİYE KUPASI</div>
-          <div style={{fontSize:10,color:C.muted,marginTop:2}}>{ZK_ROUNDS[zkRound]} · {playerTeam}</div>
+          <div style={{fontSize:11.5,color:C.muted,marginTop:2}}>{ZK_ROUNDS[zkRound]} · {playerTeam}</div>
         </div>
 
         {/* INTRO */}
         {zkPhase==="intro"&&(
           <div>
             <div style={{background:C.card2,borderRadius:10,padding:12,marginBottom:12}}>
-              <div style={{fontSize:10,color:C.muted,letterSpacing:0.3,marginBottom:8,fontWeight:700}}>FORMAT</div>
+              <div style={{fontSize:11.5,color:C.muted,letterSpacing:0.3,marginBottom:8,fontWeight:700}}>FORMAT</div>
               {ZK_ROUNDS.map((r,i)=>(
-                <div key={i} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5,fontSize:11}}>
+                <div key={i} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5,fontSize:12.5}}>
                   <span style={{color:"#e8163e",minWidth:16}}>{i+1}</span>
                   <span style={{color:i===4?C.gold:C.text}}>{r}</span>
                   {i===4&&<span style={{marginLeft:"auto"}}>🏆</span>}
@@ -5554,10 +5631,10 @@ function TurkeyCupModal({player,club,onClose,onWin}){
               ))}
             </div>
             <div style={{background:C.card2,borderRadius:10,padding:12,marginBottom:14}}>
-              <div style={{fontSize:10,color:C.muted,letterSpacing:0.3,marginBottom:8,fontWeight:700}}>ÖDÜLLER</div>
+              <div style={{fontSize:11.5,color:C.muted,letterSpacing:0.3,marginBottom:8,fontWeight:700}}>ÖDÜLLER</div>
               {[["🏆 Şampiyonluk","titles +1 · Moral +20 · Fame +15"],["⚽ Her gol","Kariyer istatistiğine eklenir"],["🌟 Her maç","Rating · Gol · Asist kaydedilir"]].map(([k,v])=>(
-                <div key={k} style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}>
-                  <span>{k}</span><span style={{color:C.gold,fontSize:10}}>{v}</span>
+                <div key={k} style={{display:"flex",justifyContent:"space-between",fontSize:12.5,marginBottom:4}}>
+                  <span>{k}</span><span style={{color:C.gold,fontSize:11.5}}>{v}</span>
                 </div>
               ))}
             </div>
@@ -5572,25 +5649,25 @@ function TurkeyCupModal({player,club,onClose,onWin}){
         {zkPhase==="draw"&&(
           <div>
             <div style={{background:"#e8163e15",border:"1px solid #e8163e44",borderRadius:10,padding:12,marginBottom:12}}>
-              <div style={{fontSize:10,color:"#e8163e",letterSpacing:0.3,marginBottom:8,fontWeight:700}}>⚽ SENİN MAÇIN</div>
+              <div style={{fontSize:11.5,color:"#e8163e",letterSpacing:0.3,marginBottom:8,fontWeight:700}}>⚽ SENİN MAÇIN</div>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                 <div style={{textAlign:"center",flex:1}}>
                   <div style={{fontSize:20}}>⚽</div>
                   <div style={{fontSize:12,fontWeight:700,color:C.accent}}>{playerTeam}</div>
-                  <div style={{fontSize:10,color:C.muted}}>OVR {player.overall}</div>
+                  <div style={{fontSize:11.5,color:C.muted}}>OVR {player.overall}</div>
                 </div>
                 <div style={{color:C.muted,fontSize:18}}>vs</div>
                 <div style={{textAlign:"center",flex:1}}>
                   <div style={{fontSize:20}}>🏟️</div>
                   <div style={{fontSize:12,fontWeight:700}}>{oppName}</div>
-                  <div style={{fontSize:10,color:C.muted}}>Güç {oppStr2}</div>
+                  <div style={{fontSize:11.5,color:C.muted}}>Güç {oppStr2}</div>
                 </div>
               </div>
             </div>
-            <div style={{fontSize:10,color:C.muted,letterSpacing:0.3,marginBottom:6,fontWeight:700}}>DİĞER MAÇLAR</div>
+            <div style={{fontSize:11.5,color:C.muted,letterSpacing:0.3,marginBottom:6,fontWeight:700}}>DİĞER MAÇLAR</div>
             <div style={{maxHeight:180,overflowY:"auto",marginBottom:12}}>
               {zkBracket.slice(1).map(([a,b],i)=>(
-                <div key={i} style={{display:"flex",justifyContent:"space-between",background:C.card2,borderRadius:7,padding:"5px 8px",marginBottom:4,fontSize:10}}>
+                <div key={i} style={{display:"flex",justifyContent:"space-between",background:C.card2,borderRadius:7,padding:"5px 8px",marginBottom:4,fontSize:11.5}}>
                   <span style={{color:C.text}}>{a}</span>
                   <span style={{color:C.muted}}>vs</span>
                   <span style={{color:C.muted}}>{b||"Bye"}</span>
@@ -5606,7 +5683,7 @@ function TurkeyCupModal({player,club,onClose,onWin}){
           <div>
             <div style={{textAlign:"center",marginBottom:12}}>
               <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:16,color:C.accent}}>{zkTick}'</div>
-              <div style={{fontSize:11,color:C.muted}}>{playerTeam} vs {oppName}</div>
+              <div style={{fontSize:12.5,color:C.muted}}>{playerTeam} vs {oppName}</div>
             </div>
             <div style={{minHeight:160,display:"flex",flexDirection:"column",gap:6,marginBottom:14}}>
               {zkLiveEvents.length===0&&<div style={{textAlign:"center",color:C.muted,fontSize:12,paddingTop:40}}>⏱️ Maç başladı...</div>}
@@ -5614,9 +5691,9 @@ function TurkeyCupModal({player,club,onClose,onWin}){
                 <div key={i} style={{
                   background:ev.type==="goal"?`${C.green}15`:ev.type==="star"?`${C.gold}10`:C.card2,
                   border:`1px solid ${ev.type==="goal"?C.green+"44":ev.type==="star"?C.gold+"33":C.border}`,
-                  borderRadius:8,padding:"7px 10px",display:"flex",gap:8,alignItems:"center",fontSize:11
+                  borderRadius:8,padding:"7px 10px",display:"flex",gap:8,alignItems:"center",fontSize:12.5
                 }}>
-                  <span style={{color:C.muted,minWidth:24,fontSize:10}}>{ev.min}'</span>
+                  <span style={{color:C.muted,minWidth:24,fontSize:11.5}}>{ev.min}'</span>
                   <span>{ev.text}</span>
                 </div>
               ))}
@@ -5635,7 +5712,7 @@ function TurkeyCupModal({player,club,onClose,onWin}){
               <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:14,color:zkPlayerRes.won?C.green:zkPlayerRes.draw?C.gold:C.red}}>
                 {zkPlayerRes.teamScore??1} — {zkPlayerRes.oppScore??0}
               </div>
-              <div style={{fontSize:11,color:C.muted,marginTop:4}}>
+              <div style={{fontSize:12.5,color:C.muted,marginTop:4}}>
                 {zkPlayerRes.won?"Turladık! 🎉":zkPlayerRes.draw?"Berabere — Penaltıda turladık":"Elendik 😔"}
               </div>
             </div>
@@ -5644,18 +5721,18 @@ function TurkeyCupModal({player,club,onClose,onWin}){
                 <div key={l} style={{background:C.card2,borderRadius:8,padding:8,textAlign:"center"}}>
                   <div style={{fontSize:16}}>{ic}</div>
                   <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:15,fontWeight:700,color:C.accent}}>{v}</div>
-                  <div style={{fontSize:9,color:C.muted}}>{l}</div>
+                  <div style={{fontSize:10.5,color:C.muted}}>{l}</div>
                 </div>
               ))}
             </div>
-            <div style={{fontSize:10,color:C.muted,letterSpacing:0.3,marginBottom:6,fontWeight:700}}>TUR SONUÇLARI</div>
+            <div style={{fontSize:11.5,color:C.muted,letterSpacing:0.3,marginBottom:6,fontWeight:700}}>TUR SONUÇLARI</div>
             <div style={{maxHeight:160,overflowY:"auto",marginBottom:12}}>
               {zkRoundRes.map((r,i)=>(
                 <div key={i} style={{
                   display:"flex",justifyContent:"space-between",alignItems:"center",
                   background:r.isPlayer?`#e8163e15`:C.card2,
                   border:`1px solid ${r.isPlayer?"#e8163e44":C.border}`,
-                  borderRadius:7,padding:"5px 8px",marginBottom:4,fontSize:10
+                  borderRadius:7,padding:"5px 8px",marginBottom:4,fontSize:11.5
                 }}>
                   <span style={{color:C.text,flex:1,textAlign:"right"}}>{r.home}</span>
                   <span style={{color:C.muted,margin:"0 6px"}}>{r.isBye?"–":r.hs+":"+r.as}</span>
@@ -5682,7 +5759,7 @@ function TurkeyCupModal({player,club,onClose,onWin}){
                 <div key={l} style={{background:C.card2,borderRadius:8,padding:8}}>
                   <div style={{fontSize:16}}>{ic}</div>
                   <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:15,color:C.accent}}>{v}</div>
-                  <div style={{fontSize:9,color:C.muted}}>{l}</div>
+                  <div style={{fontSize:10.5,color:C.muted}}>{l}</div>
                 </div>
               ))}
             </div>
@@ -5701,14 +5778,14 @@ function TurkeyCupModal({player,club,onClose,onWin}){
                 <div key={l} style={{background:C.card2,borderRadius:8,padding:8}}>
                   <div style={{fontSize:16}}>{ic}</div>
                   <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:14,fontWeight:700,color:C.gold}}>{v}</div>
-                  <div style={{fontSize:9,color:C.muted}}>{l}</div>
+                  <div style={{fontSize:10.5,color:C.muted}}>{l}</div>
                 </div>
               ))}
             </div>
             <div style={{background:C.card2,borderRadius:10,padding:10,marginBottom:14}}>
-              <div style={{fontSize:10,color:C.muted,letterSpacing:0.3,marginBottom:6,fontWeight:700}}>KUPA ÖZET</div>
+              <div style={{fontSize:11.5,color:C.muted,letterSpacing:0.3,marginBottom:6,fontWeight:700}}>KUPA ÖZET</div>
               {zkLog.map((e,i)=>(
-                <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:10,borderBottom:`1px solid ${C.border}`,padding:"4px 0"}}>
+                <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:11.5,borderBottom:`1px solid ${C.border}`,padding:"4px 0"}}>
                   <span style={{color:C.muted}}>{e.round}</span>
                   <span style={{color:e.won?C.green:e.draw?C.gold:C.red}}>{e.won?"G":e.draw?"B":"M"}</span>
                   <span style={{color:C.accent}}>{e.goals}G {e.assists}A</span>
@@ -5824,7 +5901,7 @@ function EuroCupModal({ec,player,club,week,onPlay,onClose}){
         <div style={{fontSize:26}}>{cup.icon}</div>
         <div style={{flex:1}}>
           <div style={{fontFamily:F.mono,fontSize:14,fontWeight:900,color:cup.color}}>{cup.name.toUpperCase()}</div>
-          <div style={{fontSize:10,color:C.muted}}>
+          <div style={{fontSize:11.5,color:C.muted}}>
             {club.name} · {ec.stage==="ko"?cup.koStages[ec.koIdx]:ec.stage==="done"?"Tamamlandı":`Grup ${Math.min(ec.gIdx+1,6)}/6`}
           </div>
         </div>
@@ -5834,16 +5911,16 @@ function EuroCupModal({ec,player,club,week,onPlay,onClose}){
       {/* GRUP TABLOSU */}
       {ec.stage!=="done"&&<Card style={{marginBottom:10}}>
         <Lbl>GRUP TABLOSU</Lbl>
-        <div style={{display:"flex",fontSize:8,color:C.muted,letterSpacing:0,padding:"0 0 4px",borderBottom:`1px solid ${C.border}`}}>
+        <div style={{display:"flex",fontSize:9.5,color:C.muted,letterSpacing:0,padding:"0 0 4px",borderBottom:`1px solid ${C.border}`}}>
           <span style={{width:14}}></span><span style={{flex:1}}>TAKIM</span>
           <span style={{width:18,textAlign:"center"}}>O</span><span style={{width:22,textAlign:"center"}}>AV</span><span style={{width:20,textAlign:"right"}}>P</span>
         </div>
         {sorted.map((t,i)=>(<div key={t.name} style={{display:"flex",alignItems:"center",padding:"5px 0",
-          borderBottom:`1px solid ${C.border}33`,background:t.isMe?`${cup.color}12`:"transparent",fontSize:11}}>
-          <span style={{width:14,fontSize:9,color:i<2?C.green:C.muted,fontWeight:700}}>{i+1}</span>
+          borderBottom:`1px solid ${C.border}33`,background:t.isMe?`${cup.color}12`:"transparent",fontSize:12.5}}>
+          <span style={{width:14,fontSize:10.5,color:i<2?C.green:C.muted,fontWeight:700}}>{i+1}</span>
           <span style={{flex:1,color:t.isMe?cup.color:C.text,fontWeight:t.isMe?700:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</span>
-          <span style={{width:18,textAlign:"center",color:C.muted,fontSize:10}}>{t.p}</span>
-          <span style={{width:22,textAlign:"center",color:t.gd>0?C.green:t.gd<0?C.red:C.muted,fontSize:10}}>{t.gd>0?"+":""}{t.gd}</span>
+          <span style={{width:18,textAlign:"center",color:C.muted,fontSize:11.5}}>{t.p}</span>
+          <span style={{width:22,textAlign:"center",color:t.gd>0?C.green:t.gd<0?C.red:C.muted,fontSize:11.5}}>{t.gd>0?"+":""}{t.gd}</span>
           <span style={{width:20,textAlign:"right",fontWeight:900,fontFamily:F.mono}}>{t.pts}</span>
         </div>))}
       </Card>}
@@ -5853,7 +5930,7 @@ function EuroCupModal({ec,player,club,week,onPlay,onClose}){
         {cup.koStages.map((st,i)=>(<div key={st} style={{flex:1,textAlign:"center",padding:"5px 2px",borderRadius:6,
           background:i<ec.koIdx?`${C.green}22`:i===ec.koIdx?`${cup.color}22`:C.bg,
           border:`1px solid ${i<ec.koIdx?C.green+"55":i===ec.koIdx?cup.color+"55":C.border}`,
-          fontSize:8,color:i<ec.koIdx?C.green:i===ec.koIdx?cup.color:C.muted,fontWeight:700}}>
+          fontSize:9.5,color:i<ec.koIdx?C.green:i===ec.koIdx?cup.color:C.muted,fontWeight:700}}>
           {i<ec.koIdx?"✓ ":""}{st}
         </div>))}
       </div>}
@@ -5868,11 +5945,11 @@ function EuroCupModal({ec,player,club,week,onPlay,onClose}){
               ? `${nextGroup.home===club.name?"🏟️ Ev":"✈️ Deplasman"} — ${nextGroup.home===club.name?nextGroup.away:nextGroup.home}`
               : "—"}
         </div>
-        {ec.stage==="ko"&&<div style={{fontSize:10,color:C.muted,marginTop:4}}>Beraberlikte penaltılara gidilir</div>}
+        {ec.stage==="ko"&&<div style={{fontSize:11.5,color:C.muted,marginTop:4}}>Beraberlikte penaltılara gidilir</div>}
         <div style={{marginTop:10}}>
           {due
             ? <Btn v="gold" style={{width:"100%"}} onClick={onPlay}>⚽ Maçı Oyna</Btn>
-            : <div style={{fontSize:11,color:C.muted,padding:"9px",background:C.bg,borderRadius:R.sm}}>
+            : <div style={{fontSize:12.5,color:C.muted,padding:"9px",background:C.bg,borderRadius:R.sm}}>
                 📅 {nextWeek}. haftada oynanacak · şu an {week}. hafta
               </div>}
         </div>
@@ -5884,7 +5961,7 @@ function EuroCupModal({ec,player,club,week,onPlay,onClose}){
         <div style={{fontFamily:F.mono,fontSize:15,fontWeight:900,color:ec.won?cup.color:C.red,marginTop:6}}>
           {ec.won?`${cup.name.toUpperCase()} ŞAMPİYONU!`:"ELENDİN"}
         </div>
-        {ec.won&&<div style={{fontSize:11,color:C.muted,marginTop:6}}>Prim: €{cup.prize}K</div>}
+        {ec.won&&<div style={{fontSize:12.5,color:C.muted,marginTop:6}}>Prim: €{cup.prize}K</div>}
       </Card>}
 
       {/* İSTATİSTİK */}
@@ -5895,7 +5972,7 @@ function EuroCupModal({ec,player,club,week,onPlay,onClose}){
             <div key={l} style={{background:C.bg,borderRadius:8,padding:8}}>
               <div style={{fontSize:14}}>{ic}</div>
               <div style={{fontFamily:F.mono,fontSize:15,fontWeight:900}}>{v}</div>
-              <div style={{fontSize:8,color:C.muted}}>{l}</div>
+              <div style={{fontSize:9.5,color:C.muted}}>{l}</div>
             </div>))}
         </div>
       </Card>
@@ -5905,12 +5982,12 @@ function EuroCupModal({ec,player,club,week,onPlay,onClose}){
         <Lbl>MAÇLARIN</Lbl>
         <div style={{maxHeight:150,overflowY:"auto"}}>
           {ec.log.map((m,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0",
-            borderBottom:`1px solid ${C.border}33`,fontSize:10}}>
-            <span style={{width:56,fontSize:8,color:C.muted}}>{m.stage}</span>
+            borderBottom:`1px solid ${C.border}33`,fontSize:11.5}}>
+            <span style={{width:56,fontSize:9.5,color:C.muted}}>{m.stage}</span>
             <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.opp}</span>
             <span style={{color:m.won?C.green:m.draw?C.muted:C.red,fontWeight:700}}>{m.ts}-{m.os}</span>
-            {m.pens&&<span style={{fontSize:8,color:C.gold}}>({m.pens.me}-{m.pens.opp}p)</span>}
-            <span style={{width:40,textAlign:"right",color:C.muted,fontSize:9}}>{m.goals}G {m.assists}A</span>
+            {m.pens&&<span style={{fontSize:9.5,color:C.gold}}>({m.pens.me}-{m.pens.opp}p)</span>}
+            <span style={{width:40,textAlign:"right",color:C.muted,fontSize:10.5}}>{m.goals}G {m.assists}A</span>
           </div>))}
         </div>
       </Card>}
@@ -5981,7 +6058,7 @@ function WorldCupModal({player,onClose,onWin}){
       <div style={{textAlign:"center",marginBottom:12}}>
         <div style={{fontSize:36}}>🌍</div>
         <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:16,color:C.gold}}>DÜNYA KUPASI 2026</div>
-        <div style={{fontSize:10,color:C.muted}}>
+        <div style={{fontSize:11.5,color:C.muted}}>
           {stage==="group"&&`Grup ${myGroup.group} · Maç ${groupIdx+1}/${groupOpps.length}`}
           {stage==="r16"&&"Son 16"}
           {stage==="quarter"&&"Çeyrek Final"}
@@ -5997,9 +6074,9 @@ function WorldCupModal({player,onClose,onWin}){
         <div style={{display:"flex",gap:4,marginBottom:6}}>
           {myGroup.teams.map(t=><Bdg key={t} c={t===myCountry?C.red:C.muted}>{t}</Bdg>)}
         </div>
-        <div style={{fontSize:10,color:C.muted,marginBottom:6}}>{myCountry} Grup Puanı: <span style={{color:C.gold,fontWeight:700}}>{totalGroupPts}</span></div>
+        <div style={{fontSize:11.5,color:C.muted,marginBottom:6}}>{myCountry} Grup Puanı: <span style={{color:C.gold,fontWeight:700}}>{totalGroupPts}</span></div>
         {groupResults.map((r,i)=>(
-          <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:10,padding:"3px 0",borderBottom:`1px solid ${C.border}22`}}>
+          <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:11.5,padding:"3px 0",borderBottom:`1px solid ${C.border}22`}}>
             <span style={{color:C.muted}}>{myFlag} {myCountry} vs {r.opp}</span>
             <span style={{color:r.won?C.green:r.draw?C.gold:C.red,fontWeight:700}}>{r.teamScore}–{r.oppScore} ({r.won?"G":r.draw?"B":"M"})</span>
           </div>
@@ -6010,7 +6087,7 @@ function WorldCupModal({player,onClose,onWin}){
       {koResults.length>0&&<Card style={{marginBottom:10}}>
         <Lbl>ELİMİNASYON</Lbl>
         {koResults.map((r,i)=>(
-          <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:10,padding:"3px 0",borderBottom:`1px solid ${C.border}22`}}>
+          <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:11.5,padding:"3px 0",borderBottom:`1px solid ${C.border}22`}}>
             <span style={{color:C.muted}}>{r.stage} · {r.opp}</span>
             <span style={{color:r.won?C.green:C.red,fontWeight:700}}>{r.teamScore}–{r.oppScore}</span>
           </div>
@@ -6116,7 +6193,7 @@ function LigTab({club,standings,week,player,fixtures,leagueScorers,season}){
       {LEAGUES.map(lg=>{
         const active=selLgId===lg.id;
         const isMine=lg.id===club.leagueId;
-        return(<button key={lg.id} onClick={()=>setSelLgId(lg.id)} style={{padding:"5px 9px",borderRadius:7,border:`1px solid ${active?lg.color:C.border}`,background:active?`${lg.color}22`:C.card2,color:active?lg.color:C.muted,fontFamily:"'Fredoka',sans-serif",fontWeight:isMine?700:500,fontSize:10,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
+        return(<button key={lg.id} onClick={()=>setSelLgId(lg.id)} style={{padding:"5px 9px",borderRadius:7,border:`1px solid ${active?lg.color:C.border}`,background:active?`${lg.color}22`:C.card2,color:active?lg.color:C.muted,fontFamily:"'Fredoka',sans-serif",fontWeight:isMine?700:500,fontSize:11.5,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
           <span>{lg.emoji}</span><span>{lg.name}{isMine?" ★":""}</span>
         </button>);
       })}
@@ -6128,8 +6205,8 @@ function LigTab({club,standings,week,player,fixtures,leagueScorers,season}){
         {isMyLg&&<Bdg c={C.accent}>Senin Ligin</Bdg>}
       </div>
       <div style={{display:"flex",gap:5}}>
-        {isMyLg&&<Btn v="ghost" onClick={()=>setShowFixtures(f=>!f)} style={{fontSize:10,padding:"4px 8px"}}>{showFixtures?"📊 Tablo":"📅 Fikstür"}</Btn>}
-        <Btn v="ghost" onClick={() => setShowGoalKings(!showGoalKings)} style={{fontSize:10,padding:"4px 10px"}}>
+        {isMyLg&&<Btn v="ghost" onClick={()=>setShowFixtures(f=>!f)} style={{fontSize:11.5,padding:"4px 8px"}}>{showFixtures?"📊 Tablo":"📅 Fikstür"}</Btn>}
+        <Btn v="ghost" onClick={() => setShowGoalKings(!showGoalKings)} style={{fontSize:11.5,padding:"4px 10px"}}>
           {showGoalKings ? "Tablo" : "⚽ Goller"}
         </Btn>
       </div>
@@ -6140,29 +6217,29 @@ function LigTab({club,standings,week,player,fixtures,leagueScorers,season}){
       <div style={{marginBottom:10}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
           <button onClick={()=>setFixtureWeek(w=>Math.max(1,w-1))} style={{background:C.card2,border:`1px solid ${C.border}`,borderRadius:6,padding:"3px 8px",color:C.text,cursor:"pointer",fontSize:12}}>◀</button>
-          <div style={{flex:1,textAlign:"center",fontFamily:"'Baloo 2',sans-serif",fontSize:11,color:fixtureWeek===week?C.accent:C.text}}>
+          <div style={{flex:1,textAlign:"center",fontFamily:"'Baloo 2',sans-serif",fontSize:12.5,color:fixtureWeek===week?C.accent:C.text}}>
             Hafta {fixtureWeek}{fixtureWeek===week?" (Bu Hafta)":""}
           </div>
           <button onClick={()=>setFixtureWeek(w=>Math.min(34,w+1))} style={{background:C.card2,border:`1px solid ${C.border}`,borderRadius:6,padding:"3px 8px",color:C.text,cursor:"pointer",fontSize:12}}>▶</button>
         </div>
         <Card>
-          {weekFixtures.length===0&&<div style={{fontSize:11,color:C.muted,textAlign:"center",padding:10}}>Bu hafta için maç bulunamadı</div>}
+          {weekFixtures.length===0&&<div style={{fontSize:12.5,color:C.muted,textAlign:"center",padding:10}}>Bu hafta için maç bulunamadı</div>}
           {weekFixtures.map((m,i)=>{
             const isPlayerMatch=m.home===club.name||m.away===club.name;
             const hc=getClub(m.home);const ac=getClub(m.away);
             return(<div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 4px",borderBottom:`1px solid ${C.border}`,background:isPlayerMatch?`${C.accent}0a`:"transparent",borderRadius:isPlayerMatch?6:0}}>
               <div style={{flex:1,display:"flex",alignItems:"center",gap:4,justifyContent:"flex-end"}}>
                 {hc&&<div style={{width:3,height:10,borderRadius:1,background:hc.color}}/>}
-                <span style={{fontSize:10,fontWeight:isPlayerMatch&&m.home===club.name?700:400,color:isPlayerMatch&&m.home===club.name?C.accent:C.text,textAlign:"right"}}>{m.home}</span>
+                <span style={{fontSize:11.5,fontWeight:isPlayerMatch&&m.home===club.name?700:400,color:isPlayerMatch&&m.home===club.name?C.accent:C.text,textAlign:"right"}}>{m.home}</span>
               </div>
-              <div style={{margin:"0 8px",fontSize:9,color:C.muted,fontFamily:"'Fredoka',sans-serif",fontWeight:700,minWidth:20,textAlign:"center"}}>
+              <div style={{margin:"0 8px",fontSize:10.5,color:C.muted,fontFamily:"'Fredoka',sans-serif",fontWeight:700,minWidth:20,textAlign:"center"}}>
                 {fixtureWeek<week?"–":"VS"}
               </div>
               <div style={{flex:1,display:"flex",alignItems:"center",gap:4}}>
-                <span style={{fontSize:10,fontWeight:isPlayerMatch&&m.away===club.name?700:400,color:isPlayerMatch&&m.away===club.name?C.accent:C.text}}>{m.away}</span>
+                <span style={{fontSize:11.5,fontWeight:isPlayerMatch&&m.away===club.name?700:400,color:isPlayerMatch&&m.away===club.name?C.accent:C.text}}>{m.away}</span>
                 {ac&&<div style={{width:3,height:10,borderRadius:1,background:ac.color}}/>}
               </div>
-              {isPlayerMatch&&<span style={{fontSize:8,color:C.accent,marginLeft:4}}>⭐</span>}
+              {isPlayerMatch&&<span style={{fontSize:9.5,color:C.accent,marginLeft:4}}>⭐</span>}
             </div>);
           })}
         </Card>
@@ -6171,37 +6248,37 @@ function LigTab({club,standings,week,player,fixtures,leagueScorers,season}){
 
     {!showGoalKings ? (
       <Card>
-        <div style={{fontSize:8,color:C.muted,display:"grid",gridTemplateColumns:"15px 1fr 19px 19px 19px 19px 24px",gap:2,marginBottom:5,paddingBottom:4,borderBottom:`1px solid ${C.border}`,fontFamily:"'Fredoka',sans-serif",letterSpacing:0}}><span>#</span><span>Takım</span><span style={{textAlign:"center"}}>O</span><span style={{textAlign:"center"}}>G</span><span style={{textAlign:"center"}}>B</span><span style={{textAlign:"center"}}>M</span><span style={{textAlign:"right"}}>P</span></div>
+        <div style={{fontSize:9.5,color:C.muted,display:"grid",gridTemplateColumns:"15px 1fr 19px 19px 19px 19px 24px",gap:2,marginBottom:5,paddingBottom:4,borderBottom:`1px solid ${C.border}`,fontFamily:"'Fredoka',sans-serif",letterSpacing:0}}><span>#</span><span>Takım</span><span style={{textAlign:"center"}}>O</span><span style={{textAlign:"center"}}>G</span><span style={{textAlign:"center"}}>B</span><span style={{textAlign:"center"}}>M</span><span style={{textAlign:"right"}}>P</span></div>
         {displayRows.map((t,i)=>{
           const cl=getClub(t.name);
           const clr=cl?.color||t.color||C.muted;
           return(<div key={t.name} style={{display:"grid",gridTemplateColumns:"15px 1fr 19px 19px 19px 19px 24px",gap:2,padding:"4px 0",borderBottom:`1px solid ${C.border}`,alignItems:"center",background:t.isMe?`${C.accent}09`:"transparent",borderRadius:t.isMe?4:0,paddingLeft:t.isMe?2:0}}>
-            <span style={{fontSize:9,color:i===0?C.gold:i<4?C.accent:C.muted,fontWeight:i<3?700:400}}>{i+1}</span>
-            <div style={{display:"flex",alignItems:"center",gap:3,overflow:"hidden"}}><div style={{width:2,height:12,borderRadius:1,background:clr,flexShrink:0}}/><span style={{fontSize:9,fontFamily:"'Fredoka',sans-serif",fontWeight:t.isMe?700:400,color:t.isMe?C.accent:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.isMe?"★":""}{t.name}</span></div>
-            <span style={{fontSize:8,textAlign:"center",color:C.muted}}>{t.p}</span>
-            <span style={{fontSize:8,textAlign:"center",color:C.green}}>{t.w}</span>
-            <span style={{fontSize:8,textAlign:"center",color:C.gold}}>{t.d}</span>
-            <span style={{fontSize:8,textAlign:"center",color:C.red}}>{t.l}</span>
-            <span style={{fontSize:10,textAlign:"right",fontWeight:700,color:t.isMe?C.accent:C.text}}>{t.pts}</span>
+            <span style={{fontSize:10.5,color:i===0?C.gold:i<4?C.accent:C.muted,fontWeight:i<3?700:400}}>{i+1}</span>
+            <div style={{display:"flex",alignItems:"center",gap:3,overflow:"hidden"}}><div style={{width:2,height:12,borderRadius:1,background:clr,flexShrink:0}}/><span style={{fontSize:10.5,fontFamily:"'Fredoka',sans-serif",fontWeight:t.isMe?700:400,color:t.isMe?C.accent:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.isMe?"★":""}{t.name}</span></div>
+            <span style={{fontSize:9.5,textAlign:"center",color:C.muted}}>{t.p}</span>
+            <span style={{fontSize:9.5,textAlign:"center",color:C.green}}>{t.w}</span>
+            <span style={{fontSize:9.5,textAlign:"center",color:C.gold}}>{t.d}</span>
+            <span style={{fontSize:9.5,textAlign:"center",color:C.red}}>{t.l}</span>
+            <span style={{fontSize:11.5,textAlign:"right",fontWeight:700,color:t.isMe?C.accent:C.text}}>{t.pts}</span>
           </div>);
         })}
       </Card>
     ) : (
       // === YENİ: GOL KRALLIĞI TABLOSU ===
       <Card>
-        <div style={{fontSize:11,fontFamily:"'Fredoka',sans-serif",fontWeight:700,color:C.gold,marginBottom:8}}>⚽ {selLg.name} Gol Krallığı</div>
-        <div style={{fontSize:8,color:C.muted,display:"grid",gridTemplateColumns:"18px 1fr 70px 50px",gap:4,marginBottom:4,paddingBottom:3,borderBottom:`1px solid ${C.border}`}}>
+        <div style={{fontSize:12.5,fontFamily:"'Fredoka',sans-serif",fontWeight:700,color:C.gold,marginBottom:8}}>⚽ {selLg.name} Gol Krallığı</div>
+        <div style={{fontSize:9.5,color:C.muted,display:"grid",gridTemplateColumns:"18px 1fr 70px 50px",gap:4,marginBottom:4,paddingBottom:3,borderBottom:`1px solid ${C.border}`}}>
           <span>#</span><span>Oyuncu</span><span style={{textAlign:"center"}}>Kulüp</span><span style={{textAlign:"right"}}>Gol</span>
         </div>
         {currentGoalKings.slice(0, 10).map((p, i) => (
           <div key={i} style={{display:"grid",gridTemplateColumns:"18px 1fr 70px 50px",gap:4,padding:"5px 0",borderBottom:`1px solid ${C.border}`,alignItems:"center",background: i < 3 ? `${C.gold}08` : "transparent"}}>
-            <span style={{fontSize:10,fontWeight:700,color:i===0?C.gold:i<3?C.accent:C.muted}}>{i+1}</span>
-            <span style={{fontSize:10,color:p.isMe?C.gold:C.text,fontWeight:p.isMe?700:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.isMe?"⭐ ":""}{p.name}</span>
-            <span style={{fontSize:9,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.club}</span>
-            <span style={{fontSize:11,fontWeight:700,color:p.isMe?C.gold:C.green,textAlign:"right"}}>{p.goals}</span>
+            <span style={{fontSize:11.5,fontWeight:700,color:i===0?C.gold:i<3?C.accent:C.muted}}>{i+1}</span>
+            <span style={{fontSize:11.5,color:p.isMe?C.gold:C.text,fontWeight:p.isMe?700:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.isMe?"⭐ ":""}{p.name}</span>
+            <span style={{fontSize:10.5,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.club}</span>
+            <span style={{fontSize:12.5,fontWeight:700,color:p.isMe?C.gold:C.green,textAlign:"right"}}>{p.goals}</span>
           </div>
         ))}
-        <div style={{fontSize:8,color:C.muted,marginTop:8,textAlign:"center"}}>Haftalık güncellenir • Senin gollerin: <span style={{color:C.accent}}>{player.sg}</span></div>
+        <div style={{fontSize:9.5,color:C.muted,marginTop:8,textAlign:"center"}}>Haftalık güncellenir • Senin gollerin: <span style={{color:C.accent}}>{player.sg}</span></div>
       </Card>
     )}
   </div>);
@@ -6276,7 +6353,7 @@ function RPMenuModal({player,girlfriend,onClose,onGirlAction,onNightclub,onCheat
               <div style={{fontSize:32}}>{RP_GIRLS.find(g=>g.name===girlfriend.name)?.emoji||"💑"}</div>
               <div style={{flex:1}}>
                 <div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:14,color:"#f472b6"}}>{girlfriend.name}</div>
-                <div style={{fontSize:10,color:C.muted}}>{RP_GIRLS.find(g=>g.name===girlfriend.name)?.type||"Sevgili"} · {girlfriend.mood}</div>
+                <div style={{fontSize:11.5,color:C.muted}}>{RP_GIRLS.find(g=>g.name===girlfriend.name)?.type||"Sevgili"} · {girlfriend.mood}</div>
                 <div style={{display:"flex",gap:5,marginTop:4}}>
                   <Bdg c="#f472b6">❤️ Sadakat {girlfriend.loyalty}</Bdg>
                   {girlfriend.suspicious&&<Bdg c={C.red}>🤔 Şüpheli</Bdg>}
@@ -6311,8 +6388,8 @@ function RPMenuModal({player,girlfriend,onClose,onGirlAction,onNightclub,onCheat
             <div key={g.name} onClick={()=>{onGirlAction("start",g);setView("main");}} style={{padding:"10px 12px",borderRadius:10,border:`1px solid #f472b644`,background:"#f472b608",cursor:"pointer",display:"flex",gap:10,alignItems:"center"}}>
               <span style={{fontSize:24}}>{g.emoji}</span>
               <div style={{flex:1}}>
-                <div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:13,color:"#f472b6"}}>{g.name} <span style={{color:C.muted,fontSize:10}}>({g.type})</span></div>
-                <div style={{fontSize:10,color:C.muted}}>{g.desc}</div>
+                <div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:13,color:"#f472b6"}}>{g.name} <span style={{color:C.muted,fontSize:11.5}}>({g.type})</span></div>
+                <div style={{fontSize:11.5,color:C.muted}}>{g.desc}</div>
               </div>
               <Bdg c="#f472b6">{g.mood}</Bdg>
             </div>
@@ -6347,7 +6424,7 @@ function RPMenuModal({player,girlfriend,onClose,onGirlAction,onNightclub,onCheat
         <div style={{background:"#f9731615",border:"1px solid #f9731644",borderRadius:10,padding:12,marginBottom:12,fontSize:12,color:C.text,lineHeight:1.6}}>
           {cheatScenario.text}
         </div>
-        <div style={{background:C.card2,borderRadius:8,padding:8,marginBottom:12,fontSize:10,color:C.muted}}>
+        <div style={{background:C.card2,borderRadius:8,padding:8,marginBottom:12,fontSize:11.5,color:C.muted}}>
           ⚠️ Yakalanma riski: <span style={{color:C.red,fontWeight:700}}>{Math.round((cheatScenario.risk+(girlfriend?0.1:0))*100)}%</span> · Sevgili sadakat: <span style={{color:"#f472b6"}}>{girlfriend?.loyalty}</span>
         </div>
         <div style={{display:"flex",gap:8}}>
@@ -6369,7 +6446,7 @@ function RPMenuModal({player,girlfriend,onClose,onGirlAction,onNightclub,onCheat
         <div style={{textAlign:"center",padding:"16px 0"}}>
           <div style={{fontSize:36}}>💔</div>
           <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:13,color:C.red,marginTop:6,marginBottom:8}}>AYRILMAK İSTİYOR MUSUN?</div>
-          <div style={{fontSize:11,color:C.muted,marginBottom:14}}>{girlfriend?.name} ile ilişkini bitiriyorsun.</div>
+          <div style={{fontSize:12.5,color:C.muted,marginBottom:14}}>{girlfriend?.name} ile ilişkini bitiriyorsun.</div>
         </div>
         <div style={{display:"flex",gap:8}}>
           <Btn v="ghost" onClick={()=>setView("main")} style={{flex:1}}>Vazgeç</Btn>
@@ -6381,8 +6458,8 @@ function RPMenuModal({player,girlfriend,onClose,onGirlAction,onNightclub,onCheat
         <Lbl>ÖZEL HAYAT GÜNLÜĞÜ</Lbl>
         <div style={{maxHeight:260,overflowY:"auto"}}>
           {rpLog.slice().reverse().map((entry,i)=>(
-            <div key={i} style={{background:C.card2,borderRadius:8,padding:"7px 10px",marginBottom:5,fontSize:10,color:C.muted,borderLeft:`3px solid #f472b666`}}>
-              <span style={{color:"#f472b6",fontSize:9,marginRight:6}}>S{entry.season}·H{entry.week}</span>{entry.msg}
+            <div key={i} style={{background:C.card2,borderRadius:8,padding:"7px 10px",marginBottom:5,fontSize:11.5,color:C.muted,borderLeft:`3px solid #f472b666`}}>
+              <span style={{color:"#f472b6",fontSize:10.5,marginRight:6}}>S{entry.season}·H{entry.week}</span>{entry.msg}
             </div>
           ))}
         </div>
@@ -6415,24 +6492,24 @@ function SeasonEnd({player,club,standings,season,onNext,leagueScorers}){
   return(<div style={{position:"fixed",inset:0,background:"#000000ee",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
     <Confetti active={champ}/>
     <div style={{background:C.card,borderRadius:20,width:"100%",maxWidth:400,padding:18,maxHeight:"90vh",overflowY:"auto"}}>
-      <div style={{textAlign:"center",marginBottom:13}}><div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:22,fontWeight:900,color:C.gold}}>SEZON {season}</div><div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:10,color:C.muted,letterSpacing:0.6}}>SONA ERDİ</div></div>
-      {awards.length>0&&<div style={{marginBottom:11}}>{awards.map((a,i)=>(<div key={i} className="pop" style={{display:"flex",gap:9,alignItems:"center",padding:"8px 11px",background:`${a.c}15`,borderRadius:9,border:`1px solid ${a.c}44`,marginBottom:6}}><span style={{fontSize:22}}>{a.icon}</span><div><div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:13,color:a.c}}>{a.title}</div><div style={{fontSize:10,color:C.muted}}>{a.desc}</div></div></div>))}</div>}
+      <div style={{textAlign:"center",marginBottom:13}}><div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:22,fontWeight:900,color:C.gold}}>SEZON {season}</div><div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:11.5,color:C.muted,letterSpacing:0.6}}>SONA ERDİ</div></div>
+      {awards.length>0&&<div style={{marginBottom:11}}>{awards.map((a,i)=>(<div key={i} className="pop" style={{display:"flex",gap:9,alignItems:"center",padding:"8px 11px",background:`${a.c}15`,borderRadius:9,border:`1px solid ${a.c}44`,marginBottom:6}}><span style={{fontSize:22}}>{a.icon}</span><div><div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:13,color:a.c}}>{a.title}</div><div style={{fontSize:11.5,color:C.muted}}>{a.desc}</div></div></div>))}</div>}
       <Card style={{marginBottom:10}}>
         <Lbl>Sezon İstatistikleri</Lbl>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:7,textAlign:"center"}}>
-          {[["⚽",player.sg,"Gol"],["🎯",player.sa,"Asist"],["🎮",player.sm,"Maç"],["⭐",avgRating,"Ort"]].map(([ic,v,l])=>(<div key={l} style={{background:C.bg,borderRadius:7,padding:6}}><div>{ic}</div><div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:16,fontWeight:700,color:C.accent}}>{v}</div><div style={{fontSize:8,color:C.muted}}>{l}</div></div>))}
+          {[["⚽",player.sg,"Gol"],["🎯",player.sa,"Asist"],["🎮",player.sm,"Maç"],["⭐",avgRating,"Ort"]].map(([ic,v,l])=>(<div key={l} style={{background:C.bg,borderRadius:7,padding:6}}><div>{ic}</div><div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:16,fontWeight:700,color:C.accent}}>{v}</div><div style={{fontSize:9.5,color:C.muted}}>{l}</div></div>))}
         </div>
       </Card>
       <Card style={{marginBottom:10}}>
         <Lbl>👟 Gol Krallığı</Lbl>
-        {scorerBoard.map((sc,i)=>(<div key={sc.name+i} style={{display:"flex",justifyContent:"space-between",padding:"3px 0",fontSize:11,color:sc.isMe?C.gold:C.text,fontWeight:sc.isMe?700:400}}>
-          <span>{i+1}. {sc.name} <span style={{color:C.muted,fontSize:9}}>{sc.club}</span></span>
+        {scorerBoard.map((sc,i)=>(<div key={sc.name+i} style={{display:"flex",justifyContent:"space-between",padding:"3px 0",fontSize:12.5,color:sc.isMe?C.gold:C.text,fontWeight:sc.isMe?700:400}}>
+          <span>{i+1}. {sc.name} <span style={{color:C.muted,fontSize:10.5}}>{sc.club}</span></span>
           <span>{sc.goals}</span>
         </div>))}
       </Card>
       <Card style={{marginBottom:11}}>
         <Lbl>Lig Tablosu — Top 5</Lbl>
-        {sorted.slice(0,5).map((t,i)=>(<div key={t.name} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0",borderBottom:`1px solid ${C.border}`}}><span style={{fontSize:11,color:i===0?C.gold:C.muted,width:14}}>{i+1}</span><span style={{flex:1,fontSize:11,fontFamily:"'Fredoka',sans-serif",fontWeight:t.isMe?700:400,color:t.isMe?C.accent:C.text}}>{t.isMe?"★ ":""}{t.name}</span><span style={{fontSize:11,fontWeight:700}}>{t.pts}</span></div>))}
+        {sorted.slice(0,5).map((t,i)=>(<div key={t.name} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0",borderBottom:`1px solid ${C.border}`}}><span style={{fontSize:12.5,color:i===0?C.gold:C.muted,width:14}}>{i+1}</span><span style={{flex:1,fontSize:12.5,fontFamily:"'Fredoka',sans-serif",fontWeight:t.isMe?700:400,color:t.isMe?C.accent:C.text}}>{t.isMe?"★ ":""}{t.name}</span><span style={{fontSize:12.5,fontWeight:700}}>{t.pts}</span></div>))}
       </Card>
       <Btn onClick={()=>onNext(champ)} style={{width:"100%"}} v="gold">SEZON {season+1} BAŞLAT 🚀</Btn>
     </div>
@@ -6557,7 +6634,7 @@ function AvatarEditor({avatar,onChange,kit}){
   const Row=({label,k,list,render})=>(
     <div style={{marginBottom:9}}>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
-        <span style={{fontSize:9,color:C.muted,letterSpacing:0.3,width:58,fontFamily:"'Fredoka',sans-serif",fontWeight:700,textTransform:"uppercase"}}>{label}</span>
+        <span style={{fontSize:10.5,color:C.muted,letterSpacing:0.3,width:58,fontFamily:"'Fredoka',sans-serif",fontWeight:700,textTransform:"uppercase"}}>{label}</span>
         <button onClick={()=>cycle(k,list.length,-1)} style={{width:26,height:26,borderRadius:7,border:`1px solid ${C.border}`,background:C.card2,color:C.text,cursor:"pointer",fontSize:13}}>‹</button>
         <div style={{flex:1,display:"flex",gap:4,justifyContent:"center",flexWrap:"wrap"}}>
           {list.map((it,i)=>(
@@ -6565,7 +6642,7 @@ function AvatarEditor({avatar,onChange,kit}){
               style={{width:22,height:22,borderRadius:6,cursor:"pointer",
                 border:`2px solid ${a[k]===i?C.accent:C.border}`,
                 background:render?render(it):C.card2,
-                color:C.text,fontSize:9,padding:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                color:C.text,fontSize:10.5,padding:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
               {render?"":i+1}
             </button>))}
         </div>
@@ -6579,8 +6656,8 @@ function AvatarEditor({avatar,onChange,kit}){
         <div style={{background:C.bg,borderRadius:12,padding:6}}>
           <PlayerAvatar avatar={a} size={78} kit={kit}/>
         </div>
-        <div style={{flex:1,fontSize:10,color:C.muted,lineHeight:1.7}}>
-          <div style={{fontSize:10,color:C.accent,letterSpacing:0.3,fontWeight:700,marginBottom:4,fontFamily:"'Fredoka',sans-serif"}}>GÖRÜNÜŞÜN</div>
+        <div style={{flex:1,fontSize:11.5,color:C.muted,lineHeight:1.7}}>
+          <div style={{fontSize:11.5,color:C.accent,letterSpacing:0.3,fontWeight:700,marginBottom:4,fontFamily:"'Fredoka',sans-serif"}}>GÖRÜNÜŞÜN</div>
           {AV_SKIN[a.skin]?.name} ten · {AV_HAIR[a.hair]?.name} saç<br/>
           {AV_HAIR_STYLE[a.hairStyle]?.name} · {AV_EXPRESSION[a.expr]?.name}<br/>
           {AV_BEARD[a.beard]?.name} · {AV_TATTOO[a.tattoo]?.name} dövme
@@ -6597,7 +6674,7 @@ function AvatarEditor({avatar,onChange,kit}){
         hairStyle:rand(0,AV_HAIR_STYLE.length-1),expr:rand(0,AV_EXPRESSION.length-1),
         beard:rand(0,AV_BEARD.length-1),tattoo:rand(0,AV_TATTOO.length-1)})}
         style={{width:"100%",marginTop:6,padding:"8px",borderRadius:8,border:`1px solid ${C.border}`,
-          background:C.card2,color:C.muted,cursor:"pointer",fontSize:11,fontFamily:"'Fredoka',sans-serif",fontWeight:700}}>
+          background:C.card2,color:C.muted,cursor:"pointer",fontSize:12.5,fontFamily:"'Fredoka',sans-serif",fontWeight:700}}>
         🎲 Rastgele
       </button>
     </div>
@@ -6694,7 +6771,7 @@ function Newspaper({data,onClose}){
         <div style={{fontFamily:"'Bungee',sans-serif",fontSize:15,fontWeight:900,color:"#111",letterSpacing:0.3}}>
           {data.paper}
         </div>
-        <div style={{fontSize:8,color:"#555",marginTop:3,letterSpacing:0}}>
+        <div style={{fontSize:9.5,color:"#555",marginTop:3,letterSpacing:0}}>
           SEZON {data.season} · HAFTA {data.week} · SPOR
         </div>
       </div>
@@ -6710,7 +6787,7 @@ function Newspaper({data,onClose}){
       {/* Gövde — gerçek maç raporu */}
       {data.body&&<div style={{marginBottom:11}}>
         {data.body.paras.map((t,i)=>(
-          <p key={i} style={{fontSize:11.5,color:"#2b2b2b",lineHeight:1.72,marginBottom:7,
+          <p key={i} style={{fontSize:12.5,color:"#2b2b2b",lineHeight:1.72,marginBottom:7,
             fontFamily:"Georgia,serif",textAlign:"justify"}}>
             {i===0?<span style={{float:"left",fontFamily:"'Bungee',sans-serif",fontSize:30,
               lineHeight:.86,marginRight:5,color:tint}}>{t.charAt(0)}</span>:null}
@@ -6720,13 +6797,13 @@ function Newspaper({data,onClose}){
         <div style={{borderLeft:`4px solid ${tint}`,paddingLeft:10,margin:"10px 0",
           fontFamily:"Georgia,serif",fontSize:13,fontStyle:"italic",color:"#1a1a1a",lineHeight:1.55}}>
           {data.body.quote}
-          <div style={{fontSize:10,color:"#666",fontStyle:"normal",marginTop:4}}>— Teknik Direktör</div>
+          <div style={{fontSize:11.5,color:"#666",fontStyle:"normal",marginTop:4}}>— Teknik Direktör</div>
         </div>
         {/* Künye kutusu */}
         <div style={{border:"2px solid #1a1a1a",padding:"8px 10px",marginTop:10}}>
-          <div style={{fontFamily:"'Bungee',sans-serif",fontSize:10,color:"#111",marginBottom:6}}>MAÇIN KÜNYESİ</div>
+          <div style={{fontFamily:"'Bungee',sans-serif",fontSize:11.5,color:"#111",marginBottom:6}}>MAÇIN KÜNYESİ</div>
           {data.body.facts.map(([k,v])=>(
-            <div key={k} style={{display:"flex",justifyContent:"space-between",fontSize:11,
+            <div key={k} style={{display:"flex",justifyContent:"space-between",fontSize:12.5,
               color:"#333",fontFamily:"Georgia,serif",borderBottom:"1px dotted #b9b4a5",padding:"3px 0"}}>
               <span>{k}</span><strong>{v}</strong>
             </div>))}
@@ -6953,9 +7030,9 @@ function Heatmap({pos,events,height=170}){
           return <div key={`${ri}-${ci}`} style={{background:col,filter:"blur(7px)"}}/>;
         }))}
       </div>
-      <div style={{position:"absolute",top:5,left:8,fontSize:8,color:"#ffffff66",
+      <div style={{position:"absolute",top:5,left:8,fontSize:9.5,color:"#ffffff66",
         letterSpacing:0.3,fontFamily:F.cond,fontWeight:700,zIndex:3}}>HÜCUM ↑</div>
-      <div style={{position:"absolute",bottom:5,left:8,fontSize:8,color:"#ffffff66",
+      <div style={{position:"absolute",bottom:5,left:8,fontSize:9.5,color:"#ffffff66",
         letterSpacing:0.3,fontFamily:F.cond,fontWeight:700,zIndex:3}}>DEFANS ↓</div>
     </div>
   );
@@ -6964,7 +7041,7 @@ function Heatmap({pos,events,height=170}){
 function FaceSelector({selectedFace, onSelect}) {
   return (
     <div style={{background:'#111',borderRadius:14,padding:14,border:'1px solid #2a2a2a'}}>
-      <div style={{fontSize:10,color:'#6b7280',letterSpacing:0.3,fontFamily:"'Fredoka',sans-serif",fontWeight:700,marginBottom:10,textTransform:'uppercase'}}>
+      <div style={{fontSize:11.5,color:'#6b7280',letterSpacing:0.3,fontFamily:"'Fredoka',sans-serif",fontWeight:700,marginBottom:10,textTransform:'uppercase'}}>
         Yüzünü Seç
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
@@ -7005,14 +7082,14 @@ function FaceSelector({selectedFace, onSelect}) {
                   position:'absolute',top:4,right:4,
                   width:18,height:18,borderRadius:'50%',
                   background:'#f97316',display:'flex',alignItems:'center',justifyContent:'center',
-                  fontSize:10,fontWeight:700,color:'#fff',
+                  fontSize:11.5,fontWeight:700,color:'#fff',
                 }}>✓</div>
               )}
               {/* İsim etiketi */}
               <div style={{
                 padding:'4px 5px',
                 background:'#0a0a0acc',
-                fontSize:8,color: selected ? '#f97316' : '#9ca3af',
+                fontSize:9.5,color: selected ? '#f97316' : '#9ca3af',
                 fontFamily:"'Fredoka',sans-serif",
                 fontWeight:700,letterSpacing:0,
                 textAlign:'center',
@@ -7023,11 +7100,11 @@ function FaceSelector({selectedFace, onSelect}) {
       </div>
       {selectedFace !== null && (
         <div style={{marginTop:10,padding:'7px 10px',background:'#f9731615',borderRadius:8,border:'1px solid #f9731633',display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-          <span style={{fontSize:11,color:'#f97316',fontFamily:"'Fredoka',sans-serif",fontWeight:700}}>
+          <span style={{fontSize:12.5,color:'#f97316',fontFamily:"'Fredoka',sans-serif",fontWeight:700}}>
             {FACE_META[selectedFace].name}
           </span>
           {FACE_META[selectedFace].tags.map(t => (
-            <span key={t} style={{fontSize:9,background:'#f9731622',color:'#f97316',borderRadius:4,padding:'1px 6px',fontFamily:"'Fredoka',sans-serif",fontWeight:700}}>{t}</span>
+            <span key={t} style={{fontSize:10.5,background:'#f9731622',color:'#f97316',borderRadius:4,padding:'1px 6px',fontFamily:"'Fredoka',sans-serif",fontWeight:700}}>{t}</span>
           ))}
         </div>
       )}
@@ -7153,7 +7230,7 @@ function CharCreate({onStart,onBack}){
     <div style={{position:"fixed",inset:0,background:"radial-gradient(ellipse 80% 50% at 50% -10%,#00d4ff15,transparent)",pointerEvents:"none"}}/>
     <div style={{position:"relative",width:"100%",maxWidth:420,zIndex:1}}>
       <div style={{textAlign:"center",marginBottom:18}}>
-        <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:10,letterSpacing:1,color:C.accent,marginBottom:5}}>⚽ FOOTBALL CAREER {GAME_VERSION}</div>
+        <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:11.5,letterSpacing:1,color:C.accent,marginBottom:5}}>⚽ FOOTBALL CAREER {GAME_VERSION}</div>
         <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:20,fontWeight:900,color:C.text,lineHeight:1.2}}>
           {["KARAKTERİNİ","ZORLUK","LİGİNİ","KULÜBÜNÜ"][step]}<br/><span style={{color:C.accent}}>{["OLUŞTUR","SEÇ","SEÇ","SEÇ"][step]}</span>
         </div>
@@ -7180,7 +7257,7 @@ function CharCreate({onStart,onBack}){
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:13,
                       color:startMode===m.id?C.accent:C.text}}>{m.t}</div>
-                    <div style={{fontSize:9.5,color:C.muted,lineHeight:1.4}}>{m.d}</div>
+                    <div style={{fontSize:11,color:C.muted,lineHeight:1.4}}>{m.d}</div>
                   </div>
                   {startMode===m.id&&<div style={{width:6,height:6,borderRadius:"50%",background:C.accent,flexShrink:0}}/>}
                 </div>
@@ -7198,16 +7275,16 @@ function CharCreate({onStart,onBack}){
             {[["avatar","🎨 Avatar Oluştur"],["foto","🖼️ Hazır Yüz"]].map(([k,l])=>(
               <button key={k} onClick={()=>setFaceMode(k)} style={{flex:1,padding:"8px 4px",borderRadius:9,cursor:"pointer",
                 border:`1px solid ${faceMode===k?C.accent:C.border}`,background:faceMode===k?`${C.accent}18`:C.card2,
-                color:faceMode===k?C.accent:C.muted,fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:11}}>{l}</button>
+                color:faceMode===k?C.accent:C.muted,fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:12.5}}>{l}</button>
             ))}
           </div>
           {faceMode==="avatar"
             ? <AvatarEditor avatar={avatar} onChange={setAvatar} kit={selClub?.color||C.accent}/>
             : <>
                 <FaceSelector selectedFace={selectedFace} onSelect={setSelectedFace}/>
-                {selectedFace===null&&<div style={{fontSize:10,color:'#ef4444',textAlign:'center',marginTop:4}}>Lütfen bir yüz seç</div>}
+                {selectedFace===null&&<div style={{fontSize:11.5,color:'#ef4444',textAlign:'center',marginTop:4}}>Lütfen bir yüz seç</div>}
               </>}
-          <div style={{background:C.card2,borderRadius:8,padding:8,fontSize:10,color:C.muted}}>💡 Küçük yaşta başlarsan düşük prestijli kulüpler seni ister. Büyüdükçe transfer olabilirsin.</div>
+          <div style={{background:C.card2,borderRadius:8,padding:8,fontSize:11.5,color:C.muted}}>💡 Küçük yaşta başlarsan düşük prestijli kulüpler seni ister. Büyüdükçe transfer olabilirsin.</div>
           <div style={{display:"flex",gap:8}}>
             {onBack&&<Btn v="ghost" onClick={onBack} style={{flex:1}}>← Slotlar</Btn>}
             <Btn onClick={()=>form.name.trim()&&setStep(1)} disabled={!form.name.trim()} style={{flex:2}}>Devam →</Btn>
@@ -7217,7 +7294,7 @@ function CharCreate({onStart,onBack}){
           <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
             {DIFFICULTIES.map(d=>(<div key={d.id} onClick={()=>setSelDiff(d.id)} style={{padding:"11px 13px",borderRadius:10,border:`1px solid ${selDiff===d.id?C.accent:C.border}`,cursor:"pointer",background:selDiff===d.id?`${C.accent}18`:C.card2,display:"flex",alignItems:"center",gap:11,transition:"all .15s"}}>
               <span style={{fontSize:24}}>{d.icon}</span>
-              <div style={{flex:1}}><div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:13,color:selDiff===d.id?C.accent:C.text}}>{d.label}</div><div style={{fontSize:10,color:C.muted}}>{d.desc}</div></div>
+              <div style={{flex:1}}><div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:13,color:selDiff===d.id?C.accent:C.text}}>{d.label}</div><div style={{fontSize:11.5,color:C.muted}}>{d.desc}</div></div>
               {selDiff===d.id&&<div style={{width:6,height:6,borderRadius:"50%",background:C.accent}}/>}
             </div>))}
           </div>
@@ -7227,7 +7304,7 @@ function CharCreate({onStart,onBack}){
           <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:360,overflowY:"auto"}}>
             {LEAGUES.map(lg=>(<div key={lg.id} onClick={()=>setSelLg(lg)} style={{padding:"10px 11px",borderRadius:9,border:`1px solid ${selLg?.id===lg.id?lg.color:C.border}`,cursor:"pointer",background:selLg?.id===lg.id?`${lg.color}18`:C.card2,display:"flex",alignItems:"center",gap:9,transition:"all .15s"}}>
               <span style={{fontSize:20}}>{lg.emoji}</span>
-              <div style={{flex:1}}><div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:12,color:selLg?.id===lg.id?lg.color:C.text}}>{lg.country} {lg.name}</div><div style={{fontSize:10,color:C.muted}}>{CLUBS.filter(c=>c.leagueId===lg.id).length} kulüp</div></div>
+              <div style={{flex:1}}><div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:12,color:selLg?.id===lg.id?lg.color:C.text}}>{lg.country} {lg.name}</div><div style={{fontSize:11.5,color:C.muted}}>{CLUBS.filter(c=>c.leagueId===lg.id).length} kulüp</div></div>
               {selLg?.id===lg.id&&<div style={{width:6,height:6,borderRadius:"50%",background:lg.color}}/>}
             </div>))}
           </div>
@@ -7235,7 +7312,7 @@ function CharCreate({onStart,onBack}){
         </div>)}
         {step===3&&(<div className="si">
           <div style={{marginBottom:8,textAlign:"center"}}>{selLg&&<LgBdg leagueId={selLg.id}/>}</div>
-          <div style={{background:C.card2,borderRadius:7,padding:8,fontSize:10,color:C.muted,marginBottom:10,textAlign:"center"}}>
+          <div style={{background:C.card2,borderRadius:7,padding:8,fontSize:11.5,color:C.muted,marginBottom:10,textAlign:"center"}}>
             {startMode==="academy"
               ? <>Altyapısına <strong style={{color:C.accent}}>3 kulüp</strong> seni çağırıyor. Büyük kulüpte rekabet sert, küçükte A takım kapısı yakın.</>
               : <>Seni izleyen <strong style={{color:C.accent}}>3 kulüp</strong> var.</>}
@@ -7243,8 +7320,8 @@ function CharCreate({onStart,onBack}){
           <div style={{display:"flex",flexDirection:"column",gap:7}}>
             {clubs.map(club=>(<div key={club.name} onClick={()=>setSelClub(club)} style={{padding:"11px 12px",borderRadius:9,border:`1px solid ${selClub?.name===club.name?club.color:C.border}`,cursor:"pointer",background:selClub?.name===club.name?`${club.color}18`:C.card2,display:"flex",alignItems:"center",gap:9,transition:"all .15s"}}>
               {(()=>{const ks=getKitStyle(club);return(<ClubKit color={club.color} secondColor={ks.secondColor} stripes={ks.stripes} hoops={ks.hoops} size={42}/>);})()}
-              <div style={{flex:1}}><div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:13}}>{club.country} {club.name}</div><div style={{fontSize:10,color:C.muted}}>€{club.budget}M · Prestij {club.prestige}/10</div></div>
-              <div style={{textAlign:"right"}}><div style={{color:C.gold,fontSize:11}}>{"★".repeat(Math.min(5,Math.ceil(club.prestige/2)))}</div><div style={{fontSize:9,color:C.muted}}>{club.prestige<=3?"Küçük":club.prestige<=5?"Orta":club.prestige<=7?"Büyük":"Dev"}</div></div>
+              <div style={{flex:1}}><div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:13}}>{club.country} {club.name}</div><div style={{fontSize:11.5,color:C.muted}}>€{club.budget}M · Prestij {club.prestige}/10</div></div>
+              <div style={{textAlign:"right"}}><div style={{color:C.gold,fontSize:12.5}}>{"★".repeat(Math.min(5,Math.ceil(club.prestige/2)))}</div><div style={{fontSize:10.5,color:C.muted}}>{club.prestige<=3?"Küçük":club.prestige<=5?"Orta":club.prestige<=7?"Büyük":"Dev"}</div></div>
             </div>))}
           </div>
           <div style={{display:"flex",gap:8,marginTop:11}}><Btn v="ghost" onClick={()=>setStep(2)} style={{flex:1}}>← Geri</Btn><Btn onClick={()=>{
@@ -7281,7 +7358,7 @@ function TeammatesTab({player,club,teammates}){
             ["YAŞ ORT.",teammates.length?Math.round(teammates.reduce((a,t)=>a+(t.age||24),0)/teammates.length):0,C.muted]]
             .map(([l,v,col])=>(<div key={l} style={{flex:1,background:C.bg,borderRadius:9,padding:"8px 4px",textAlign:"center"}}>
               <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:16,fontWeight:900,color:col}}>{v}</div>
-              <div style={{fontSize:8,color:C.muted,letterSpacing:0,marginTop:2}}>{l}</div>
+              <div style={{fontSize:9.5,color:C.muted,letterSpacing:0,marginTop:2}}>{l}</div>
             </div>))}
         </div>);
       })()}
@@ -7312,7 +7389,7 @@ function TeammatesTab({player,club,teammates}){
             <div style={{fontSize:isMe?8:7,color:isMe?C.accent:isSel?C.gold:C.text,fontFamily:"'Fredoka',sans-serif",fontWeight:isMe?700:500,whiteSpace:"nowrap",textShadow:"0 1px 3px #000",maxWidth:44,overflow:"hidden",textOverflow:"ellipsis"}}>
               {isMe?player.name.split(" ")[0]:tm.name.split(" ")[0]}
             </div>
-            <div style={{fontSize:6,color:dotColor,fontFamily:"'Baloo 2',sans-serif",fontWeight:700}}>{isMe?player.overall:tm.ovr}</div>
+            <div style={{fontSize:8,color:dotColor,fontFamily:"'Baloo 2',sans-serif",fontWeight:700}}>{isMe?player.overall:tm.ovr}</div>
           </div>);
         })}
       </div>
@@ -7320,29 +7397,29 @@ function TeammatesTab({player,club,teammates}){
       {selTm&&!selTm.isMyPos&&(<div className="pop" style={{background:C.card2,borderRadius:10,padding:"10px 12px",border:`1px solid ${C.gold}44`,marginTop:2}}>
         <div style={{display:"flex",gap:9,alignItems:"center"}}>
           <div style={{width:38,height:38,borderRadius:"50%",background:`${club.color}cc`,border:`2px solid ${club.color}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-            <span style={{fontSize:10,fontFamily:"'Fredoka',sans-serif",fontWeight:700,color:"#fff"}}>{selTm.pos}</span>
+            <span style={{fontSize:11.5,fontFamily:"'Fredoka',sans-serif",fontWeight:700,color:"#fff"}}>{selTm.pos}</span>
           </div>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{selTm.name}</div>
-            <div style={{fontSize:9,color:C.muted}}>{selTm.nat} · {selTm.age}y · OVR <span style={{color:C.accent,fontWeight:700}}>{selTm.ovr}</span></div>
+            <div style={{fontSize:10.5,color:C.muted}}>{selTm.nat} · {selTm.age}y · OVR <span style={{color:C.accent,fontWeight:700}}>{selTm.ovr}</span></div>
             <div style={{display:"flex",gap:4,marginTop:3,flexWrap:"wrap"}}>
               <Bdg c={relColor[selTm.relationship]||C.muted}>{selTm.relationship}</Bdg>
               <Bdg c={C.muted}>{selTm.mood} {selTm.trait}</Bdg>
             </div>
           </div>
           <div style={{textAlign:"center",flexShrink:0}}>
-            <div style={{fontSize:9,color:C.muted}}>KİMYA</div>
+            <div style={{fontSize:10.5,color:C.muted}}>KİMYA</div>
             <div style={{fontSize:16,fontWeight:700,color:selTm.chemistry>80?C.green:selTm.chemistry>60?C.gold:C.red,fontFamily:"'Baloo 2',sans-serif"}}>{selTm.chemistry}</div>
           </div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,marginTop:8,fontSize:9}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,marginTop:8,fontSize:10.5}}>
           <div style={{background:C.bg,borderRadius:6,padding:"4px 7px",display:"flex",justifyContent:"space-between"}}><span style={{color:C.muted}}>⚽ Gol</span><span style={{color:C.accent,fontWeight:700}}>{selTm.goals}</span></div>
           <div style={{background:C.bg,borderRadius:6,padding:"4px 7px",display:"flex",justifyContent:"space-between"}}><span style={{color:C.muted}}>🎯 Asist</span><span style={{color:C.accent,fontWeight:700}}>{selTm.assists}</span></div>
         </div>
       </div>)}
       {selTm?.isMyPos&&(<div className="pop" style={{background:`${C.accent}18`,borderRadius:10,padding:"8px 12px",border:`1px solid ${C.accent}44`,marginTop:2,textAlign:"center"}}>
-        <div style={{fontSize:11,color:C.accent,fontFamily:"'Fredoka',sans-serif",fontWeight:700}}>⭐ Bu sensin!</div>
-        <div style={{fontSize:9,color:C.muted,marginTop:2}}>{player.name} · OVR {player.overall}</div>
+        <div style={{fontSize:12.5,color:C.accent,fontFamily:"'Fredoka',sans-serif",fontWeight:700}}>⭐ Bu sensin!</div>
+        <div style={{fontSize:10.5,color:C.muted,marginTop:2}}>{player.name} · OVR {player.overall}</div>
       </div>)}
       <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:6}}>
         <Bdg c={player.injuryWeeks>0||player.banWeeks>0?C.red:C.green}>{player.injuryWeeks>0?`🚑 Sakat ${player.injuryWeeks}h`:player.banWeeks>0?`🟥 Cezalı ${player.banWeeks}m`:player.retired?"🏅 Emekli":"✅ Sahada"}</Bdg>
@@ -7367,19 +7444,19 @@ function TeammatesTab({player,club,teammates}){
               background:isSel?`${C.gold}12`:C.card2,border:`1px solid ${isSel?C.gold+"55":C.border}`,
               cursor:"pointer",transition:"all .15s"}}>
             <div style={{width:28,height:28,borderRadius:"50%",background:`${club.color}cc`,border:`1px solid ${club.color}88`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-              <span style={{fontSize:7,fontFamily:"'Fredoka',sans-serif",fontWeight:700,color:"#fff"}}>{tm.pos}</span>
+              <span style={{fontSize:9,fontFamily:"'Fredoka',sans-serif",fontWeight:700,color:"#fff"}}>{tm.pos}</span>
             </div>
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:5}}>
-                {tm.shirtNo&&<span style={{fontFamily:"'Baloo 2',sans-serif",fontSize:9,fontWeight:800,color:C.muted,
+                {tm.shirtNo&&<span style={{fontFamily:"'Baloo 2',sans-serif",fontSize:10.5,fontWeight:800,color:C.muted,
                   background:"#00000044",borderRadius:4,padding:"0 5px",flexShrink:0}}>{tm.shirtNo}</span>}
-                <span style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:11,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{tm.name}</span>
+                <span style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:12.5,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{tm.name}</span>
               </div>
-              <div style={{fontSize:9,color:C.muted}}>{tm.nat} · {tm.age}y · {tm.mood} {tm.trait}</div>
+              <div style={{fontSize:10.5,color:C.muted}}>{tm.nat} · {tm.age}y · {tm.mood} {tm.trait}</div>
             </div>
             <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:3,flexShrink:0}}>
               <span style={{fontFamily:"'Baloo 2',sans-serif",fontSize:12,fontWeight:700,color:C.accent}}>{tm.ovr}</span>
-              <Bdg c={rc} style={{fontSize:8,padding:"1px 5px"}}>{tm.relationship}</Bdg>
+              <Bdg c={rc} style={{fontSize:9.5,padding:"1px 5px"}}>{tm.relationship}</Bdg>
             </div>
           </div>);
         })}
@@ -7389,8 +7466,8 @@ function TeammatesTab({player,club,teammates}){
     {/* Güçlü / Zayıf */}
     <Card><Lbl>KENDİ DURUMUN</Lbl>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-        <div style={{background:C.bg,borderRadius:7,padding:8}}><div style={{fontSize:9,color:C.muted,marginBottom:3}}>💪 Güçlü</div>{Object.entries({pace:player.pace,shooting:player.shooting,passing:player.passing,dribbling:player.dribbling,defending:player.defending,physical:player.physical}).sort(([,a],[,b])=>b-a).slice(0,3).map(([k,v])=>(<div key={k} style={{display:"flex",justifyContent:"space-between",fontSize:9,marginBottom:2}}><span style={{color:C.green}}>{k}</span><span style={{color:C.green,fontWeight:700}}>{v}</span></div>))}</div>
-        <div style={{background:C.bg,borderRadius:7,padding:8}}><div style={{fontSize:9,color:C.muted,marginBottom:3}}>⚠️ Zayıf</div>{Object.entries({pace:player.pace,shooting:player.shooting,passing:player.passing,dribbling:player.dribbling,defending:player.defending,physical:player.physical}).sort(([,a],[,b])=>a-b).slice(0,3).map(([k,v])=>(<div key={k} style={{display:"flex",justifyContent:"space-between",fontSize:9,marginBottom:2}}><span style={{color:C.red}}>{k}</span><span style={{color:C.red,fontWeight:700}}>{v}</span></div>))}</div>
+        <div style={{background:C.bg,borderRadius:7,padding:8}}><div style={{fontSize:10.5,color:C.muted,marginBottom:3}}>💪 Güçlü</div>{Object.entries({pace:player.pace,shooting:player.shooting,passing:player.passing,dribbling:player.dribbling,defending:player.defending,physical:player.physical}).sort(([,a],[,b])=>b-a).slice(0,3).map(([k,v])=>(<div key={k} style={{display:"flex",justifyContent:"space-between",fontSize:10.5,marginBottom:2}}><span style={{color:C.green}}>{k}</span><span style={{color:C.green,fontWeight:700}}>{v}</span></div>))}</div>
+        <div style={{background:C.bg,borderRadius:7,padding:8}}><div style={{fontSize:10.5,color:C.muted,marginBottom:3}}>⚠️ Zayıf</div>{Object.entries({pace:player.pace,shooting:player.shooting,passing:player.passing,dribbling:player.dribbling,defending:player.defending,physical:player.physical}).sort(([,a],[,b])=>a-b).slice(0,3).map(([k,v])=>(<div key={k} style={{display:"flex",justifyContent:"space-between",fontSize:10.5,marginBottom:2}}><span style={{color:C.red}}>{k}</span><span style={{color:C.red,fontWeight:700}}>{v}</span></div>))}</div>
       </div>
     </Card>
   </div>);
@@ -7557,7 +7634,7 @@ function HudBar({club,player,level,levelPct,gp,gold,onSettings,onMenu,right}){
         {club?<ClubCrest club={club} size={28}/>:<Ico n="ball" size={22} c={C.muted}/>}
       </div>
       <div style={{minWidth:104}}>
-        <div style={{fontSize:11,fontWeight:700,color:C.text,letterSpacing:.4}}>LEVEL {level}</div>
+        <div style={{fontSize:12.5,fontWeight:700,color:C.text,letterSpacing:.4}}>LEVEL {level}</div>
         <div style={{height:6,borderRadius:3,background:"#050b12",border:`1px solid ${C.border}`,marginTop:4,overflow:"hidden",
           boxShadow:`0 0 10px ${C.sky}22`}}>
           <div style={{height:"100%",width:`${Math.max(2,Math.min(100,levelPct))}%`,
@@ -7578,7 +7655,7 @@ function HudBar({club,player,level,levelPct,gp,gold,onSettings,onMenu,right}){
       <div style={{display:"flex",alignItems:"center",gap:6}}>
         <span style={{width:19,height:19,borderRadius:"50%",background:`${C.sky}26`,
           border:`1px solid ${C.sky}77`,display:"flex",alignItems:"center",justifyContent:"center",
-          fontSize:9,fontWeight:800,color:C.sky}}>GP</span>
+          fontSize:10.5,fontWeight:800,color:C.sky}}>GP</span>
         <span style={{fontSize:13,fontWeight:700}}><Num v={gp||0}/></span>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:6,color:C.gold}}>
@@ -7645,6 +7722,10 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
   const diff=DIFFICULTIES.find(d=>d.id===diffId)||DIFFICULTIES[1];
   const [player,setPlayer]=useState(()=>init("player",ip));
   const [club,setClub]=useState(()=>init("club",ic));
+  // Kulüp teması: palet render sırasında kulübe göre ayarlanır (ilk karede doğru renkler),
+  // slot ekranına dönünce nötr tabana döner.
+  if(club&&(TINT_CLUB?.name!==club.name||TINT_CLUB?.color!==club.color)) applyClubTint(club);
+  useEffect(()=>()=>applyClubTint(null),[]);
   const [season,setSeason]=useState(()=>init("season",1));
   const [week,setWeek]=useState(()=>init("week",1));
   const [tab,setTab]=useState("Ana");
@@ -9251,16 +9332,18 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               <span style={{fontFamily:F.disp,fontStyle:"italic",fontWeight:700,
                 fontSize:m.hi?24:19,letterSpacing:.8,
                 color:m.hi?C.accent:C.text,textTransform:"uppercase"}}>{m.t}</span>
-              <span style={{marginLeft:"auto",display:"flex",
-                color:m.hi?C.accent:C.muted}}>
-                {m.ico?<Ico n={m.ico} size={20}/>:<span style={{fontSize:m.hi?22:17}}>{m.icon}</span>}
+              <span style={{marginLeft:"auto",display:"flex",alignItems:"center",justifyContent:"center",
+                width:m.hi?40:46,height:m.hi?40:46,borderRadius:R.md,flexShrink:0,
+                background:m.hi?`${C.accent}22`:`${C.accent}14`,border:`1px solid ${C.accent}${m.hi?"66":"33"}`,
+                color:C.accent}}>
+                {m.ico?<Ico n={m.ico} size={24}/>:<span style={{fontSize:m.hi?22:17}}>{m.icon}</span>}
               </span>
               {m.badge&&<span style={{position:"absolute",top:9,right:11,width:17,height:17,borderRadius:"50%",
-                background:C.gold,color:"#2a2000",fontSize:11,fontWeight:800,
+                background:C.gold,color:"#2a2000",fontSize:12.5,fontWeight:800,
                 display:"flex",alignItems:"center",justifyContent:"center"}}>{m.badge}</span>}
             </div>
             <div style={{fontSize:12,color:C.muted,marginTop:4,lineHeight:1.45}}>{m.sub}</div>
-            {m.foot&&<div style={{fontSize:11,color:C.sky,marginTop:6,display:"flex",alignItems:"center",gap:6}}>
+            {m.foot&&<div style={{fontSize:12.5,color:C.sky,marginTop:6,display:"flex",alignItems:"center",gap:6}}>
               {oc&&<ClubCrest club={oc} name={fo.name} size={15}/>}{m.foot}
             </div>}
           </button>))}
@@ -9282,8 +9365,36 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
       {/* SAĞ: oyuncu kartı + alt bilgi şeridi */}
       <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:12,minHeight:0}}>
         <div style={{flex:1,minHeight:0,display:"flex",alignItems:"center",justifyContent:"center",
-          paddingBottom:6}}>
-          <PlayerCardPro player={player} club={club} width={246}/>
+          gap:26,paddingBottom:6,flexWrap:"wrap"}}>
+          <PlayerCardPro player={player} club={club} width={236}/>
+          {(()=>{const oppCol=oc?.color||"#6b7a8c";
+            return(<div style={{width:340,maxWidth:"100%",borderRadius:R.xl,overflow:"hidden",position:"relative",
+              border:`1px solid ${blocked?C.red+"88":C.accent+"66"}`,boxShadow:`0 14px 34px #00000077, 0 0 30px ${C.accent}22`,
+              background:`linear-gradient(115deg, ${club.color}e6 0%, ${club.color}99 38%, #0b111a 50%, ${oppCol}99 62%, ${oppCol}e6 100%)`}}>
+              <div style={{position:"absolute",inset:0,background:"repeating-linear-gradient(90deg,#ffffff08 0 22px,transparent 22px 44px)"}}/>
+              <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,#00000040,#000000b0 75%)"}}/>
+              <div style={{position:"relative",padding:"12px 14px 14px"}}>
+                <div style={{fontSize:11.5,color:"#ffffffcc",letterSpacing:1.2,fontFamily:F.cond,fontWeight:700,textTransform:"uppercase"}}>
+                  Maç günü · Hafta {Math.min(week,SEASON_WEEKS)} · {fo.isHome?"İç saha":"Deplasman"}
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",alignItems:"center",gap:6,margin:"14px 0 12px"}}>
+                  {[[club,club.name,club.color],null,[oc,fo.name,oppCol]].map((x,i)=>x
+                    ? <div key={i} style={{textAlign:"center",minWidth:0}}>
+                        <div style={{display:"flex",justifyContent:"center",filter:"drop-shadow(0 6px 10px #0009)"}}>
+                          <ClubCrest club={x[0]} name={x[1]} color={x[2]} size={70}/></div>
+                        <div style={{fontSize:16,fontWeight:700,marginTop:8,fontFamily:F.disp,fontStyle:"italic",textTransform:"uppercase",
+                          overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{x[1]}</div>
+                      </div>
+                    : <div key={i} style={{fontFamily:F.disp,fontStyle:"italic",fontWeight:700,fontSize:30,textShadow:"0 3px 12px #000"}}>VS</div>)}
+                </div>
+                {[["FİTNES",Math.round(player.fitness)],["MORAL",player.morale],["HOCA GÜVENİ",player.managerTrust??70]].map(([l,v])=>(
+                  <div key={l} style={{marginTop:7}}>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:11.5,fontFamily:F.cond,fontWeight:700,letterSpacing:.6,marginBottom:3}}>
+                      <span style={{color:"#ffffffb0"}}>{l}</span><span style={{color:tone(v,75,55,35)}}>{v}</span></div>
+                    <div className="sb" style={{height:7}}><div className="sf" style={{width:`${Math.min(100,v)}%`,background:tone(v,75,55,35)}}/></div>
+                  </div>))}
+              </div>
+            </div>);})()}
         </div>
         <div style={{display:"flex",gap:12,flexShrink:0,alignItems:"flex-end"}}>
           {/* sıradaki maçlar */}
@@ -9294,8 +9405,8 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                 const w=week+i;
                 if(w>SEASON_WEEKS) return(<div key={i} style={{flex:1,padding:"8px 6px",borderRadius:R.md,
                   textAlign:"center",border:`1px dashed ${C.border}`,background:`${C.card}70`}}>
-                  <div style={{fontSize:10,color:C.muted}}>Sezon</div>
-                  <div style={{fontSize:11,color:C.muted,marginTop:3}}>bitti</div>
+                  <div style={{fontSize:11.5,color:C.muted}}>Sezon</div>
+                  <div style={{fontSize:12.5,color:C.muted,marginTop:3}}>bitti</div>
                 </div>);
                 const f=getWeekOpponent(fixtures,club,w);
                 const c2=getClub(f.name);
@@ -9304,11 +9415,11 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                   border:`1px solid ${active?C.sky:C.border}`,
                   background:active?`${C.sky}1e`:`${C.card}b0`,
                   boxShadow:active?`0 0 16px ${C.sky}2e`:"none"}}>
-                  <div style={{fontSize:9.5,color:active?C.sky:C.muted}}>H{w} · {f.isHome?"EV":"DEP"}</div>
+                  <div style={{fontSize:11,color:active?C.sky:C.muted}}>H{w} · {f.isHome?"EV":"DEP"}</div>
                   <div style={{display:"flex",justifyContent:"center",margin:"3px 0 2px"}}>
                     <ClubCrest club={c2} name={f.name} color={c2?.color} size={20}/>
                   </div>
-                  <div style={{fontSize:10,fontWeight:600,color:active?C.text:C.muted,
+                  <div style={{fontSize:11.5,fontWeight:600,color:active?C.text:C.muted,
                     overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</div>
                 </div>);})}
             </div>
@@ -9318,15 +9429,15 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             border:`1px solid ${C.border}`,borderRadius:R.md,padding:"8px 10px"}}>
             {table.map((t,i)=>(
               <div key={t.name} style={{display:"flex",alignItems:"center",gap:7,padding:"2.5px 0",
-                fontSize:11.5,color:t.isMe?C.accent:C.text,fontWeight:t.isMe?700:400}}>
-                <span style={{width:12,color:C.muted,fontSize:10.5}}>{i+1}</span>
-                <span style={{color:i<2?C.green:C.muted,fontSize:9}}>{i<2?"▲":"▼"}</span>
+                fontSize:12.5,color:t.isMe?C.accent:C.text,fontWeight:t.isMe?700:400}}>
+                <span style={{width:12,color:C.muted,fontSize:12}}>{i+1}</span>
+                <span style={{color:i<2?C.green:C.muted,fontSize:10.5}}>{i<2?"▲":"▼"}</span>
                 <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                   {t.isMe?club.name:t.name}</span>
                 <span style={{width:20,textAlign:"right",fontFamily:F.mono,fontWeight:700}}>{t.pts}</span>
-                <span style={{width:20,textAlign:"right",color:C.muted,fontSize:10.5}}>{t.gf}</span>
+                <span style={{width:20,textAlign:"right",color:C.muted,fontSize:12}}>{t.gf}</span>
               </div>))}
-            <div style={{fontSize:10,color:C.muted,textAlign:"right",marginTop:4,
+            <div style={{fontSize:11.5,color:C.muted,textAlign:"right",marginTop:4,
               borderTop:`1px solid ${C.border}`,paddingTop:4}}>Kariyer Modu · Sezon {season}</div>
           </div>
         </div>
@@ -9369,7 +9480,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
     return(<div style={{display:"flex",gap:14,width:"100%",minHeight:0}}>
       {/* SOL: gelen teklifler */}
       <Panel title="Gelen Teklifler" style={{width:"36%",maxWidth:400}}
-        right={<span style={{fontSize:10.5,color:window_?C.green:C.muted,fontWeight:700}}>
+        right={<span style={{fontSize:12,color:window_?C.green:C.muted,fontWeight:700}}>
           <span style={{display:"inline-flex",alignItems:"center",gap:5}}>
             <Ico n={window_?"unlock":"lock"} size={11}/>{window_?"PENCERE AÇIK":"PENCERE KAPALI"}
           </span></span>}>
@@ -9380,17 +9491,17 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:12,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",
               whiteSpace:"nowrap"}}>{club.name}</div>
-            <div style={{fontSize:10,color:C.muted,marginTop:2}}>
+            <div style={{fontSize:11.5,color:C.muted,marginTop:2}}>
               Mevcut · €{curWage.toLocaleString("tr")}/h · {freeAgent?"bonservissiz":`${contract.years} yıl`}
             </div>
           </div>
-          <Bdg c={C.muted} style={{fontSize:9}}>P{club.prestige}</Bdg>
+          <Bdg c={C.muted} style={{fontSize:10.5}}>P{club.prestige}</Bdg>
         </div>
 
         {!inbox.length&&<div style={{textAlign:"center",padding:"26px 0",color:C.muted}}>
           <div style={{fontSize:30,marginBottom:7}}>📭</div>
           <div style={{fontSize:12}}>Masada teklif yok</div>
-          <div style={{fontSize:10.5,marginTop:5,lineHeight:1.5,maxWidth:250,margin:"5px auto 0"}}>
+          <div style={{fontSize:12,marginTop:5,lineHeight:1.5,maxWidth:250,margin:"5px auto 0"}}>
             Transfer penceresinde 8.0+ reytingli maçlar teklif getirir. Menajer kalitesi bu şansı artırır.
           </div>
         </div>}
@@ -9411,10 +9522,10 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                   whiteSpace:"nowrap"}}>{o.from.country} {o.from.name}</div>
                 <div style={{marginTop:3}}><LgBdg leagueId={o.from.leagueId}/></div>
               </div>
-              {o.release&&<Bdg c={C.gold} style={{fontSize:8.5}}>
+              {o.release&&<Bdg c={C.gold} style={{fontSize:10}}>
               <Ico n="unlock" size={10} c={C.gold}/> BEDEL</Bdg>}
             </div>
-            <div style={{display:"flex",gap:12,marginTop:7,fontSize:10.5}}>
+            <div style={{display:"flex",gap:12,marginTop:7,fontSize:12}}>
               <span style={{color:C.muted}}>Bonservis <strong style={{color:C.text}}>€{o.fee}M</strong></span>
               <span style={{color:C.muted}}>Maaş <strong style={{
                 color:o.salary*WAGE_UNIT>curWage?C.green:C.red
@@ -9438,14 +9549,14 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                 </div>
                 <div style={{display:"flex",gap:8,alignItems:"center",marginTop:5}}>
                   <LgBdg leagueId={sel.from.leagueId}/>
-                  <Bdg c={C.sky} style={{fontSize:9}}>Prestij {sel.from.prestige}</Bdg>
-                  <Bdg c={C.green} style={{fontSize:9}}>Bütçe €{sel.from.budget}M</Bdg>
+                  <Bdg c={C.sky} style={{fontSize:10.5}}>Prestij {sel.from.prestige}</Bdg>
+                  <Bdg c={C.green} style={{fontSize:10.5}}>Bütçe €{sel.from.budget}M</Bdg>
                 </div>
               </div>
             </div>
 
             {sel.release&&<div style={{background:`${C.gold}14`,border:`1px solid ${C.gold}55`,
-              borderRadius:R.md,padding:"9px 12px",marginBottom:12,fontSize:11,color:C.gold,
+              borderRadius:R.md,padding:"9px 12px",marginBottom:12,fontSize:12.5,color:C.gold,
               lineHeight:1.55,display:"flex",gap:8,alignItems:"flex-start"}}>
               <span style={{paddingTop:1}}><Ico n="unlock" size={14} c={C.gold}/></span>
               <span>Serbest kalma bedelin ödendi — kulübün bu transferi engelleyemez.
@@ -9465,11 +9576,11 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               ].map(([l,a,b,c])=>(
                 <div key={l} style={{padding:"9px 11px",borderRadius:R.md,background:`${C.bg}aa`,
                   border:`1px solid ${C.border}`}}>
-                  <div style={{fontSize:10,color:C.muted,letterSpacing:.3}}>{trU(l)}</div>
+                  <div style={{fontSize:11.5,color:C.muted,letterSpacing:.3}}>{trU(l)}</div>
                   <div style={{display:"flex",alignItems:"center",gap:7,marginTop:4}}>
-                    <span style={{fontSize:11.5,color:C.muted,overflow:"hidden",
+                    <span style={{fontSize:12.5,color:C.muted,overflow:"hidden",
                       textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a}</span>
-                    <span style={{color:C.muted,fontSize:11}}>→</span>
+                    <span style={{color:C.muted,fontSize:12.5}}>→</span>
                     <span style={{fontSize:12.5,fontWeight:700,color:c,overflow:"hidden",
                       textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{b}</span>
                   </div>
@@ -9481,7 +9592,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               border:`1px solid ${C.purple}55`,marginBottom:12}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",
                 marginBottom:8}}>
-                <span style={{fontSize:11.5,color:C.muted,fontWeight:600,
+                <span style={{fontSize:12.5,color:C.muted,fontWeight:600,
                   display:"inline-flex",alignItems:"center",gap:6}}>
                   <Ico n="contract" size={13}/> Karşı teklif — haftalık maaş</span>
                 <span style={{fontFamily:F.mono,fontSize:14,fontWeight:900,color:C.purple}}>
@@ -9492,7 +9603,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                 value={sel.counterSalary||sel.salary}
                 onChange={e=>setTransferNegotiation(n=>n?{...n,counterSalary:+e.target.value}:n)}
                 style={{width:"100%",accentColor:C.purple,margin:0}}/>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:C.muted,
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:11.5,color:C.muted,
                 marginTop:5}}>
                 <span>teklif €{(sel.salary*WAGE_UNIT).toLocaleString("tr")}</span>
                 <span>+%40 üstü neredeyse kesin reddedilir</span>
@@ -9529,7 +9640,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                 <div style={{display:"flex",gap:9,alignItems:"flex-start"}}>
                   <span style={{paddingTop:1}}><Ico n={v.i} size={15} c={v.c}/></span>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:10.5,color:C.muted,letterSpacing:.4,fontWeight:700}}>
+                    <div style={{fontSize:12,color:C.muted,letterSpacing:.4,fontWeight:700}}>
                       MENAJER TAVSİYESİ</div>
                     <div style={{fontSize:12.5,color:v.c,fontWeight:600,marginTop:3,
                       lineHeight:1.45}}>{v.t}</div>
@@ -9537,18 +9648,18 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                 </div>
                 <div style={{display:"flex",gap:14,marginTop:9}}>
                   <div style={{flex:1,minWidth:0}}>
-                    {pros.map(t=>(<div key={t} style={{fontSize:10.5,color:C.green,padding:"1.5px 0",
+                    {pros.map(t=>(<div key={t} style={{fontSize:12,color:C.green,padding:"1.5px 0",
                       overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>+ {t}</div>))}
                   </div>
                   <div style={{flex:1,minWidth:0}}>
-                    {cons.map(t=>(<div key={t} style={{fontSize:10.5,color:C.red,padding:"1.5px 0",
+                    {cons.map(t=>(<div key={t} style={{fontSize:12,color:C.red,padding:"1.5px 0",
                       overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>− {t}</div>))}
                   </div>
                 </div>
               </div>);
             })()}
 
-            <div style={{fontSize:10.5,color:C.muted,lineHeight:1.55}}>
+            <div style={{fontSize:12,color:C.muted,lineHeight:1.55}}>
               Bonservis €{sel.fee}M kulübüne ödenir, sana değil. Sözleşmeyi kabul edersen bu sezon
               bir daha kulüp değiştiremezsin.
             </div>
@@ -9558,7 +9669,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               justifyContent:"center",color:C.muted,gap:9}}>
               <div style={{fontSize:38}}>🗂️</div>
               <div style={{fontSize:12.5}}>Soldan bir teklif seç</div>
-              <div style={{fontSize:11,textAlign:"center",maxWidth:300,lineHeight:1.55}}>
+              <div style={{fontSize:12.5,textAlign:"center",maxWidth:300,lineHeight:1.55}}>
                 Sözleşmen {contract.years} yıl sürüyor. Son yılına girdiğinde bonservissiz kalma
                 ihtimalin ve gelen teklif sayısı artar.
               </div>
@@ -9589,7 +9700,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           <div style={{textAlign:"center",flex:1,minWidth:0}}>
             <OVR value={player.overall} size={52}/>
             <div style={{fontSize:12,fontWeight:700,color:C.accent,marginTop:6}}>SİZ</div>
-            <div style={{fontSize:10,color:C.muted}}>{myPos?`${myPos}.`:"—"}</div>
+            <div style={{fontSize:11.5,color:C.muted}}>{myPos?`${myPos}.`:"—"}</div>
           </div>
           <div style={{fontFamily:F.disp,fontStyle:"italic",fontWeight:700,fontSize:19,color:C.muted}}>VS</div>
           <div style={{textAlign:"center",flex:1,minWidth:0}}>
@@ -9598,7 +9709,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             </div>
             <div style={{fontSize:12,fontWeight:700,marginTop:6,
               overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fo.name}</div>
-            <div style={{fontSize:10,color:C.muted}}>{opPos?`${opPos}.`:oc?`P${oc.prestige}`:"—"}</div>
+            <div style={{fontSize:11.5,color:C.muted}}>{opPos?`${opPos}.`:oc?`P${oc.prestige}`:"—"}</div>
           </div>
         </div>
         {rows.map(([ic,k,v])=>(
@@ -9617,7 +9728,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
 
       {/* ORTA: hoca görevleri */}
       <Panel title="Hoca Görevleri" style={{flex:1,minWidth:0}}>
-        <div style={{fontSize:11,color:C.muted,marginBottom:10,fontWeight:600,letterSpacing:.4}}>
+        <div style={{fontSize:12.5,color:C.muted,marginBottom:10,fontWeight:600,letterSpacing:.4}}>
           TEKNİK DİREKTÖR GÖREVLERİ
         </div>
         {(matchObjectives||[]).map((o,i)=>(
@@ -9629,14 +9740,14 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               boxShadow:i===1?`0 0 12px ${C.accent}66`:"none"}}/>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:13.5,fontWeight:600}}>{o.label||o.t}</div>
-              <div style={{fontSize:11,color:C.green,marginTop:3}}>
+              <div style={{fontSize:12.5,color:C.green,marginTop:3}}>
                 +{o.xp} XP{o.trust?` · Hoca +${o.trust}`:""}
               </div>
             </div>
             <span style={{flexShrink:0,width:34,height:34,borderRadius:"50%",
               display:"flex",alignItems:"center",justifyContent:"center",
               background:`${(i%2?C.sky:C.purple)}1e`,border:`1px solid ${(i%2?C.sky:C.purple)}77`,
-              fontSize:10,fontWeight:800,color:i%2?C.sky:C.purple}}>XP</span>
+              fontSize:11.5,fontWeight:800,color:i%2?C.sky:C.purple}}>XP</span>
           </div>))}
         {(!matchObjectives||!matchObjectives.length)&&
           <div style={{fontSize:12,color:C.muted}}>Bu maç için özel görev yok.</div>}
@@ -9662,13 +9773,13 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               background:`${C.bg}bb`,border:`1px solid ${C.border}`}}>
               <div style={{display:"flex",gap:7,alignItems:"flex-start"}}>
                 <span style={{fontSize:14}}>{r.icon}</span>
-                <div style={{fontSize:11.5,lineHeight:1.45,color:C.text}}>{r.t}</div>
+                <div style={{fontSize:12.5,lineHeight:1.45,color:C.text}}>{r.t}</div>
               </div>
-              {r.rival&&<div style={{fontSize:10.5,color:C.muted,marginTop:5,paddingLeft:21}}>
+              {r.rival&&<div style={{fontSize:12,color:C.muted,marginTop:5,paddingLeft:21}}>
                 Yerinde <strong style={{color:C.orange}}>{r.rival.name}</strong> oynuyor
                 {r.rival.gap>0?` (OVR ${r.rival.ovr}, +${r.rival.gap})`:` (OVR ${r.rival.ovr})`}
               </div>}
-              <div style={{fontSize:10.5,color:C.green,marginTop:6,paddingLeft:21,lineHeight:1.45}}>
+              <div style={{fontSize:12,color:C.green,marginTop:6,paddingLeft:21,lineHeight:1.45}}>
                 → {r.fix}
               </div>
             </div>);
@@ -9678,7 +9789,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               ["Enerji",Math.round(player.fitness),`%${Math.round(player.fitness)}`],
               ["Zihin",Math.round(player.mental??100),mentalState(player.mental??100).label]].map(([k,v,lbl])=>(
               <div key={k} style={{marginBottom:9}}>
-                <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,marginBottom:4}}>
                   <span style={{color:C.muted}}>{k}:</span>
                   <span style={{fontWeight:600,color:tone(v,75,55,35)}}>{lbl}</span>
                 </div>
@@ -9719,8 +9830,8 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
       maxWidth:"min(440px,calc(100vw - 24px))",background:C.card,border:`1px solid ${C.red}`,borderRadius:10,
       padding:"9px 12px",display:"flex",alignItems:"center",gap:10,boxShadow:`0 4px 18px ${C.red}44`}}>
       <span style={{fontSize:16}}>⚠️</span>
-      <span style={{flex:1,fontSize:11,color:C.text,lineHeight:1.4}}>{saveError}</span>
-      <Btn v="red" style={{fontSize:10,padding:"6px 10px",flexShrink:0}}
+      <span style={{flex:1,fontSize:12.5,color:C.text,lineHeight:1.4}}>{saveError}</span>
+      <Btn v="red" style={{fontSize:11.5,padding:"6px 10px",flexShrink:0}}
         onClick={()=>{const err=exportSaveData(buildSavePayload(pendingSave.current||{player,club,season,week,diffId,tactic,contract,
           standings,rival,seasonHistory,social,log,teammates,fixtures,weather,trained,girlfriend,rpLog,manager,playerDiary,
           careerRecords,followers,wheelSpinsLeft,transferBan,leagueScorers,europeanSpot,titlesWonThisSeason,freeAgent,
@@ -9777,7 +9888,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         </div>
         <Card style={{marginBottom:10}}>
           <Lbl>YAPILAN SEANSLAR</Lbl>
-          {planResult.lines.map((l,i)=>(<div key={i} style={{fontSize:11,color:C.text,padding:"3px 0"}}>{l}</div>))}
+          {planResult.lines.map((l,i)=>(<div key={i} style={{fontSize:12.5,color:C.text,padding:"3px 0"}}>{l}</div>))}
         </Card>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:10}}>
           <StatBox icon="🦵" value={`${planResult.fitD>=0?"+":""}${planResult.fitD}`} label="FİTNESS" color={planResult.fitD>=0?C.green:C.orange}/>
@@ -9787,11 +9898,11 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           <Lbl c={C.gold}>KAZANIM</Lbl>
           {planResult.applied.length
             ? planResult.applied.map((a,i)=>(<div key={i} style={{fontSize:12,color:C.green,fontWeight:700,padding:"2px 0"}}>📈 {a}</div>))
-            : <div style={{fontSize:11,color:C.muted}}>Bu hafta özellik artışı olmadı — zihnin ya da tavanın seni yavaşlatıyor.</div>}
+            : <div style={{fontSize:12.5,color:C.muted}}>Bu hafta özellik artışı olmadı — zihnin ya da tavanın seni yavaşlatıyor.</div>}
         </Card>
         {planResult.injury&&<Card glow gc={C.red} style={{marginBottom:10}}>
           <div style={{fontSize:12,color:C.red,fontWeight:700}}>🚑 {planResult.injury.name} — {planResult.injury.weeks} hafta</div>
-          <div style={{fontSize:10,color:C.muted,marginTop:4}}>Yoğun planlar sakatlık riskini ciddi şekilde artırır.</div>
+          <div style={{fontSize:11.5,color:C.muted,marginTop:4}}>Yoğun planlar sakatlık riskini ciddi şekilde artırır.</div>
         </Card>}
         <Btn v={planResult.injury?"ghost":"gold"} style={{width:"100%"}} onClick={()=>setPlanResult(null)}>Tamam</Btn>
       </div>
@@ -9803,17 +9914,17 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         <div style={{textAlign:"center",marginBottom:12}}>
           <div style={{fontSize:30}}>{mentalState(player.mental??100).icon}</div>
           <div style={{fontFamily:F.mono,fontSize:14,fontWeight:900,color:mentalState(player.mental??100).c,marginTop:4}}>ZİHİNSEL SAĞLIK</div>
-          <div style={{fontSize:10,color:C.muted,marginTop:5,lineHeight:1.6}}>
+          <div style={{fontSize:11.5,color:C.muted,marginTop:5,lineHeight:1.6}}>
             Fitness bacaklarını, zihin kafanı ölçer. Tükenmiş bir oyuncu formda olsa bile kötü oynar ve antrenmandan verim alamaz.
           </div>
         </div>
         <Card style={{marginBottom:12}}>
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-            <span style={{fontSize:11,color:C.muted,fontFamily:F.cond,fontWeight:700,letterSpacing:0}}>ZİHİNSEL ENERJİ</span>
+            <span style={{fontSize:12.5,color:C.muted,fontFamily:F.cond,fontWeight:700,letterSpacing:0}}>ZİHİNSEL ENERJİ</span>
             <span style={{fontSize:14,fontWeight:800,color:mentalState(player.mental??100).c,fontFamily:F.mono}}>{Math.round(player.mental??100)}</span>
           </div>
           <SB v={player.mental??100} c={mentalState(player.mental??100).c}/>
-          <div style={{fontSize:10,color:C.muted,marginTop:6}}>
+          <div style={{fontSize:11.5,color:C.muted,marginTop:6}}>
             Durum: <strong style={{color:mentalState(player.mental??100).c}}>{mentalState(player.mental??100).label}</strong>
             {(player.mentalResist||0)>0&&<> · Dayanıklılık +{player.mentalResist}</>}
           </div>
@@ -9827,11 +9938,11 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             <span style={{fontSize:22}}>{h.icon}</span>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontFamily:F.cond,fontWeight:700,fontSize:13,color:C.text}}>{h.name}</div>
-              <div style={{fontSize:10,color:C.muted}}>{h.desc}</div>
+              <div style={{fontSize:11.5,color:C.muted}}>{h.desc}</div>
             </div>
             <div style={{textAlign:"right",flexShrink:0}}>
               <div style={{fontSize:12,fontWeight:800,color:C.green}}>+{h.mental}</div>
-              <div style={{fontSize:9,color:ok?C.gold:C.red}}>€{h.cost.toLocaleString("tr")}</div>
+              <div style={{fontSize:10.5,color:ok?C.gold:C.red}}>€{h.cost.toLocaleString("tr")}</div>
             </div>
           </button>);
         })}
@@ -9846,7 +9957,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           <div style={{fontSize:32}}>🚑</div>
           <div style={{fontFamily:F.mono,fontSize:14,fontWeight:900,color:C.red,marginTop:4}}>CİDDİ SAKATLIK</div>
           <div style={{fontSize:12,color:C.text,marginTop:6,fontWeight:700}}>{seriousInjury.name} · {seriousInjury.weeks} hafta</div>
-          <div style={{fontSize:10,color:C.muted,marginTop:6,lineHeight:1.6}}>Tedavi yolunu sen seçiyorsun. Her seçeneğin bir bedeli ve nüks riski var.</div>
+          <div style={{fontSize:11.5,color:C.muted,marginTop:6,lineHeight:1.6}}>Tedavi yolunu sen seçiyorsun. Her seçeneğin bir bedeli ve nüks riski var.</div>
         </div>
         {SURGERY_OPTIONS.map(o=>{
           const cost=Math.round(seriousInjuryCost(seriousInjury.weeks)*o.costMul);
@@ -9859,16 +9970,16 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
               <span style={{fontSize:20}}>{o.icon}</span>
               <span style={{flex:1,fontFamily:F.cond,fontWeight:700,fontSize:13,color:C.text}}>{o.name}</span>
-              <span style={{fontSize:11,fontWeight:800,color:cost?C.gold:C.green}}>{cost?`€${cost.toLocaleString("tr")}`:"Ücretsiz"}</span>
+              <span style={{fontSize:12.5,fontWeight:800,color:cost?C.gold:C.green}}>{cost?`€${cost.toLocaleString("tr")}`:"Ücretsiz"}</span>
             </div>
-            <div style={{fontSize:10,color:C.muted,marginBottom:6,lineHeight:1.5}}>{o.desc}</div>
+            <div style={{fontSize:11.5,color:C.muted,marginBottom:6,lineHeight:1.5}}>{o.desc}</div>
             <div style={{display:"flex",gap:6}}>
               <Bdg c={C.accent}>⏱️ {weeks} hafta</Bdg>
               <Bdg c={o.risk>0.4?C.red:o.risk>0.15?C.orange:C.green}>⚠️ Nüks %{Math.round(o.risk*100)}</Bdg>
             </div>
           </button>);
         })}
-        <div style={{fontSize:9,color:C.muted,textAlign:"center",marginTop:4}}>Nüks olursa süre uzar, fiziğin kalıcı olarak düşer.</div>
+        <div style={{fontSize:10.5,color:C.muted,textAlign:"center",marginTop:4}}>Nüks olursa süre uzar, fiziğin kalıcı olarak düşer.</div>
       </div>
     </div>}
 
@@ -9878,7 +9989,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         <div style={{textAlign:"center",marginBottom:14}}>
           <div style={{fontSize:28}}>🎤</div>
           <div style={{fontFamily:F.mono,fontSize:14,fontWeight:900,color:C.accent,marginTop:3}}>BASIN TOPLANTISI</div>
-          <div style={{fontSize:10,color:C.muted,marginTop:4}}>
+          <div style={{fontSize:11.5,color:C.muted,marginTop:4}}>
             {pressConf.kind==="pre"?"Maç öncesi":"Maç sonrası"} · Medya becerisi {player.mediaSkill||30}
           </div>
         </div>
@@ -9893,9 +10004,9 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               return(<button key={j} onClick={()=>{setPressAnswers(p=>({...p,[i]:j}));playSfx("click");}}
                 style={{display:"block",width:"100%",textAlign:"left",padding:"9px 11px",marginBottom:5,borderRadius:R.sm,
                   border:`1px solid ${sel?C.accent:C.border}`,background:sel?`${C.accent}1a`:C.card2,cursor:"pointer",
-                  color:sel?C.accent:C.text,fontSize:11,lineHeight:1.45,fontFamily:"inherit"}}>
+                  color:sel?C.accent:C.text,fontSize:12.5,lineHeight:1.45,fontFamily:"inherit"}}>
                 <span style={{fontWeight:sel?700:400}}>{a.t}</span>
-                <span style={{display:"block",marginTop:3,fontSize:9,color:C.muted,letterSpacing:0}}>
+                <span style={{display:"block",marginTop:3,fontSize:10.5,color:C.muted,letterSpacing:0}}>
                   {a.tag}
                   {Object.entries(a.fx||{}).map(([k,v])=>{
                     const lbl={trust:"Hoca",fame:"Şöhret",fanLove:"Taraftar",morale:"Moral",teamMorale:"Takım",pressure:"Baskı"}[k]||k;
@@ -9925,7 +10036,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         <div style={{textAlign:"center",marginBottom:12}}>
           <div style={{fontSize:30}}>👕</div>
           <div style={{fontFamily:F.mono,fontSize:14,fontWeight:900,color:C.gold,marginTop:3}}>FORMA NUMARASI</div>
-          <div style={{fontSize:10,color:C.muted,marginTop:5,lineHeight:1.6}}>
+          <div style={{fontSize:11.5,color:C.muted,marginTop:5,lineHeight:1.6}}>
             İkonik numaralar prestij ister. Dolu numaralar seçilemez.
             {player.shirtNo?<> · Şu an: <strong style={{color:C.gold}}>{player.shirtNo}</strong></>:null}
           </div>
@@ -9950,7 +10061,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         <Card style={{marginBottom:10}}>
           <Lbl c={C.gold}>İKONİK NUMARALAR</Lbl>
           {Object.entries(ICONIC_NUMBERS).map(([n,d])=>(
-            <div key={n} style={{display:"flex",justifyContent:"space-between",fontSize:10,padding:"2px 0",color:C.muted}}>
+            <div key={n} style={{display:"flex",justifyContent:"space-between",fontSize:11.5,padding:"2px 0",color:C.muted}}>
               <span><strong style={{color:C.gold}}>{n}</strong> — {d}</span>
               <span>{(NUMBER_REQ[n]??0)>0?`min ${NUMBER_REQ[n]} OVR`:"—"}</span>
             </div>
@@ -9966,7 +10077,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         <div style={{textAlign:"center",marginBottom:14}}>
           <div style={{fontSize:34}}>🏛️</div>
           <div style={{fontFamily:F.mono,fontSize:17,fontWeight:900,color:C.gold}}>KUPA ODASI</div>
-          <div style={{fontSize:10,color:C.muted,marginTop:4}}>
+          <div style={{fontSize:11.5,color:C.muted,marginTop:4}}>
             {(player.trophyCabinet||[]).length} kupa · {player.name}
           </div>
         </div>
@@ -9981,9 +10092,9 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                 <div key={t.id} style={{background:`linear-gradient(180deg,${t.c}18,${C.card})`,border:`1px solid ${t.c}44`,
                   borderRadius:R.md,padding:"13px 8px",textAlign:"center",position:"relative"}}>
                   <div style={{fontSize:30,filter:`drop-shadow(0 3px 8px ${t.c}66)`}}>{t.icon}</div>
-                  <div style={{fontFamily:F.cond,fontWeight:700,fontSize:10,color:t.c,marginTop:5,lineHeight:1.25}}>{t.name}</div>
+                  <div style={{fontFamily:F.cond,fontWeight:700,fontSize:11.5,color:t.c,marginTop:5,lineHeight:1.25}}>{t.name}</div>
                   {t.count>1&&<div style={{position:"absolute",top:5,right:6,background:t.c,color:"#0b0b0f",
-                    borderRadius:9,padding:"0 6px",fontSize:10,fontWeight:900,fontFamily:F.mono}}>×{t.count}</div>}
+                    borderRadius:9,padding:"0 6px",fontSize:11.5,fontWeight:900,fontFamily:F.mono}}>×{t.count}</div>}
                 </div>
               ))}
             </div>
@@ -9995,8 +10106,8 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                   borderBottom:i<player.trophyCabinet.length-1?`1px solid ${C.border}`:"none"}}>
                   <span style={{fontSize:18}}>{d.icon}</span>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:11,fontWeight:700,color:d.c}}>{d.name}</div>
-                    <div style={{fontSize:9,color:C.muted}}>{t.club}{t.detail?` · ${t.detail}`:""}</div>
+                    <div style={{fontSize:12.5,fontWeight:700,color:d.c}}>{d.name}</div>
+                    <div style={{fontSize:10.5,color:C.muted}}>{t.club}{t.detail?` · ${t.detail}`:""}</div>
                   </div>
                   <Bdg c={C.muted}>S{t.season}</Bdg>
                 </div>);
@@ -10012,7 +10123,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               <div key={l} style={{background:C.bg,borderRadius:R.sm,padding:"8px 6px",textAlign:"center",border:`1px solid ${C.border}`}}>
                 <div style={{fontSize:14}}>{ic}</div>
                 <div style={{fontFamily:F.mono,fontSize:15,fontWeight:800,color:C.gold}}>{v}</div>
-                <div style={{fontSize:8,color:C.muted,letterSpacing:0}}>{l}</div>
+                <div style={{fontSize:9.5,color:C.muted,letterSpacing:0}}>{l}</div>
               </div>
             ))}
           </div>
@@ -10020,7 +10131,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         {(player.injuryHistory||[]).length>0&&<Card style={{marginBottom:12}}>
           <Lbl c={C.red}>SAKATLIK GEÇMİŞİ</Lbl>
           {[...(player.injuryHistory||[])].reverse().slice(0,8).map((h,i)=>(
-            <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:10,color:C.muted,padding:"3px 0"}}>
+            <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:11.5,color:C.muted,padding:"3px 0"}}>
               <span>🚑 {h.name}{h.surgery?` · ${SURGERY_OPTIONS.find(o=>o.id===h.surgery)?.name||""}`:""}</span>
               <span>{h.weeks} hafta · S{h.season}</span>
             </div>
@@ -10040,7 +10151,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             color:u19Result.won?C.green:u19Result.draw?C.text:C.red}}>
             {u19Result.teamScore} - {u19Result.oppScore}
           </div>
-          <div style={{fontSize:11,color:C.muted,marginTop:3}}>vs {u19Result.oppName}</div>
+          <div style={{fontSize:12.5,color:C.muted,marginTop:3}}>vs {u19Result.oppName}</div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:5,marginBottom:12}}>
           <StatBox icon="⚽" value={u19Result.goals} label="GOL" color={C.gold}/>
@@ -10057,7 +10168,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                   {u19Result.trustGain>0?"+":""}{u19Result.trustGain}
                 </span>
               </div>
-              <div style={{fontSize:10,color:C.muted,marginTop:5,lineHeight:1.5}}>
+              <div style={{fontSize:11.5,color:C.muted,marginTop:5,lineHeight:1.5}}>
                 {u19Result.trustGain>=5?"Teknik heyet etkilendi — ilk 11 yolda."
                  :u19Result.trustGain>0?"İyi bir performans. Böyle devam."
                  :"Yetersizdi. Hoca ikna olmadı."}
@@ -10065,11 +10176,11 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             </Card>
           : <Card style={{marginBottom:12}}>
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                <span style={{fontSize:10,color:C.muted,letterSpacing:0,fontFamily:F.cond,fontWeight:700}}>A TAKIM YOLU</span>
-                <span style={{fontSize:11,fontWeight:800,color:C.gold,fontFamily:F.mono}}>{player.academyPts||0}/{ACADEMY_TARGET}</span>
+                <span style={{fontSize:11.5,color:C.muted,letterSpacing:0,fontFamily:F.cond,fontWeight:700}}>A TAKIM YOLU</span>
+                <span style={{fontSize:12.5,fontWeight:800,color:C.gold,fontFamily:F.mono}}>{player.academyPts||0}/{ACADEMY_TARGET}</span>
               </div>
               <SB v={((player.academyPts||0)/ACADEMY_TARGET)*100} c={C.gold}/>
-              <div style={{fontSize:10,color:C.muted,marginTop:5}}>{academyRank(player.academyPts||0)}</div>
+              <div style={{fontSize:11.5,color:C.muted,marginTop:5}}>{academyRank(player.academyPts||0)}</div>
             </Card>}
         <Btn v="gold" style={{width:"100%"}} onClick={()=>setU19Result(null)}>Devam</Btn>
       </div>
@@ -10081,13 +10192,13 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         border:`1px solid ${C.gold}66`,textAlign:"center"}}>
         <div style={{fontSize:40,marginBottom:6}}>🌟</div>
         <div style={{fontFamily:F.mono,fontSize:16,fontWeight:900,color:C.gold}}>A TAKIMA ÇAĞRILDIN</div>
-        <div style={{fontSize:11,color:C.text,marginTop:10,lineHeight:1.65}}>
+        <div style={{fontSize:12.5,color:C.text,marginTop:10,lineHeight:1.65}}>
           {club.name} teknik direktörü seni A takım kadrosuna aldı.
           Altyapıda <strong style={{color:C.gold}}>{player.u19Matches}</strong> maçta{" "}
           <strong style={{color:C.gold}}>{player.u19Goals}</strong> gol ve{" "}
           <strong style={{color:C.gold}}>{player.u19Assists}</strong> asist yaptın.
         </div>
-        <div style={{fontSize:10,color:C.muted,marginTop:10,lineHeight:1.6}}>
+        <div style={{fontSize:11.5,color:C.muted,marginTop:10,lineHeight:1.6}}>
           Artık lig maçları, kupalar ve gerçek bir sözleşme seni bekliyor.
         </div>
         <Btn v="gold" style={{width:"100%",marginTop:16,padding:"13px",fontSize:14}} onClick={promoteToFirstTeam}>PROFESYONEL OL ⚡</Btn>
@@ -10130,13 +10241,13 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             borderBottom:`1px solid ${C.border}44`}}>
             <span style={{fontSize:16,opacity:o.ok?1:0.4}}>{o.icon}</span>
             <span style={{flex:1,fontSize:12,color:o.ok?C.green:C.muted}}>{o.label}</span>
-            <span style={{fontSize:10,fontFamily:F.mono,color:o.ok?C.gold:C.muted}}>
+            <span style={{fontSize:11.5,fontFamily:F.mono,color:o.ok?C.gold:C.muted}}>
               {o.ok?`+${o.xp} XP`:"—"}
             </span>
             <span style={{fontSize:14}}>{o.ok?"✅":"❌"}</span>
           </div>))}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:10,marginTop:4}}>
-          <span style={{fontSize:11,fontFamily:F.cond,fontWeight:700,letterSpacing:0}}>TOPLAM</span>
+          <span style={{fontSize:12.5,fontFamily:F.cond,fontWeight:700,letterSpacing:0}}>TOPLAM</span>
           <span style={{fontFamily:F.mono,fontSize:16,fontWeight:900,color:C.gold}}>+{objResult.xp} XP</span>
         </div>
         <Btn v="gold" style={{width:"100%",marginTop:10}} onClick={()=>setObjResult(null)}>Tamam</Btn>
@@ -10197,7 +10308,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               color:tooPoor?C.muted:C.text,opacity:tooPoor?0.5:1,
               fontFamily:F.cond,fontWeight:700,fontSize:12}}>
               <div>{opt.t}</div>
-              <div style={{fontSize:9,color:C.muted,fontWeight:400,marginTop:3}}>
+              <div style={{fontSize:10.5,color:C.muted,fontWeight:400,marginTop:3}}>
                 {[e.morale&&`moral ${e.morale>0?"+":""}${e.morale}`,
                   e.fitness&&`fitness ${e.fitness>0?"+":""}${e.fitness}`,
                   e.fame&&`şöhret ${e.fame>0?"+":""}${e.fame}`,
@@ -10225,18 +10336,18 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           <span style={{fontSize:24}}>🧬</span>
           <div style={{flex:1}}>
             <div style={{fontFamily:F.mono,fontSize:14,fontWeight:900,color:C.purple}}>GELİŞİM</div>
-            <div style={{fontSize:10,color:C.muted}}>Seviye {player.level} · {player.xp||0} XP</div>
+            <div style={{fontSize:11.5,color:C.muted}}>Seviye {player.level} · {player.xp||0} XP</div>
           </div>
           <button onClick={()=>setShowPerks(false)} style={{background:"transparent",border:"none",color:C.muted,fontSize:20,cursor:"pointer"}}>✕</button>
         </div>
 
         {/* Puan sayacı */}
         <Card glow gc={C.purple} style={{marginBottom:10,textAlign:"center",padding:16}}>
-          <div style={{fontSize:9,color:C.muted,letterSpacing:0.3,fontFamily:F.cond,fontWeight:700}}>KULLANILABİLİR YETENEK PUANI</div>
+          <div style={{fontSize:10.5,color:C.muted,letterSpacing:0.3,fontFamily:F.cond,fontWeight:700}}>KULLANILABİLİR YETENEK PUANI</div>
           <div style={{fontFamily:F.mono,fontSize:34,fontWeight:900,color:skillPointsAvailable(player)>0?C.purple:C.muted,lineHeight:1.2}}>
             {skillPointsAvailable(player)}
           </div>
-          <div style={{fontSize:10,color:C.muted,marginTop:4}}>Her seviye +1 · her 12 maç +1</div>
+          <div style={{fontSize:11.5,color:C.muted,marginTop:4}}>Her seviye +1 · her 12 maç +1</div>
         </Card>
 
         {/* Özellik geliştirme ARTIK TEK YERDE: Antrenman sekmesi.
@@ -10257,7 +10368,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         {/* Rozetler */}
         <Card>
           <Lbl c={C.gold}>ROZETLER</Lbl>
-          <div style={{fontSize:10,color:C.muted,marginBottom:9,lineHeight:1.6}}>
+          <div style={{fontSize:11.5,color:C.muted,marginBottom:9,lineHeight:1.6}}>
             Rozetler maç motorunu doğrudan etkiler. Bir kez alınır, kalıcıdır.
           </div>
           {PERKS.map(pk=>{
@@ -10269,12 +10380,12 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               <span style={{fontSize:20,flexShrink:0}}>{pk.icon}</span>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:12,fontWeight:700,color:owned?C.green:C.text}}>{pk.name}</div>
-                <div style={{fontSize:10,color:C.muted,lineHeight:1.4}}>{pk.desc}</div>
-                {!eligible&&<div style={{fontSize:9,color:C.red,marginTop:2}}>Mevkine uygun değil</div>}
+                <div style={{fontSize:11.5,color:C.muted,lineHeight:1.4}}>{pk.desc}</div>
+                {!eligible&&<div style={{fontSize:10.5,color:C.red,marginTop:2}}>Mevkine uygun değil</div>}
               </div>
               {owned
                 ? <Bdg c={C.green}>✅ Açık</Bdg>
-                : <Btn v={canBuy?"gold":"ghost"} disabled={!canBuy} style={{fontSize:11,padding:"6px 10px",flexShrink:0}}
+                : <Btn v={canBuy?"gold":"ghost"} disabled={!canBuy} style={{fontSize:12.5,padding:"6px 10px",flexShrink:0}}
                     onClick={()=>{
                       setPlayer(p=>({...p,perks:[...(p.perks||[]),pk.id],
                         spentPoints:(p.spentPoints||0)+pk.cost}));
@@ -10294,7 +10405,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           <span style={{fontSize:24}}>{myRole.icon}</span>
           <div style={{flex:1}}>
             <div style={{fontFamily:F.mono,fontSize:14,fontWeight:900,color:myRole.c}}>KADRO DURUMUN</div>
-            <div style={{fontSize:10,color:C.muted}}>{club.name} · {myRole.label}</div>
+            <div style={{fontSize:11.5,color:C.muted}}>{club.name} · {myRole.label}</div>
           </div>
           <button onClick={()=>setShowSquadStatus(false)} style={{background:"transparent",border:"none",color:C.muted,fontSize:20,cursor:"pointer"}}>✕</button>
         </div>
@@ -10315,12 +10426,12 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             if(player.traits?.includes("Kaptanlık"))rows.push(["Kaptanlık özelliği",4,C.gold]);
             return rows.map(([l,v,c])=>(
               <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",
-                borderBottom:`1px solid ${C.border}44`,fontSize:11}}>
+                borderBottom:`1px solid ${C.border}44`,fontSize:12.5}}>
                 <span style={{color:C.muted}}>{l}</span>
                 <span style={{fontFamily:F.mono,fontWeight:700,color:c}}>{v>0?"+":""}{v}</span>
               </div>));
           })()}
-          <div style={{fontSize:10,color:C.muted,marginTop:9,lineHeight:1.6}}>
+          <div style={{fontSize:11.5,color:C.muted,marginTop:9,lineHeight:1.6}}>
             78+ takımın yıldızı · 58+ ilk 11 · 38+ rotasyon · 18+ yedek · altı kadro dışı
           </div>
         </Card>
@@ -10333,12 +10444,12 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>👤</div>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:12,fontWeight:700}}>{posRival.name}</div>
-              <div style={{fontSize:10,color:C.muted}}>{posRival.pos} · {posRival.age} yaş · {posRival.trait}</div>
+              <div style={{fontSize:11.5,color:C.muted}}>{posRival.pos} · {posRival.age} yaş · {posRival.trait}</div>
             </div>
             <div style={{textAlign:"right"}}>
               <div style={{fontFamily:F.mono,fontSize:16,fontWeight:900,
                 color:player.overall>=posRival.ovr?C.green:C.red}}>{posRival.ovr}</div>
-              <div style={{fontSize:8,color:C.muted}}>sen {player.overall}</div>
+              <div style={{fontSize:9.5,color:C.muted}}>sen {player.overall}</div>
             </div>
           </div>
         </Card>}
@@ -10411,7 +10522,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           <div style={{fontSize:24}}>💹</div>
           <div style={{flex:1}}>
             <div style={{fontFamily:F.mono,fontSize:14,fontWeight:900,color:C.green}}>FİNANS MERKEZİ</div>
-            <div style={{fontSize:10,color:C.muted}}>Banka: €{(player.bank||0).toLocaleString()}</div>
+            <div style={{fontSize:11.5,color:C.muted}}>Banka: €{(player.bank||0).toLocaleString()}</div>
           </div>
           <button onClick={()=>setShowFinance(false)} style={{background:"transparent",border:"none",color:C.muted,fontSize:20,cursor:"pointer"}}>✕</button>
         </div>
@@ -10423,12 +10534,12 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             ["Bakım gideri",-player._lastPay.upkeep,C.red],["Menajer",-player._lastPay.mgrFee,C.red],
             ["Sponsorluk",player._lastPay.sponsor,C.green],["Marka anlaşmaları",player._lastPay.brand,C.green]]
             .filter(([,v])=>v!==0).map(([l,v,c])=>(
-            <div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0"}}>
+            <div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:12.5,padding:"3px 0"}}>
               <span style={{color:C.muted}}>{l}</span>
               <span style={{color:c,fontFamily:F.mono,fontWeight:700}}>{v>0?"+":""}€{Math.abs(v).toLocaleString()}</span>
             </div>))}
           <div style={{display:"flex",justifyContent:"space-between",borderTop:`1px solid ${C.border}`,marginTop:6,paddingTop:7}}>
-            <span style={{fontSize:11,fontFamily:F.cond,fontWeight:700,letterSpacing:0}}>NET</span>
+            <span style={{fontSize:12.5,fontFamily:F.cond,fontWeight:700,letterSpacing:0}}>NET</span>
             <span style={{fontFamily:F.mono,fontWeight:900,fontSize:14,
               color:player._lastPay.net>=0?C.green:C.red}}>
               {player._lastPay.net>=0?"+":"−"}€{Math.abs(player._lastPay.net).toLocaleString()}
@@ -10441,7 +10552,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           {[["borsa","📈 Borsa"],["marka","🤝 Markalar"],["menajer","🎩 Menajer"]].map(([k,l])=>(
             <button key={k} onClick={()=>setFinanceTab(k)} style={{flex:1,padding:"8px 4px",borderRadius:R.sm,cursor:"pointer",
               border:`1px solid ${financeTab===k?C.green:C.border}`,background:financeTab===k?`${C.green}18`:C.card2,
-              color:financeTab===k?C.green:C.muted,fontFamily:F.cond,fontWeight:700,fontSize:11}}>{l}</button>))}
+              color:financeTab===k?C.green:C.muted,fontFamily:F.cond,fontWeight:700,fontSize:12.5}}>{l}</button>))}
         </div>
 
         {/* ── BORSA ── */}
@@ -10455,13 +10566,13 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <div>
                   <div style={{fontFamily:F.mono,fontSize:17,fontWeight:900}}>€{totalVal.toLocaleString()}</div>
-                  <div style={{fontSize:9,color:C.muted}}>Maliyet €{totalCost.toLocaleString()}</div>
+                  <div style={{fontSize:10.5,color:C.muted}}>Maliyet €{totalCost.toLocaleString()}</div>
                 </div>
                 <div style={{textAlign:"right"}}>
                   <div style={{fontFamily:F.mono,fontSize:15,fontWeight:900,color:pnl>=0?C.green:C.red}}>
                     {pnl>=0?"+":"−"}€{Math.abs(pnl).toLocaleString()}
                   </div>
-                  <div style={{fontSize:9,color:pnl>=0?C.green:C.red}}>
+                  <div style={{fontSize:10.5,color:pnl>=0?C.green:C.red}}>
                     {totalCost?((pnl/totalCost)*100).toFixed(1):0}%
                   </div>
                 </div>
@@ -10478,11 +10589,11 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                 <span style={{fontSize:19}}>{a.icon}</span>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:12,fontWeight:700,fontFamily:F.cond}}>{a.name}</div>
-                  <div style={{fontSize:9,color:C.muted}}>{a.cat}</div>
+                  <div style={{fontSize:10.5,color:C.muted}}>{a.cat}</div>
                 </div>
                 <div style={{textAlign:"right"}}>
                   <div style={{fontFamily:F.mono,fontSize:13,fontWeight:900}}>€{m.price.toLocaleString()}</div>
-                  <div style={{fontSize:10,fontWeight:700,color:chg===0?C.muted:chg>0?C.green:C.red}}>
+                  <div style={{fontSize:11.5,fontWeight:700,color:chg===0?C.muted:chg>0?C.green:C.red}}>
                     {chg===0?"—":chg>0?"▲":"▼"} {chg===0?"":Math.abs(chg).toFixed(1)+"%"}
                   </div>
                 </div>
@@ -10498,15 +10609,15 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                     })}
                   </div>
                 : <div style={{height:26,marginBottom:8,display:"flex",alignItems:"center",
-                    fontSize:9,color:C.muted}}>Fiyat geçmişi birkaç hafta sonra oluşur</div>}
-              {hold&&hold.qty>0&&<div style={{fontSize:10,color:C.muted,marginBottom:7}}>
+                    fontSize:10.5,color:C.muted}}>Fiyat geçmişi birkaç hafta sonra oluşur</div>}
+              {hold&&hold.qty>0&&<div style={{fontSize:11.5,color:C.muted,marginBottom:7}}>
                 {hold.qty} adet · ort. €{Math.round(hold.avgCost).toLocaleString()} ·{" "}
                 <span style={{color:m.price>=hold.avgCost?C.green:C.red,fontWeight:700}}>
                   {m.price>=hold.avgCost?"+":"−"}€{Math.abs(Math.round((m.price-hold.avgCost)*hold.qty)).toLocaleString()}
                 </span>
               </div>}
               <div style={{display:"flex",gap:6}}>
-                <Btn v={canBuy?"green":"ghost"} style={{flex:1,fontSize:11,padding:"7px"}} disabled={!canBuy}
+                <Btn v={canBuy?"green":"ghost"} style={{flex:1,fontSize:12.5,padding:"7px"}} disabled={!canBuy}
                   onClick={()=>{
                     if(player.bank<m.price){notify("Yetersiz bakiye!",C.red);return;}
                     setPlayer(p=>({...p,bank:p.bank-m.price}));
@@ -10517,7 +10628,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                     });
                     notify(`📈 1 ${a.name} alındı — €${m.price.toLocaleString()}`,C.green);
                   }}>AL</Btn>
-                <Btn v={hold?.qty?"red":"ghost"} style={{flex:1,fontSize:11,padding:"7px"}} disabled={!hold?.qty}
+                <Btn v={hold?.qty?"red":"ghost"} style={{flex:1,fontSize:12.5,padding:"7px"}} disabled={!hold?.qty}
                   onClick={()=>{
                     if(!hold?.qty)return;
                     const profit=Math.round(m.price-hold.avgCost);
@@ -10532,7 +10643,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                     notify(profit>=0?`💰 Kâr +€${profit.toLocaleString()}`:`📉 Zarar −€${Math.abs(profit).toLocaleString()}`,
                       profit>=0?C.green:C.red);
                   }}>SAT</Btn>
-                <Btn v="ghost" style={{flex:1,fontSize:11,padding:"7px"}}
+                <Btn v="ghost" style={{flex:1,fontSize:12.5,padding:"7px"}}
                   disabled={player.bank<m.price*5}
                   onClick={()=>{
                     const n=5;
@@ -10548,7 +10659,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               </div>
             </Card>);
           })}
-          <div style={{fontSize:9,color:C.muted,textAlign:"center",marginTop:8,lineHeight:1.6}}>
+          <div style={{fontSize:10.5,color:C.muted,textAlign:"center",marginTop:8,lineHeight:1.6}}>
             Fiyatlar her hafta değişir. Kripto en oynak, altın en durgun.
           </div>
         </div>}
@@ -10558,12 +10669,12 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           <Card style={{marginBottom:10}}>
             <Lbl>AKTİF ANLAŞMALAR</Lbl>
             {(player.brandDeals||[]).length===0
-              ? <div style={{fontSize:11,color:C.muted}}>Henüz marka anlaşman yok. Şöhretin arttıkça teklif gelir.</div>
+              ? <div style={{fontSize:12.5,color:C.muted}}>Henüz marka anlaşman yok. Şöhretin arttıkça teklif gelir.</div>
               : player.brandDeals.map(d=>(
                 <div key={d.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:`1px solid ${C.border}44`}}>
                   <span style={{fontSize:16}}>{d.icon}</span>
-                  <span style={{flex:1,fontSize:11}}>{d.name}</span>
-                  <span style={{fontFamily:F.mono,fontSize:11,color:C.green,fontWeight:700}}>+€{(d.weekly||0).toLocaleString()}/h</span>
+                  <span style={{flex:1,fontSize:12.5}}>{d.name}</span>
+                  <span style={{fontFamily:F.mono,fontSize:12.5,color:C.green,fontWeight:700}}>+€{(d.weekly||0).toLocaleString()}/h</span>
                 </div>))}
           </Card>
           <Card>
@@ -10575,14 +10686,14 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                 borderBottom:`1px solid ${C.border}44`,opacity:owned?0.45:ok?1:0.6}}>
                 <span style={{fontSize:16}}>{d.icon}</span>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:11,fontWeight:700}}>{d.name}</div>
-                  <div style={{fontSize:9,color:ok?C.green:C.muted}}>
+                  <div style={{fontSize:12.5,fontWeight:700}}>{d.name}</div>
+                  <div style={{fontSize:10.5,color:ok?C.green:C.muted}}>
                     Şöhret {d.minFame}+ · OVR {d.reqOvr}+ {owned?"· ✅ imzalandı":ok?"· uygun":"· henüz değil"}
                   </div>
                 </div>
                 <div style={{textAlign:"right"}}>
-                  <div style={{fontFamily:F.mono,fontSize:11,color:C.green,fontWeight:700}}>€{d.weekly.toLocaleString()}/h</div>
-                  <div style={{fontSize:9,color:C.gold}}>+€{(d.signing/1000).toFixed(0)}K peşin</div>
+                  <div style={{fontFamily:F.mono,fontSize:12.5,color:C.green,fontWeight:700}}>€{d.weekly.toLocaleString()}/h</div>
+                  <div style={{fontSize:10.5,color:C.gold}}>+€{(d.signing/1000).toFixed(0)}K peşin</div>
                 </div>
               </div>);
             })}
@@ -10599,7 +10710,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                     <span style={{fontSize:22}}>{m.emoji}</span>
                     <div style={{flex:1}}>
                       <div style={{fontSize:13,fontWeight:700}}>{m.name}</div>
-                      <div style={{fontSize:10,color:C.muted,lineHeight:1.5}}>{m.desc}</div>
+                      <div style={{fontSize:11.5,color:C.muted,lineHeight:1.5}}>{m.desc}</div>
                     </div>
                   </div>
                   <div style={{display:"flex",gap:5,marginTop:9,flexWrap:"wrap"}}>
@@ -10609,7 +10720,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                     <Bdg c={C.red}>€{(m.weeklyFee*100).toLocaleString()}/h</Bdg>
                   </div>
                 </div>):null;})()
-              : <div style={{fontSize:11,color:C.muted}}>Menajerin yok. Menajer maaş pazarlığını, transfer şansını ve şöhretini artırır.</div>}
+              : <div style={{fontSize:12.5,color:C.muted}}>Menajerin yok. Menajer maaş pazarlığını, transfer şansını ve şöhretini artırır.</div>}
           </Card>
           <Card>
             <Lbl>MENAJER SEÇ</Lbl>
@@ -10619,10 +10730,10 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                 <span style={{fontSize:20}}>{m.emoji}</span>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:12,fontWeight:700}}>{m.name}</div>
-                  <div style={{fontSize:9,color:C.muted,lineHeight:1.5}}>{m.desc}</div>
-                  <div style={{fontSize:9,color:C.red,marginTop:2}}>€{(m.weeklyFee*100).toLocaleString()}/hafta</div>
+                  <div style={{fontSize:10.5,color:C.muted,lineHeight:1.5}}>{m.desc}</div>
+                  <div style={{fontSize:10.5,color:C.red,marginTop:2}}>€{(m.weeklyFee*100).toLocaleString()}/hafta</div>
                 </div>
-                <Btn v={manager===m.id?"ghost":"gold"} disabled={manager===m.id} style={{fontSize:11,padding:"6px 11px"}}
+                <Btn v={manager===m.id?"ghost":"gold"} disabled={manager===m.id} style={{fontSize:12.5,padding:"6px 11px"}}
                   onClick={()=>{setManager(m.id);notify(`🎩 ${m.name} menajerin oldu!`,C.gold);addLog(`🎩 Menajer: ${m.name}`);}}>
                   {manager===m.id?"Aktif":"Seç"}
                 </Btn>
@@ -10639,7 +10750,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         <div style={{fontSize:36}}>{brandOffer.icon}</div>
         <Lbl c={C.gold} style={{marginTop:8}}>MARKA TEKLİFİ</Lbl>
         <div style={{fontSize:14,fontWeight:700,marginBottom:6}}>{brandOffer.name}</div>
-        <div style={{fontSize:11,color:C.muted,lineHeight:1.7,marginBottom:12}}>
+        <div style={{fontSize:12.5,color:C.muted,lineHeight:1.7,marginBottom:12}}>
           Şöhretin sayesinde sana sponsorluk teklif ediyorlar.<br/>
           Peşin: <span style={{color:C.gold,fontWeight:700}}>€{brandOffer.signing.toLocaleString()}</span> ·
           Haftalık: <span style={{color:C.green,fontWeight:700}}>€{brandOffer.weekly.toLocaleString()}</span>
@@ -10668,9 +10779,9 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
       <Confetti active={careerEnd.legacy.score>=430}/>
       <div style={{maxWidth:400,margin:"0 auto"}}>
         <div style={{textAlign:"center",marginBottom:18}}>
-          <div style={{fontSize:11,color:C.muted,letterSpacing:1,fontFamily:"'Fredoka',sans-serif",fontWeight:700}}>KARİYER SONA ERDİ</div>
+          <div style={{fontSize:12.5,color:C.muted,letterSpacing:1,fontFamily:"'Fredoka',sans-serif",fontWeight:700}}>KARİYER SONA ERDİ</div>
           <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:22,fontWeight:900,color:C.text,marginTop:6}}>{careerEnd.player.name}</div>
-          <div style={{fontSize:11,color:C.muted,marginTop:3}}>{careerEnd.player.nat} · {careerEnd.player.pos} · {careerEnd.player.age} yaşında asıldı</div>
+          <div style={{fontSize:12.5,color:C.muted,marginTop:3}}>{careerEnd.player.nat} · {careerEnd.player.pos} · {careerEnd.player.age} yaşında asıldı</div>
         </div>
 
         {/* EFSANE SEVİYESİ */}
@@ -10680,9 +10791,9 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:17,fontWeight:900,color:careerEnd.legacy.tier.c,marginTop:8,letterSpacing:0}}>
             {careerEnd.legacy.tier.title.toUpperCase()}
           </div>
-          <div style={{fontSize:11,color:C.muted,marginTop:8,lineHeight:1.7,padding:"0 6px"}}>{careerEnd.legacy.tier.desc}</div>
+          <div style={{fontSize:12.5,color:C.muted,marginTop:8,lineHeight:1.7,padding:"0 6px"}}>{careerEnd.legacy.tier.desc}</div>
           <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${careerEnd.legacy.tier.c}33`}}>
-            <span style={{fontSize:10,color:C.muted,letterSpacing:0.3}}>MİRAS PUANI </span>
+            <span style={{fontSize:11.5,color:C.muted,letterSpacing:0.3}}>MİRAS PUANI </span>
             <span style={{fontFamily:"'Baloo 2',sans-serif",fontSize:18,fontWeight:900,color:careerEnd.legacy.tier.c}}>{careerEnd.legacy.score}</span>
           </div>
         </div>
@@ -10696,13 +10807,13 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               .map(([ic,v,l])=>(<div key={l} style={{background:C.bg,borderRadius:10,padding:"10px 4px",textAlign:"center"}}>
                 <div style={{fontSize:15}}>{ic}</div>
                 <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:16,fontWeight:900,color:C.text,marginTop:2}}>{v||0}</div>
-                <div style={{fontSize:8,color:C.muted,letterSpacing:0,marginTop:1}}>{l}</div>
+                <div style={{fontSize:9.5,color:C.muted,letterSpacing:0,marginTop:1}}>{l}</div>
               </div>))}
           </div>
           <div style={{display:"flex",justifyContent:"space-around",marginTop:12,paddingTop:10,borderTop:`1px solid ${C.border}`}}>
-            <div style={{textAlign:"center"}}><div style={{fontSize:10,color:C.muted}}>Zirve OVR</div><div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:15,color:C.gold,fontWeight:900}}>{careerEnd.player.overall}</div></div>
-            <div style={{textAlign:"center"}}><div style={{fontSize:10,color:C.muted}}>Gol Kralllığı</div><div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:15,color:C.orange,fontWeight:900}}>{careerEnd.legacy.boots}×</div></div>
-            <div style={{textAlign:"center"}}><div style={{fontSize:10,color:C.muted}}>Sezon</div><div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:15,color:C.text,fontWeight:900}}>{careerEnd.season}</div></div>
+            <div style={{textAlign:"center"}}><div style={{fontSize:11.5,color:C.muted}}>Zirve OVR</div><div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:15,color:C.gold,fontWeight:900}}>{careerEnd.player.overall}</div></div>
+            <div style={{textAlign:"center"}}><div style={{fontSize:11.5,color:C.muted}}>Gol Kralllığı</div><div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:15,color:C.orange,fontWeight:900}}>{careerEnd.legacy.boots}×</div></div>
+            <div style={{textAlign:"center"}}><div style={{fontSize:11.5,color:C.muted}}>Sezon</div><div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:15,color:C.text,fontWeight:900}}>{careerEnd.season}</div></div>
           </div>
         </Card>
 
@@ -10710,13 +10821,13 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         {seasonHistory.length>0&&<Card style={{marginBottom:12}}>
           <Lbl>KARİYER YOLCULUĞU</Lbl>
           <div style={{maxHeight:200,overflowY:"auto"}}>
-            {seasonHistory.map((h,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:7,padding:"6px 0",borderBottom:`1px solid ${C.border}44`,fontSize:11}}>
-              <span style={{width:26,color:C.muted,fontSize:9,fontFamily:"'Baloo 2',sans-serif"}}>S{h.season}</span>
+            {seasonHistory.map((h,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:7,padding:"6px 0",borderBottom:`1px solid ${C.border}44`,fontSize:12.5}}>
+              <span style={{width:26,color:C.muted,fontSize:10.5,fontFamily:"'Baloo 2',sans-serif"}}>S{h.season}</span>
               <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:h.champ?C.gold:C.text}}>
                 {h.champ?"🏆 ":""}{h.goldenBoot?"👟 ":""}{h.club}
               </span>
-              <span style={{color:C.muted,fontSize:10}}>{h.goals}G {h.assists}A</span>
-              <span style={{width:26,textAlign:"right",color:C.accent,fontSize:10,fontWeight:700}}>{h.overall}</span>
+              <span style={{color:C.muted,fontSize:11.5}}>{h.goals}G {h.assists}A</span>
+              <span style={{width:26,textAlign:"right",color:C.accent,fontSize:11.5,fontWeight:700}}>{h.overall}</span>
             </div>))}
           </div>
         </Card>}
@@ -10728,7 +10839,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             {ACHIEVEMENTS.filter(a=>careerEnd.player.achievements?.includes(a.id)).map(a=>(
               <span key={a.id} title={a.title} style={{fontSize:16}}>{a.icon}</span>
             ))}
-            {!careerEnd.player.achievements?.length&&<span style={{fontSize:11,color:C.muted}}>Hiç başarım kazanılmadı.</span>}
+            {!careerEnd.player.achievements?.length&&<span style={{fontSize:12.5,color:C.muted}}>Hiç başarım kazanılmadı.</span>}
           </div>
         </Card>
 
@@ -10751,7 +10862,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
       <div style={{background:C.card,borderRadius:18,width:"100%",maxWidth:380,padding:18,maxHeight:"88vh",overflowY:"auto"}}>
         <div style={{textAlign:"center",marginBottom:12}}>
           <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:17,fontWeight:900,color:C.gold}}>SEZON {seasonSummary.season} RAPORU</div>
-          <div style={{fontSize:10,color:C.muted,letterSpacing:0.3,marginTop:3}}>{getLg(club.leagueId).name} · {seasonSummary.myPos}. SIRA</div>
+          <div style={{fontSize:11.5,color:C.muted,letterSpacing:0.3,marginTop:3}}>{getLg(club.leagueId).name} · {seasonSummary.myPos}. SIRA</div>
         </div>
         <Card style={{marginBottom:10}}>
           <Lbl>Şampiyon</Lbl>
@@ -10765,7 +10876,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         </Card>}
         {seasonSummary.moves.length>0&&<Card style={{marginBottom:12}}>
           <Lbl>Bu Sezon Ne Oldu?</Lbl>
-          {seasonSummary.moves.map((m,i)=>(<div key={i} style={{fontSize:11,color:C.text,padding:"4px 0",lineHeight:1.5}}>{m}</div>))}
+          {seasonSummary.moves.map((m,i)=>(<div key={i} style={{fontSize:12.5,color:C.text,padding:"4px 0",lineHeight:1.5}}>{m}</div>))}
         </Card>}
         <Btn v="gold" style={{width:"100%"}} onClick={()=>setSeasonSummary(null)}>Devam Et ▶</Btn>
       </div>
@@ -10776,17 +10887,17 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
       <div style={{background:C.card,borderRadius:18,width:"100%",maxWidth:380,padding:18,maxHeight:"88vh",overflowY:"auto"}}>
         <div style={{textAlign:"center",marginBottom:12}}>
           <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:17,fontWeight:900,color:C.orange}}>BONSERVİSSİZ</div>
-          <div style={{fontSize:10,color:C.muted,marginTop:4,lineHeight:1.6}}>Sözleşmen sona erdi. Yeni kulübünü seç — hiçbirini kabul etmezsen kulüpsüz kalır ve maç oynayamazsın.</div>
+          <div style={{fontSize:11.5,color:C.muted,marginTop:4,lineHeight:1.6}}>Sözleşmen sona erdi. Yeni kulübünü seç — hiçbirini kabul etmezsen kulüpsüz kalır ve maç oynayamazsın.</div>
         </div>
         {freeAgentOffers.length===0&&<Card style={{marginBottom:10,textAlign:"center"}}>
-          <div style={{fontSize:11,color:C.muted}}>Şu an teklif yok. Formunu koruyup beklemelisin.</div>
+          <div style={{fontSize:12.5,color:C.muted}}>Şu an teklif yok. Formunu koruyup beklemelisin.</div>
         </Card>}
         {freeAgentOffers.map((o2,i)=>(<Card key={i} style={{marginBottom:8}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div>
               <div style={{fontSize:13,fontWeight:700}}>{o2.from.name}</div>
-              <div style={{fontSize:10,color:C.muted}}>{getLg(o2.from.leagueId).name} · Prestij {o2.from.prestige}</div>
-              <div style={{fontSize:10,color:C.green,marginTop:2}}>€{o2.salary}K/hafta · {o2.years} yıl</div>
+              <div style={{fontSize:11.5,color:C.muted}}>{getLg(o2.from.leagueId).name} · Prestij {o2.from.prestige}</div>
+              <div style={{fontSize:11.5,color:C.green,marginTop:2}}>€{o2.salary}K/hafta · {o2.years} yıl</div>
             </div>
             <Btn v="gold" onClick={()=>{
               setClub(o2.from);
@@ -10827,7 +10938,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             <OVR value={rival.overall} size={54}/>
             <div>
               <div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:18,color:C.red}}>{rival.name}</div>
-              <div style={{fontSize:11,color:C.muted,marginTop:2}}>{rival.nat} · {rival.pos} · {rival.age} yaş</div>
+              <div style={{fontSize:12.5,color:C.muted,marginTop:2}}>{rival.nat} · {rival.pos} · {rival.age} yaş</div>
               <div style={{marginTop:4,display:"flex",gap:6,flexWrap:"wrap"}}>
                 <Bdg c={rival.injured?C.red:C.green}>{rival.injured?`🚑 Sakatlanmış (${rival.injuredWeeks||1}h)`:"💪 Fit"}</Bdg>
                 {(rival.streak||0)>=3&&<Bdg c={C.gold}>🔥 {rival.streak} maç seri</Bdg>}
@@ -10843,18 +10954,18 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             const v=rival[k]||Math.round((rival.overall||70)+Math.sin(k.length)*8);
             const c=v>=80?C.green:v>=65?C.accent:"#f59e0b";
             return(<div key={k} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
-              <span style={{fontSize:9,color:C.muted,width:55,fontFamily:"'Fredoka',sans-serif",fontWeight:700}}>{l}</span>
+              <span style={{fontSize:10.5,color:C.muted,width:55,fontFamily:"'Fredoka',sans-serif",fontWeight:700}}>{l}</span>
               <div style={{flex:1,height:5,background:"#2a2a2a",borderRadius:3,overflow:"hidden"}}>
                 <div style={{height:"100%",width:`${v}%`,background:c,borderRadius:3,transition:"width 0.4s"}}/>
               </div>
-              <span style={{fontSize:10,color:c,fontFamily:"'Baloo 2',sans-serif",fontWeight:700,width:24,textAlign:"right"}}>{v}</span>
+              <span style={{fontSize:11.5,color:c,fontFamily:"'Baloo 2',sans-serif",fontWeight:700,width:24,textAlign:"right"}}>{v}</span>
             </div>);
           })}
         </div>
 
         {/* Bu sezon istatistikler */}
         <div style={{background:C.card2,borderRadius:12,padding:12,marginBottom:12}}>
-          <div style={{fontSize:10,color:C.muted,letterSpacing:0.3,fontWeight:700,marginBottom:10,fontFamily:"'Fredoka',sans-serif"}}>BU SEZON</div>
+          <div style={{fontSize:11.5,color:C.muted,letterSpacing:0.3,fontWeight:700,marginBottom:10,fontFamily:"'Fredoka',sans-serif"}}>BU SEZON</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,textAlign:"center"}}>
             {[
               ["⚽",rival.seasonGoals||0,"Gol"],
@@ -10865,7 +10976,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               <div key={l} style={{background:C.bg,borderRadius:8,padding:7}}>
                 <div style={{fontSize:14}}>{ic}</div>
                 <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:14,fontWeight:700,color:C.accent}}>{v}</div>
-                <div style={{fontSize:8,color:C.muted}}>{l}</div>
+                <div style={{fontSize:9.5,color:C.muted}}>{l}</div>
               </div>
             ))}
           </div>
@@ -10873,7 +10984,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
 
         {/* Sen vs Rakip karşılaştırma */}
         <div style={{background:C.card2,borderRadius:12,padding:12,marginBottom:12}}>
-          <div style={{fontSize:10,color:C.muted,letterSpacing:0.3,fontWeight:700,marginBottom:10,fontFamily:"'Fredoka',sans-serif"}}>SEN vs RAKİP</div>
+          <div style={{fontSize:11.5,color:C.muted,letterSpacing:0.3,fontWeight:700,marginBottom:10,fontFamily:"'Fredoka',sans-serif"}}>SEN vs RAKİP</div>
           {[
             ["OVR",player.overall,rival.overall],
             ["Sezon Golü",player.sg||0,rival.seasonGoals||0],
@@ -10884,9 +10995,9 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             const pPct=Math.round((pv/total)*100);
             const winning=pv>=rv;
             return(<div key={l} style={{marginBottom:8}}>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:3}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:11.5,marginBottom:3}}>
                 <span style={{color:winning?C.green:C.muted,fontWeight:700}}>{pv}</span>
-                <span style={{color:C.muted,fontSize:9}}>{l}</span>
+                <span style={{color:C.muted,fontSize:10.5}}>{l}</span>
                 <span style={{color:!winning?C.red:C.muted,fontWeight:700}}>{rv}</span>
               </div>
               <div style={{display:"flex",height:5,borderRadius:3,overflow:"hidden",gap:1}}>
@@ -10899,20 +11010,20 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
 
         {/* Son 5 maç formu */}
         {rival.form&&rival.form.length>0&&<div style={{background:C.card2,borderRadius:12,padding:12,marginBottom:12}}>
-          <div style={{fontSize:10,color:C.muted,letterSpacing:0.3,fontWeight:700,marginBottom:8,fontFamily:"'Fredoka',sans-serif"}}>SON FORM</div>
+          <div style={{fontSize:11.5,color:C.muted,letterSpacing:0.3,fontWeight:700,marginBottom:8,fontFamily:"'Fredoka',sans-serif"}}>SON FORM</div>
           <div style={{display:"flex",gap:6,alignItems:"flex-end",height:48}}>
             {rival.form.slice(-5).map((g,i)=>{
               const h=Math.max(6,(g/3)*100);
               const c=g>=2?C.green:g>=1?C.gold:C.red;
               return(<div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-                <div style={{fontSize:8,color:c,fontWeight:700}}>{g}</div>
+                <div style={{fontSize:9.5,color:c,fontWeight:700}}>{g}</div>
                 <div style={{width:"100%",background:c,borderRadius:"2px 2px 0 0",height:`${h}%`,minHeight:4}}/>
               </div>);
             })}
           </div>
           <div style={{display:"flex",justifyContent:"space-between",marginTop:3}}>
-            <span style={{fontSize:7,color:C.muted}}>Önceki</span>
-            <span style={{fontSize:7,color:C.muted}}>Son Maç</span>
+            <span style={{fontSize:9,color:C.muted}}>Önceki</span>
+            <span style={{fontSize:9,color:C.muted}}>Son Maç</span>
           </div>
         </div>}
 
@@ -10925,7 +11036,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               `⚖️ Berabersiniz! (${player.sg} - ${rival.seasonGoals||0})`:
               `🔥 ${rival.name} önde! (${rival.seasonGoals||0} - ${player.sg})`}
           </div>
-          <div style={{fontSize:10,color:C.muted,marginTop:4}}>
+          <div style={{fontSize:11.5,color:C.muted,marginTop:4}}>
             {player.sg>(rival.seasonGoals||0)?"Rakibini ezmeye devam et!":"Takip et, yakala!"}
           </div>
         </div>
@@ -10969,7 +11080,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         <div style={{fontSize:30,marginBottom:6}}>👔</div>
         <Lbl c={C.accent}>ANTRENÖR İLE GÖRÜŞME</Lbl>
         <div style={{background:C.card2,borderRadius:9,padding:11,marginBottom:12,borderLeft:`3px solid ${C.accent}`,textAlign:"left"}}>
-          <div style={{fontSize:9,color:C.muted,marginBottom:3}}>Antrenör diyor ki:</div>
+          <div style={{fontSize:10.5,color:C.muted,marginBottom:3}}>Antrenör diyor ki:</div>
           <div style={{fontSize:12,color:C.text,lineHeight:1.6,fontStyle:"italic"}}>"{coachDialogue.text}"</div>
         </div>
         <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap",marginBottom:12}}>
@@ -10988,8 +11099,8 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         <Lbl c={C.red}>RAKİP HABER</Lbl>
         <div style={{fontSize:13,color:C.text,marginBottom:14,lineHeight:1.6}}>{rivalNews.msg}</div>
         <div style={{display:"flex",gap:8,marginBottom:4}}>
-          <span style={{fontSize:10,color:C.muted}}>Rakip: <span style={{color:C.red,fontWeight:700}}>{rival?.seasonGoals||0}</span> gol</span>
-          <span style={{fontSize:10,color:C.muted}}>Sen: <span style={{color:player.sg>(rival?.seasonGoals||0)?C.green:C.gold,fontWeight:700}}>{player.sg}</span> gol</span>
+          <span style={{fontSize:11.5,color:C.muted}}>Rakip: <span style={{color:C.red,fontWeight:700}}>{rival?.seasonGoals||0}</span> gol</span>
+          <span style={{fontSize:11.5,color:C.muted}}>Sen: <span style={{color:player.sg>(rival?.seasonGoals||0)?C.green:C.gold,fontWeight:700}}>{player.sg}</span> gol</span>
         </div>
         <Btn onClick={()=>setRivalNews(null)} style={{width:"100%",marginTop:8}}>Tamam ✓</Btn>
       </Card>
@@ -11002,8 +11113,8 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         <Lbl c={C.orange}>FORMA TEHLİKESİ!</Lbl>
         <div style={{fontSize:12,color:C.text,marginBottom:12,lineHeight:1.6}}>Bu performansla formayı kaybedebilirsin. Antrenör yedek oturmayı değerlendiriyor.</div>
         <div style={{display:"flex",gap:7,marginBottom:4}}>
-          <div style={{flex:1,background:C.bg,borderRadius:7,padding:7,textAlign:"center"}}><div style={{fontSize:9,color:C.muted}}>Antrenör Güveni</div><div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:14,color:player.managerTrust>50?C.gold:C.red}}>{player.managerTrust}</div></div>
-          <div style={{flex:1,background:C.bg,borderRadius:7,padding:7,textAlign:"center"}}><div style={{fontSize:9,color:C.muted}}>Son Rating</div><div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:14,color:C.red}}>{player.formHistory?.slice(-1)[0]||"?"}</div></div>
+          <div style={{flex:1,background:C.bg,borderRadius:7,padding:7,textAlign:"center"}}><div style={{fontSize:10.5,color:C.muted}}>Antrenör Güveni</div><div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:14,color:player.managerTrust>50?C.gold:C.red}}>{player.managerTrust}</div></div>
+          <div style={{flex:1,background:C.bg,borderRadius:7,padding:7,textAlign:"center"}}><div style={{fontSize:10.5,color:C.muted}}>Son Rating</div><div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:14,color:C.red}}>{player.formHistory?.slice(-1)[0]||"?"}</div></div>
         </div>
         <Btn v="orange" onClick={()=>setStarterRisk(false)} style={{width:"100%",marginTop:8}}>Çok Daha İyi Oynayacağım! 💪</Btn>
       </Card>
@@ -11015,13 +11126,13 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         <div style={{fontSize:26,marginBottom:4}}>📋</div>
         <Lbl c={C.purple}>HAFTALIK ÖZET — H{weeklyRecap.week}</Lbl>
         <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,margin:"12px 0"}}>
-          {[["⚽",weeklyRecap.goals,"Gol"],["🎯",weeklyRecap.assists,"Asist"],["⭐",weeklyRecap.rating,"Rating"]].map(([ic,v,l])=>(<div key={l} style={{background:C.bg,borderRadius:7,padding:8}}><div style={{fontSize:14}}>{ic}</div><div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:16,fontWeight:700,color:C.accent}}>{v}</div><div style={{fontSize:8,color:C.muted}}>{l}</div></div>))}
+          {[["⚽",weeklyRecap.goals,"Gol"],["🎯",weeklyRecap.assists,"Asist"],["⭐",weeklyRecap.rating,"Rating"]].map(([ic,v,l])=>(<div key={l} style={{background:C.bg,borderRadius:7,padding:8}}><div style={{fontSize:14}}>{ic}</div><div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:16,fontWeight:700,color:C.accent}}>{v}</div><div style={{fontSize:9.5,color:C.muted}}>{l}</div></div>))}
         </div>
-        <div style={{background:C.card2,borderRadius:8,padding:"8px 11px",marginBottom:12,fontSize:11}}>
+        <div style={{background:C.card2,borderRadius:8,padding:"8px 11px",marginBottom:12,fontSize:12.5}}>
           <span style={{color:C.muted}}>Son 5 maç ortalaması: </span>
           <span style={{fontWeight:700,color:Number(weeklyRecap.avg5)>=7?C.green:Number(weeklyRecap.avg5)>=5.5?C.gold:C.red}}>{weeklyRecap.avg5} ⭐</span>
         </div>
-        <div style={{fontSize:11,color:C.muted,marginBottom:10}}>
+        <div style={{fontSize:12.5,color:C.muted,marginBottom:10}}>
           {Number(weeklyRecap.avg5)>=8?"🔥 Harika form! Bu tempo ile her şey mümkün.":Number(weeklyRecap.avg5)>=6.5?"👍 Ortalama üzeri. Daha da iyisi gelebilir.":"⚠️ Form düşüklüğü. Antrenman ve dinlenme önemli."}
         </div>
         <Btn v="purple" onClick={()=>setWeeklyRecap(null)} style={{width:"100%"}}>Devam ✓</Btn>
@@ -11034,10 +11145,10 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         <Lbl c={C.gold}>TRANSFER PAZARLIĞI 🤝</Lbl>
         <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}>
           {(()=>{const ks=getKitStyle(transferNegotiation.from);return(<ClubKit color={transferNegotiation.from.color} secondColor={ks.secondColor} stripes={ks.stripes} hoops={ks.hoops} size={46}/>);})()}
-          <div><div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:14}}>{transferNegotiation.from.country} {transferNegotiation.from.name}</div><LgBdg leagueId={transferNegotiation.from.leagueId}/><div style={{fontSize:11,color:C.gold,marginTop:3}}>Teklif: €{transferNegotiation.fee}M · €{transferNegotiation.salary}K/h</div></div>
+          <div><div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:14}}>{transferNegotiation.from.country} {transferNegotiation.from.name}</div><LgBdg leagueId={transferNegotiation.from.leagueId}/><div style={{fontSize:12.5,color:C.gold,marginTop:3}}>Teklif: €{transferNegotiation.fee}M · €{transferNegotiation.salary}K/h</div></div>
         </div>
         <div style={{background:C.card2,borderRadius:9,padding:10,marginBottom:12}}>
-          <div style={{fontSize:11,color:C.muted,marginBottom:4}}>Karşı teklif gönder (maaş K/h):</div>
+          <div style={{fontSize:12.5,color:C.muted,marginBottom:4}}>Karşı teklif gönder (maaş K/h):</div>
           <input type="number" placeholder={`Min: ${transferNegotiation.salary}, Max: ${transferNegotiation.salary*2}`} value={transferNegotiation.counterSalary||""} onChange={e=>setTransferNegotiation(n=>({...n,counterSalary:+e.target.value}))} style={{marginBottom:0}}/>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:7}}>
@@ -11053,7 +11164,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
       <Card glow gc={C.green} style={{maxWidth:340,width:"100%",textAlign:"center"}}>
         <div style={{fontSize:34,marginBottom:6}}>🌍</div>
         <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:14,color:C.green,marginBottom:4}}>MİLLİ TAKIM ÇAĞRISI</div>
-        <div style={{fontSize:11,color:C.muted,marginBottom:14}}>Hazır mısın? Maç sonucu burada görünecek.</div>
+        <div style={{fontSize:12.5,color:C.muted,marginBottom:14}}>Hazır mısın? Maç sonucu burada görünecek.</div>
 
         <div style={{display:"flex",gap:8,marginBottom:12}}>
           <Btn v="ghost" onClick={()=>setNationalCall(false)} style={{flex:1}}>Reddet</Btn>
@@ -11076,7 +11187,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             setWeek(w => w + 1);
           }} style={{flex:2}}>Maça Çık ⚽</Btn>
         </div>
-        <div style={{fontSize:9,color:C.muted}}>Maç sonucu otomatik simüle edilecek</div>
+        <div style={{fontSize:10.5,color:C.muted}}>Maç sonucu otomatik simüle edilecek</div>
       </Card>
     </div>}
 
@@ -11084,7 +11195,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
       <Card glow gc={C.gold} style={{maxWidth:310,width:"100%",textAlign:"center"}}>
         <div style={{fontSize:34,marginBottom:6}}>🌍</div>
         <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:13,color:C.gold,marginBottom:5}}>DÜNYA KUPASI ÇAĞRISI!</div>
-        <div style={{fontSize:10,color:C.muted,marginBottom:12}}>4 yılda bir fırsat!</div>
+        <div style={{fontSize:11.5,color:C.muted,marginBottom:12}}>4 yılda bir fırsat!</div>
         <div style={{display:"flex",gap:8}}>
           <Btn v="ghost" onClick={()=>setWcCall(false)} style={{flex:1}}>Reddet</Btn>
           <Btn v="gold" onClick={()=>{setWcCall(false);setShowWC(true);}} style={{flex:2}}>Katıl 🏆</Btn>
@@ -11096,8 +11207,8 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
       <Card glow gc={C.gold} style={{maxWidth:310,width:"100%"}}>
         <Lbl c={C.gold}>SÖZLEŞME YENİLEME</Lbl>
         <div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:14,marginBottom:3}}>{club.name}</div>
-        <div style={{fontSize:11,color:C.muted,marginBottom:3}}>{contract.offer.years} yıl</div>
-        <div style={{fontSize:20,color:C.gold,fontFamily:"'Baloo 2',sans-serif",fontWeight:700,marginBottom:12}}>€{contract.offer.salary}K<span style={{fontSize:10,color:C.muted}}>/h</span></div>
+        <div style={{fontSize:12.5,color:C.muted,marginBottom:3}}>{contract.offer.years} yıl</div>
+        <div style={{fontSize:20,color:C.gold,fontFamily:"'Baloo 2',sans-serif",fontWeight:700,marginBottom:12}}>€{contract.offer.salary}K<span style={{fontSize:11.5,color:C.muted}}>/h</span></div>
         <div style={{display:"flex",gap:8}}>
           <Btn v="ghost" onClick={()=>setShowContract(false)} style={{flex:1}}>Reddet</Btn>
           <Btn v="gold" onClick={()=>{
@@ -11115,9 +11226,9 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
       <Card glow gc={C.gold} style={{maxWidth:330,width:"100%",textAlign:"center"}}>
         <div style={{fontSize:34,marginBottom:6}}>👴</div>
         <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:14,color:C.gold,marginBottom:5}}>EMEKLİLİK ZAMANI</div>
-        <div style={{fontSize:10,color:C.muted,marginBottom:13}}>{player.age} yaşındasın. Kariyerin sona yaklaşıyor.</div>
+        <div style={{fontSize:11.5,color:C.muted,marginBottom:13}}>{player.age} yaşındasın. Kariyerin sona yaklaşıyor.</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:13}}>
-          {[["⚽",player.goals,"Gol"],["🎯",player.assists,"Asist"],["🏆",player.titles,"Kupa"]].map(([ic,v,l])=>(<div key={l} style={{background:C.bg,borderRadius:7,padding:7}}><div>{ic}</div><div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:15,color:C.gold}}>{v}</div><div style={{fontSize:8,color:C.muted}}>{l}</div></div>))}
+          {[["⚽",player.goals,"Gol"],["🎯",player.assists,"Asist"],["🏆",player.titles,"Kupa"]].map(([ic,v,l])=>(<div key={l} style={{background:C.bg,borderRadius:7,padding:7}}><div>{ic}</div><div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:15,color:C.gold}}>{v}</div><div style={{fontSize:9.5,color:C.muted}}>{l}</div></div>))}
         </div>
         <div style={{display:"flex",gap:8}}>
           <Btn v="ghost" onClick={()=>setRetireModal(false)} style={{flex:1}}>Devam Et</Btn>
@@ -11169,7 +11280,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           <div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",width:0,height:0,borderLeft:"10px solid transparent",borderRight:"10px solid transparent",borderTop:"24px solid #fbbf24",zIndex:10}}/>
         </div>
         {wheelResult&&<div style={{background:C.card,borderRadius:10,padding:"10px 14px",marginBottom:12,color:C.gold,fontWeight:700}}>🎉 {wheelResult}</div>}
-        <div style={{fontSize:11,color:C.muted,marginBottom:14}}>Her çevirmede tek bir ödül kazanırsın.</div>
+        <div style={{fontSize:12.5,color:C.muted,marginBottom:14}}>Her çevirmede tek bir ödül kazanırsın.</div>
         <button onClick={()=>{
           if(wheelSpinsLeft<=0){notify("Bugünlük hakkın bitti!",C.red);return;}
           if(wheelSpinning)return;
@@ -11213,7 +11324,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             <div style={{fontWeight:700,fontSize:13,marginBottom:8}}>{opt.t}</div>
             <div style={{display:"flex",gap:6,justifyContent:"center",flexWrap:"wrap"}}>
               {opt.tags.map((tag,j)=>(
-                <span key={j} style={{background:`${tag.c}22`,border:`1px solid ${tag.c}55`,borderRadius:20,padding:"2px 10px",fontSize:11,color:tag.v>0?"#22c55e":"#ef4444",fontWeight:700}}>
+                <span key={j} style={{background:`${tag.c}22`,border:`1px solid ${tag.c}55`,borderRadius:20,padding:"2px 10px",fontSize:12.5,color:tag.v>0?"#22c55e":"#ef4444",fontWeight:700}}>
                   {tag.l==="Medya"?"📢":tag.l==="Takım"?"👥":"👨‍🏫"} {tag.l} {tag.v>0?"+":""}{tag.v}
                 </span>
               ))}
@@ -11233,59 +11344,59 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         {/* Tabs */}
         <div style={{display:"flex",gap:0,padding:"12px 16px 0",borderBottom:`1px solid ${C.border}`}}>
           {[["lig","LIG","#ffffff"],["kitasal","KITASAL","#22c55e"],["milli","MİLLİ","#ef4444"]].map(([k,l,c])=>(
-            <button key={k} onClick={()=>setNationalTab(k)} style={{flex:1,background:"transparent",border:"none",borderBottom:nationalTab===k?`2px solid ${c}`:"2px solid transparent",color:nationalTab===k?c:C.muted,fontSize:11,fontWeight:700,padding:"8px 4px",cursor:"pointer",fontFamily:"'Fredoka',sans-serif"}}>
+            <button key={k} onClick={()=>setNationalTab(k)} style={{flex:1,background:"transparent",border:"none",borderBottom:nationalTab===k?`2px solid ${c}`:"2px solid transparent",color:nationalTab===k?c:C.muted,fontSize:12.5,fontWeight:700,padding:"8px 4px",cursor:"pointer",fontFamily:"'Fredoka',sans-serif"}}>
               {l}
             </button>
           ))}
         </div>
         <div style={{overflow:"auto",padding:16}}>
           {nationalTab==="lig"&&<>
-            <div style={{background:C.card,borderRadius:8,padding:"6px 10px",marginBottom:10,fontSize:11,color:C.accent}}>Süper Lig · Sezon {season}</div>
-            <div style={{display:"grid",gridTemplateColumns:"24px 1fr 40px 24px 24px 24px 32px 28px",gap:4,padding:"4px 6px",fontSize:9,color:C.muted,borderBottom:`1px solid ${C.border}`,marginBottom:4}}>
+            <div style={{background:C.card,borderRadius:8,padding:"6px 10px",marginBottom:10,fontSize:12.5,color:C.accent}}>Süper Lig · Sezon {season}</div>
+            <div style={{display:"grid",gridTemplateColumns:"24px 1fr 40px 24px 24px 24px 32px 28px",gap:4,padding:"4px 6px",fontSize:10.5,color:C.muted,borderBottom:`1px solid ${C.border}`,marginBottom:4}}>
               {["#","Takım","GÜÇ","O","G","B","Av","P"].map(h=><span key={h}>{h}</span>)}
             </div>
             {standings.slice(0,20).map((s,i)=>(
               <div key={s.name} style={{display:"grid",gridTemplateColumns:"24px 1fr 40px 24px 24px 24px 32px 28px",gap:4,padding:"6px 6px",borderBottom:`1px solid ${C.border}22`,background:s.name===club.name?`${C.accent}15`:"transparent",borderLeft:s.name===club.name?`3px solid ${C.accent}`:"3px solid transparent",borderRadius:s.name===club.name?4:0}}>
-                <span style={{fontSize:10,color:i<4?C.green:i>16?C.red:C.muted,fontWeight:700}}>{i+1}</span>
-                <span style={{fontSize:10,color:C.text,fontWeight:s.name===club.name?700:400,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{s.name}</span>
-                <span style={{fontSize:9,color:C.gold}}>{"★".repeat(Math.min(5,Math.floor(i<3?5:i<6?4:i<12?3:2)))}</span>
-                <span style={{fontSize:10,color:C.muted}}>{s.played||0}</span>
-                <span style={{fontSize:10,color:C.muted}}>{s.won||0}</span>
-                <span style={{fontSize:10,color:C.muted}}>{s.drawn||0}</span>
-                <span style={{fontSize:10,color:C.muted}}>{((s.gf||0)-(s.ga||0))>0?"+"+(s.gf||0)-(s.ga||0):(s.gf||0)-(s.ga||0)}</span>
-                <span style={{fontSize:11,fontWeight:700,color:C.text,fontFamily:"'Baloo 2',sans-serif"}}>{s.pts||0}</span>
+                <span style={{fontSize:11.5,color:i<4?C.green:i>16?C.red:C.muted,fontWeight:700}}>{i+1}</span>
+                <span style={{fontSize:11.5,color:C.text,fontWeight:s.name===club.name?700:400,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{s.name}</span>
+                <span style={{fontSize:10.5,color:C.gold}}>{"★".repeat(Math.min(5,Math.floor(i<3?5:i<6?4:i<12?3:2)))}</span>
+                <span style={{fontSize:11.5,color:C.muted}}>{s.played||0}</span>
+                <span style={{fontSize:11.5,color:C.muted}}>{s.won||0}</span>
+                <span style={{fontSize:11.5,color:C.muted}}>{s.drawn||0}</span>
+                <span style={{fontSize:11.5,color:C.muted}}>{((s.gf||0)-(s.ga||0))>0?"+"+(s.gf||0)-(s.ga||0):(s.gf||0)-(s.ga||0)}</span>
+                <span style={{fontSize:12.5,fontWeight:700,color:C.text,fontFamily:"'Baloo 2',sans-serif"}}>{s.pts||0}</span>
               </div>
             ))}
           </>}
           {nationalTab==="kitasal"&&<>
-            <div style={{background:C.card,borderRadius:8,padding:"6px 10px",marginBottom:10,fontSize:11,color:C.green}}>▼ Şampiyonlar Kupası</div>
-            <div style={{display:"grid",gridTemplateColumns:"24px 1fr 50px 24px 24px 24px 32px 28px",gap:4,padding:"4px 6px",fontSize:9,color:C.muted,borderBottom:`1px solid ${C.border}`,marginBottom:4}}>
+            <div style={{background:C.card,borderRadius:8,padding:"6px 10px",marginBottom:10,fontSize:12.5,color:C.green}}>▼ Şampiyonlar Kupası</div>
+            <div style={{display:"grid",gridTemplateColumns:"24px 1fr 50px 24px 24px 24px 32px 28px",gap:4,padding:"4px 6px",fontSize:10.5,color:C.muted,borderBottom:`1px solid ${C.border}`,marginBottom:4}}>
               {["#","Takım","GÜÇ","O","G","B","Av","P"].map(h=><span key={h}>{h}</span>)}
             </div>
             {[{n:"PSG",s:"★★★★½"},{n:"MANC",s:"★★★★½"},{n:"ARSNL",s:"★★★★½"},{n:"MADRID",s:"★★★★½"},{n:"BARCA",s:"★★★★½"},{n:"BAYERN",s:"★★★★½"},{n:"LPOOL",s:"★★★★½"},{n:"INTER",s:"★★★★½"},{n:"ATMAD",s:"★★★★½"},{n:"MILAN",s:"★★★★½"},{n:"DORTMU",s:"★★★★½"},{n:"CHELS",s:"★★★★½"},{n:"MANU",s:"★★★★½"},{n:"BAYERL",s:"★★★½"},{n:"NAPOLI",s:"★★★½"},{n:"PORT",s:"★★★½"}].map((t,i)=>(
               <div key={t.n} style={{display:"grid",gridTemplateColumns:"24px 1fr 50px 24px 24px 24px 32px 28px",gap:4,padding:"6px 6px",borderBottom:`1px solid ${C.border}22`,borderLeft:`3px solid ${i<8?"#22c55e":i<12?"#f59e0b":"transparent"}`}}>
-                <span style={{fontSize:10,color:C.muted,fontWeight:700}}>{i+1}</span>
-                <span style={{fontSize:10,color:C.text}}>{t.n}</span>
-                <span style={{fontSize:8,color:C.gold}}>{t.s}</span>
-                <span style={{fontSize:10,color:C.muted}}>0</span><span style={{fontSize:10,color:C.muted}}>0</span><span style={{fontSize:10,color:C.muted}}>0</span>
-                <span style={{fontSize:10,color:C.muted}}>0</span>
-                <span style={{fontSize:11,fontWeight:700,color:C.text,fontFamily:"'Baloo 2',sans-serif"}}>0</span>
+                <span style={{fontSize:11.5,color:C.muted,fontWeight:700}}>{i+1}</span>
+                <span style={{fontSize:11.5,color:C.text}}>{t.n}</span>
+                <span style={{fontSize:9.5,color:C.gold}}>{t.s}</span>
+                <span style={{fontSize:11.5,color:C.muted}}>0</span><span style={{fontSize:11.5,color:C.muted}}>0</span><span style={{fontSize:11.5,color:C.muted}}>0</span>
+                <span style={{fontSize:11.5,color:C.muted}}>0</span>
+                <span style={{fontSize:12.5,fontWeight:700,color:C.text,fontFamily:"'Baloo 2',sans-serif"}}>0</span>
               </div>
             ))}
           </>}
           {nationalTab==="milli"&&<>
-            <div style={{background:"#7f1d1d",borderRadius:8,padding:"6px 10px",marginBottom:10,fontSize:11,color:"#fca5a5"}}>Grup Europe - Grup C ▼</div>
-            <div style={{display:"grid",gridTemplateColumns:"24px 1fr 60px 24px 24px 24px 32px 28px",gap:4,padding:"4px 6px",fontSize:9,color:C.muted,borderBottom:`1px solid ${C.border}`,marginBottom:4}}>
+            <div style={{background:"#7f1d1d",borderRadius:8,padding:"6px 10px",marginBottom:10,fontSize:12.5,color:"#fca5a5"}}>Grup Europe - Grup C ▼</div>
+            <div style={{display:"grid",gridTemplateColumns:"24px 1fr 60px 24px 24px 24px 32px 28px",gap:4,padding:"4px 6px",fontSize:10.5,color:C.muted,borderBottom:`1px solid ${C.border}`,marginBottom:4}}>
               {["#","Takım","GÜÇ","O","G","B","Av","P"].map(h=><span key={h}>{h}</span>)}
             </div>
             {[{flag:"🇹🇷",n:"TÜRKİYE",stars:4,my:true},{flag:"🇳🇴",n:"NORVEÇ",stars:4},{flag:"🇨🇿",n:"ÇEKYA",stars:3},{flag:"🇽🇰",n:"KOSOVA",stars:2}].map((t,i)=>(
               <div key={t.n} style={{display:"grid",gridTemplateColumns:"24px 1fr 60px 24px 24px 24px 32px 28px",gap:4,padding:"8px 6px",borderBottom:`1px solid ${C.border}22`,background:t.my?"#7f1d1d22":"transparent",borderLeft:t.my?`3px solid #ef4444`:"3px solid transparent",borderRadius:t.my?4:0}}>
-                <span style={{fontSize:10,fontWeight:700,color:C.muted}}>{i+1}</span>
-                <span style={{fontSize:11,color:t.my?"#fca5a5":C.text,fontWeight:t.my?700:400}}>{t.flag} {t.n}</span>
-                <span style={{fontSize:9,color:C.gold}}>{"★".repeat(t.stars)}{"☆".repeat(5-t.stars)}</span>
-                <span style={{fontSize:10,color:C.muted}}>0</span><span style={{fontSize:10,color:C.muted}}>0</span><span style={{fontSize:10,color:C.muted}}>0</span>
-                <span style={{fontSize:10,color:C.muted}}>0</span>
-                <span style={{fontSize:11,fontWeight:700,color:C.text,fontFamily:"'Baloo 2',sans-serif"}}>0</span>
+                <span style={{fontSize:11.5,fontWeight:700,color:C.muted}}>{i+1}</span>
+                <span style={{fontSize:12.5,color:t.my?"#fca5a5":C.text,fontWeight:t.my?700:400}}>{t.flag} {t.n}</span>
+                <span style={{fontSize:10.5,color:C.gold}}>{"★".repeat(t.stars)}{"☆".repeat(5-t.stars)}</span>
+                <span style={{fontSize:11.5,color:C.muted}}>0</span><span style={{fontSize:11.5,color:C.muted}}>0</span><span style={{fontSize:11.5,color:C.muted}}>0</span>
+                <span style={{fontSize:11.5,color:C.muted}}>0</span>
+                <span style={{fontSize:12.5,fontWeight:700,color:C.text,fontFamily:"'Baloo 2',sans-serif"}}>0</span>
               </div>
             ))}
           </>}
@@ -11296,9 +11407,9 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
     {pendingAch.length>0&&<div style={{position:"fixed",bottom:85,left:"50%",transform:"translateX(-50%)",zIndex:400}}>
       <div className="pop" style={{background:`linear-gradient(135deg,${C.gold}22,${C.purple}22)`,border:`1px solid ${C.gold}66`,borderRadius:11,padding:"10px 16px",textAlign:"center",whiteSpace:"nowrap",minWidth:190}}>
         <span style={{fontSize:20}}>{pendingAch[0].icon}</span>
-        <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:10,color:C.gold,fontWeight:700}}>{pendingAch[0].title}</div>
-        <div style={{fontSize:9,color:C.muted}}>{pendingAch[0].desc}</div>
-        <Btn v="ghost" onClick={()=>setPendingAch(n=>n.slice(1))} style={{marginTop:6,padding:"4px 12px",fontSize:10}}>Tamam ✓</Btn>
+        <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:11.5,color:C.gold,fontWeight:700}}>{pendingAch[0].title}</div>
+        <div style={{fontSize:10.5,color:C.muted}}>{pendingAch[0].desc}</div>
+        <Btn v="ghost" onClick={()=>setPendingAch(n=>n.slice(1))} style={{marginTop:6,padding:"4px 12px",fontSize:11.5}}>Tamam ✓</Btn>
       </div>
     </div>}
 
@@ -11318,7 +11429,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         {/* Nav shortcuts */}
         <div style={{padding:"10px 12px",flex:1,overflowY:"auto"}}>
           {/* Oyuncu */}
-          <div style={{fontSize:8,color:C.muted,letterSpacing:0.3,fontFamily:"'Fredoka',sans-serif",fontWeight:700,padding:"4px 4px 6px",marginBottom:2}}>OYUNCU</div>
+          <div style={{fontSize:9.5,color:C.muted,letterSpacing:0.3,fontFamily:"'Fredoka',sans-serif",fontWeight:700,padding:"4px 4px 6px",marginBottom:2}}>OYUNCU</div>
           {[
             {icon:"⚡",label:"Ana Ekran",tab:"Ana",sub:null},
             {icon:"👤",label:"Profil",tab:"Maç",sub:"Profil"},
@@ -11336,7 +11447,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           ))}
           <div style={{height:1,background:C.border,margin:"8px 0"}}/>
           {/* Saha */}
-          <div style={{fontSize:8,color:C.muted,letterSpacing:0.3,fontFamily:"'Fredoka',sans-serif",fontWeight:700,padding:"4px 4px 6px",marginBottom:2}}>SAHA</div>
+          <div style={{fontSize:9.5,color:C.muted,letterSpacing:0.3,fontFamily:"'Fredoka',sans-serif",fontWeight:700,padding:"4px 4px 6px",marginBottom:2}}>SAHA</div>
           {[
             {icon:"⚽",label:"Maç",tab:"Maç",sub:"Maç"},
             {icon:"🏋️",label:"Antrenman",tab:"Maç",sub:"Antrenman"},
@@ -11351,7 +11462,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           ))}
           <div style={{height:1,background:C.border,margin:"8px 0"}}/>
           {/* Kulüp */}
-          <div style={{fontSize:8,color:C.muted,letterSpacing:0.3,fontFamily:"'Fredoka',sans-serif",fontWeight:700,padding:"4px 4px 6px",marginBottom:2}}>KULÜP</div>
+          <div style={{fontSize:9.5,color:C.muted,letterSpacing:0.3,fontFamily:"'Fredoka',sans-serif",fontWeight:700,padding:"4px 4px 6px",marginBottom:2}}>KULÜP</div>
           {[
             {icon:"🏟️",label:"Kadro",tab:"Kulüp",sub:"Kadro"},
             {icon:"✈️",label:"Transfer",tab:"Kulüp",sub:"Transfer"},
@@ -11367,7 +11478,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           ))}
           <div style={{height:1,background:C.border,margin:"8px 0"}}/>
           {/* KARİYER (Faz 3) */}
-          <div style={{fontSize:8,color:C.muted,letterSpacing:0.3,fontFamily:"'Fredoka',sans-serif",fontWeight:700,padding:"4px 4px 6px",marginBottom:2}}>KARİYER</div>
+          <div style={{fontSize:9.5,color:C.muted,letterSpacing:0.3,fontFamily:"'Fredoka',sans-serif",fontWeight:700,padding:"4px 4px 6px",marginBottom:2}}>KARİYER</div>
           {[
             {icon:"🏛️",label:"Kupa Odası",c:C.gold,       fn:()=>setShowTrophyRoom(true)},
             {icon:"🎤",label:"Basın Toplantısı",c:C.accent,fn:()=>openPress("pre")},
@@ -11381,9 +11492,9 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               <span style={{fontSize:16,width:22,textAlign:"center"}}>{icon}</span>
               <span style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:13,letterSpacing:0}}>{label}</span>
               {label==="Kupa Odası"&&(player.trophyCabinet||[]).length>0&&
-                <span style={{marginLeft:"auto",background:`${C.gold}22`,color:C.gold,borderRadius:8,padding:"1px 7px",fontSize:10,fontWeight:800,fontFamily:"'Baloo 2',sans-serif"}}>{player.trophyCabinet.length}</span>}
+                <span style={{marginLeft:"auto",background:`${C.gold}22`,color:C.gold,borderRadius:8,padding:"1px 7px",fontSize:11.5,fontWeight:800,fontFamily:"'Baloo 2',sans-serif"}}>{player.trophyCabinet.length}</span>}
               {label==="Zihinsel Sağlık"&&(player.mental??100)<45&&
-                <span style={{marginLeft:"auto",fontSize:11}}>⚠️</span>}
+                <span style={{marginLeft:"auto",fontSize:12.5}}>⚠️</span>}
             </button>
           ))}
           <div style={{height:1,background:C.border,margin:"8px 0"}}/>
@@ -11409,7 +11520,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           </button>
           {(europeanSpot||club.leagueId==="superlig")&&<>
             <div style={{height:1,background:C.border,margin:"8px 0"}}/>
-            <div style={{fontSize:8,color:C.muted,letterSpacing:0.3,fontFamily:"'Fredoka',sans-serif",fontWeight:700,padding:"4px 4px 6px",marginBottom:2}}>KUPALAR</div>
+            <div style={{fontSize:9.5,color:C.muted,letterSpacing:0.3,fontFamily:"'Fredoka',sans-serif",fontWeight:700,padding:"4px 4px 6px",marginBottom:2}}>KUPALAR</div>
             {euroCup&&<button onClick={()=>{setShowEuroCup(true);setShowDrawer(false);}} style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:"9px 10px",borderRadius:8,border:"none",background:`${C.gold}10`,cursor:"pointer",color:C.gold,textAlign:"left",marginBottom:4,fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:13}}>
               <span style={{fontSize:16,width:22,textAlign:"center"}}>🌟</span>Şampiyonlar Ligi
             </button>}
@@ -11454,13 +11565,13 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           <div style={{display:"flex",alignItems:"center",gap:6}}>
             <span style={{fontFamily:F.disp,fontWeight:400,fontSize:18,overflow:"hidden",textOverflow:"ellipsis",
               whiteSpace:"nowrap",lineHeight:1.15,textShadow:`0 3px 0 ${C.ink}`}}>{player.name}</span>
-            <Bdg c={C.accent} style={{fontSize:10,padding:"1px 6px",flexShrink:0}}>{player.pos}</Bdg>
-            {player.injuryWeeks>0&&<Bdg c={C.red} style={{fontSize:9,padding:"1px 5px",flexShrink:0}}>🚑{player.injuryWeeks}h</Bdg>}
-            {player.banWeeks>0&&<Bdg c={C.red} style={{fontSize:9,padding:"1px 5px",flexShrink:0}}>🟥{player.banWeeks}m</Bdg>}
-            {freeAgent&&<Bdg c={C.orange} style={{fontSize:9,padding:"1px 5px",flexShrink:0}}>BONSERVİSSİZ</Bdg>}
+            <Bdg c={C.accent} style={{fontSize:11.5,padding:"1px 6px",flexShrink:0}}>{player.pos}</Bdg>
+            {player.injuryWeeks>0&&<Bdg c={C.red} style={{fontSize:10.5,padding:"1px 5px",flexShrink:0}}>🚑{player.injuryWeeks}h</Bdg>}
+            {player.banWeeks>0&&<Bdg c={C.red} style={{fontSize:10.5,padding:"1px 5px",flexShrink:0}}>🟥{player.banWeeks}m</Bdg>}
+            {freeAgent&&<Bdg c={C.orange} style={{fontSize:10.5,padding:"1px 5px",flexShrink:0}}>BONSERVİSSİZ</Bdg>}
           </div>
           <div style={{display:"flex",gap:5,marginTop:3,alignItems:"center"}}>
-            <span style={{fontFamily:"'Fredoka',sans-serif",fontSize:10,color:headerPhaseColor,fontWeight:700,letterSpacing:0}}>S{season} · H{week}/{SEASON_WEEKS}{myLeaguePos?` · ${myLeaguePos}.`:""}</span>
+            <span style={{fontFamily:"'Fredoka',sans-serif",fontSize:11.5,color:headerPhaseColor,fontWeight:700,letterSpacing:0}}>S{season} · H{week}/{SEASON_WEEKS}{myLeaguePos?` · ${myLeaguePos}.`:""}</span>
             <span style={{color:C.border}}>·</span>
             <LgBdg leagueId={club.leagueId}/>
           </div>
@@ -11489,7 +11600,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             borderRadius:13,boxShadow:`0 3px 0 ${C.ink}`}}>
             <span style={{fontSize:15}}>{ic}</span>
             <span style={{fontSize:16,fontFamily:F.mono,fontWeight:800,color:c,lineHeight:1,textShadow:`0 2px 0 ${C.ink}`}}>{v}</span>
-            <span style={{fontSize:9,color:C.muted,fontFamily:F.cond,fontWeight:600}}>{l}</span>
+            <span style={{fontSize:10.5,color:C.muted,fontFamily:F.cond,fontWeight:600}}>{l}</span>
           </div>
         ))}
       </div>
@@ -11525,7 +11636,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             {active&&<div className="nav-pip" style={{width:30,background:C.gold}}/>}
             <span style={{fontSize:active?25:20,transition:"font-size .18s",
               filter:active?`drop-shadow(0 3px 0 ${C.ink})`:"none",marginTop:active?0:2}}>{n.icon}</span>
-            <span style={{fontSize:11,fontFamily:F.cond,fontWeight:700,color:active?C.gold:C.muted,
+            <span style={{fontSize:12.5,fontFamily:F.cond,fontWeight:700,color:active?C.gold:C.muted,
               textTransform:"uppercase"}}>{n.label}</span>
           </button>
         );
@@ -11547,9 +11658,9 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           <span style={{fontSize:20}}>📨</span>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:12,fontWeight:700,color:C.gold}}>{transferNegotiation.from.name} teklif etti</div>
-            <div style={{fontSize:10,color:C.muted}}>€{transferNegotiation.fee}M · €{transferNegotiation.salary}K/h</div>
+            <div style={{fontSize:11.5,color:C.muted}}>€{transferNegotiation.fee}M · €{transferNegotiation.salary}K/h</div>
           </div>
-          <Btn v="gold" style={{fontSize:11,padding:"7px 12px"}}
+          <Btn v="gold" style={{fontSize:12.5,padding:"7px 12px"}}
             onClick={()=>{setNavTab("Kulüp");setSubTabFn("Transfer");}}>Görüş</Btn>
         </div>
       </Card>}
@@ -11559,9 +11670,9 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             <span style={{fontSize:20}}>{EURO_CUPS[euroCup.cupId].icon}</span>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:12,fontWeight:700,color:EURO_CUPS[euroCup.cupId].color}}>{EURO_CUPS[euroCup.cupId].name} maçın var</div>
-              <div style={{fontSize:10,color:C.muted}}>{euroCup.stage==="ko"?EURO_CUPS[euroCup.cupId].koStages[euroCup.koIdx]:`Grup ${euroCup.gIdx+1}/6`}</div>
+              <div style={{fontSize:11.5,color:C.muted}}>{euroCup.stage==="ko"?EURO_CUPS[euroCup.cupId].koStages[euroCup.koIdx]:`Grup ${euroCup.gIdx+1}/6`}</div>
             </div>
-            <Btn v="gold" style={{fontSize:11,padding:"7px 12px"}} onClick={()=>setShowEuroCup(true)}>Oyna</Btn>
+            <Btn v="gold" style={{fontSize:12.5,padding:"7px 12px"}} onClick={()=>setShowEuroCup(true)}>Oyna</Btn>
           </div>
         </Card>}
 
@@ -11573,82 +11684,80 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         const oppRow=sorted.find(t=>t.name===fo.name);
         const blocked=player.retired?"Emekli oldun":player.academy?`🎓 Altyapıdasın — A takım yolu ${player.academyPts||0}/${ACADEMY_TARGET}`:freeAgent?"Kulübün yok":player.injuryWeeks>0?`Sakat · ${player.injuryWeeks} hafta`:player.banWeeks>0?`Cezalı · ${player.banWeeks} maç`:week>SEASON_WEEKS?"Sezon bitti":myRole.id==="out"?(()=>{const r=selectionReason(player,teammates,myRole);
           return r?`${r.icon} ${r.t}`:"Kadro dışısın";})():null;
-        return(<Card glow gc={blocked?C.red:C.accent} style={{marginBottom:S.md,padding:0,overflow:"hidden"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-            padding:"7px 12px",background:"#00000066",borderBottom:`1px solid ${C.border}`}}>
-            <span style={{fontSize:9,color:C.muted,letterSpacing:0.3,fontFamily:F.cond,fontWeight:700}}>
-              H{week} · {fo.isHome?"EV":"DEPLASMAN"}
-            </span>
-            <span style={{fontSize:9,color:C.muted,fontFamily:F.cond,fontWeight:700}}>{weather?.icon} {weather?.name}</span>
-          </div>
-          <div style={{display:"flex",alignItems:"center",gap:4,padding:"13px 12px 10px"}}>
-            <div style={{flex:1,textAlign:"center",minWidth:0}}>
-              <ClubKit color={club.color} size={34}/>
-              <div style={{fontSize:10,fontWeight:700,marginTop:4,fontFamily:F.cond,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{club.name}</div>
-              <div style={{fontSize:9,color:C.muted}}>{myRow?`${myLeaguePos}. · ${myRow.pts}p`:"—"}</div>
+        const oppCol=oc?.color||"#6b7a8c";
+        return(<div style={{marginBottom:S.md,borderRadius:R.xl,overflow:"hidden",position:"relative",
+          border:`1px solid ${blocked?C.red+"88":C.accent+"66"}`,
+          boxShadow:`0 14px 34px #00000077, 0 0 30px ${(blocked?C.red:C.accent)}22`,
+          background:`linear-gradient(115deg, ${club.color}e6 0%, ${club.color}99 38%, #0b111a 50%, ${oppCol}99 62%, ${oppCol}e6 100%)`}}>
+          {/* çim şeritleri + koyu perde: renkler okunur kalsın */}
+          <div style={{position:"absolute",inset:0,background:"repeating-linear-gradient(90deg,#ffffff08 0 22px,transparent 22px 44px)"}}/>
+          <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,#00000040,#000000a8 70%,#000000d0)"}}/>
+          <div style={{position:"relative"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 14px 0"}}>
+              <span style={{fontSize:11,color:"#ffffffcc",letterSpacing:1.2,fontFamily:F.cond,fontWeight:700,textTransform:"uppercase"}}>
+                Maç günü · Hafta {week} · {fo.isHome?"İç saha":"Deplasman"}
+              </span>
+              <span style={{fontSize:11,color:"#ffffffcc",fontFamily:F.cond,fontWeight:700}}>{weather?.icon} {weather?.name}</span>
             </div>
-            <span style={{fontFamily:F.mono,fontSize:13,fontWeight:900,color:C.muted,flexShrink:0,padding:"0 6px"}}>VS</span>
-            <div style={{flex:1,textAlign:"center",minWidth:0}}>
-              <ClubKit color={oc?.color||C.muted} size={34}/>
-              <div style={{fontSize:10,fontWeight:700,marginTop:4,fontFamily:F.cond,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fo.name}</div>
-              <div style={{fontSize:9,color:C.muted}}>{oppRow?`${sorted.findIndex(t=>t.name===fo.name)+1}. · ${oppRow.pts}p`:oc?`P${oc.prestige}`:"—"}</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",alignItems:"center",gap:6,padding:"14px 12px 12px"}}>
+              <div style={{textAlign:"center",minWidth:0}}>
+                <div style={{display:"flex",justifyContent:"center",filter:"drop-shadow(0 6px 10px #0009)"}}><ClubCrest club={club} size={62}/></div>
+                <div style={{fontSize:16,fontWeight:700,marginTop:7,fontFamily:F.disp,fontStyle:"italic",textTransform:"uppercase",
+                  lineHeight:1.05,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{club.name}</div>
+                <div style={{fontSize:11.5,color:"#ffffffb0",marginTop:2}}>{myRow?`${myLeaguePos}. sıra · ${myRow.pts} puan`:"—"}</div>
+              </div>
+              <div style={{fontFamily:F.disp,fontStyle:"italic",fontWeight:700,fontSize:30,color:"#fff",opacity:.9,
+                textShadow:"0 3px 12px #000",padding:"0 4px"}}>VS</div>
+              <div style={{textAlign:"center",minWidth:0}}>
+                <div style={{display:"flex",justifyContent:"center",filter:"drop-shadow(0 6px 10px #0009)"}}><ClubCrest club={oc} name={fo.name} color={oppCol} size={62}/></div>
+                <div style={{fontSize:16,fontWeight:700,marginTop:7,fontFamily:F.disp,fontStyle:"italic",textTransform:"uppercase",
+                  lineHeight:1.05,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fo.name}</div>
+                <div style={{fontSize:11.5,color:"#ffffffb0",marginTop:2}}>{oppRow?`${sorted.findIndex(t=>t.name===fo.name)+1}. sıra · ${oppRow.pts} puan`:oc?`Prestij ${oc.prestige}`:"—"}</div>
+              </div>
+            </div>
+            <div style={{padding:"0 14px 14px"}}>
+              {blocked
+                ? <div style={{textAlign:"center",fontSize:12.5,color:"#fff",padding:"10px",background:`${C.red}33`,borderRadius:R.md,border:`1px solid ${C.red}88`}}>⛔ {blocked}</div>
+                : <Btn v="pri" style={{width:"100%",padding:"14px",fontSize:16,letterSpacing:1}}
+                    onClick={()=>{setNavTab("Maç");setTimeout(()=>setTab("Maç"),40);}}>⚽ Maça çık</Btn>}
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#ffffffb0",margin:"10px 0 5px",fontFamily:F.cond,fontWeight:700,letterSpacing:.6}}>
+                <span>SEZON {season}</span><span>HAFTA {week} / {SEASON_WEEKS}</span>
+              </div>
+              <SeasonBar week={week} total={SEASON_WEEKS} c={C.accent}/>
             </div>
           </div>
-          <div style={{padding:"0 12px 12px"}}>
-            {blocked
-              ? <div style={{textAlign:"center",fontSize:11,color:C.red,padding:"8px",background:`${C.red}12`,borderRadius:R.sm,border:`1px solid ${C.red}33`}}>⛔ {blocked}</div>
-              : <Btn v="pri" style={{width:"100%",padding:"11px",fontSize:13}}
-                  onClick={()=>{setNavTab("Maç");setTimeout(()=>setTab("Maç"),40);}}>⚽ MAÇA ÇIK</Btn>}
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:8,color:C.muted,margin:"9px 0 4px",letterSpacing:0}}>
-              <span>SEZON {season}</span><span>{week}/{SEASON_WEEKS}</span>
-            </div>
-            <SeasonBar week={week} total={SEASON_WEEKS} c={C.accent}/>
-          </div>
-        </Card>);
+        </div>);
       })()}
 
-      {/* ── OYUNCU ŞERİDİ: avatar + OVR + kondisyon ── */}
+      {/* ── OYUNCU: FUT tarzı kart + beş kritik gösterge ── */}
       <Card style={{marginBottom:S.md,padding:12}}>
-        <div style={{display:"flex",alignItems:"center",gap:11,marginBottom:11}}>
-          {player.avatar
-            ? <div style={{width:46,height:46,borderRadius:"50%",overflow:"hidden",flexShrink:0,
-                background:`linear-gradient(160deg,${club.color}33,${C.card2})`,border:`1px solid ${C.border}`,
-                display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
-                <div style={{transform:"translateY(4px)"}}><PlayerAvatar avatar={player.avatar} size={44} kit={club.color}/></div>
+        <div style={{display:"flex",gap:13,alignItems:"stretch"}}>
+          <PlayerCardPro player={player} club={club} width={124} onClick={()=>{setNavTab("Maç");setTimeout(()=>setSubTabFn("Profil"),30);}}/>
+          <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:7}}>
+            <div>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <span style={{fontSize:19,fontWeight:700,fontFamily:F.disp,fontStyle:"italic",textTransform:"uppercase",lineHeight:1.05,
+                  overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{player.name}</span>
+                {player.captaincy&&player.captaincy!=="none"&&
+                  <span title={CAPTAINCY.find(c=>c.id===player.captaincy)?.label} style={{fontSize:14,flexShrink:0}}>
+                    {CAPTAINCY.find(c=>c.id===player.captaincy)?.icon}
+                  </span>}
               </div>
-            : <OVR value={player.overall} size={46}/>}
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{display:"flex",alignItems:"center",gap:6}}>
-              {player.shirtNo&&<span style={{fontFamily:F.mono,fontSize:12,fontWeight:900,color:C.gold,
-                background:`${C.gold}18`,border:`1px solid ${C.gold}44`,borderRadius:5,padding:"1px 6px",flexShrink:0}}>{player.shirtNo}</span>}
-              <span style={{fontSize:14,fontWeight:900,fontFamily:F.cond,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{player.name}</span>
-              {player.captaincy&&player.captaincy!=="none"&&
-                <span title={CAPTAINCY.find(c=>c.id===player.captaincy)?.label} style={{fontSize:13,flexShrink:0}}>
-                  {CAPTAINCY.find(c=>c.id===player.captaincy)?.icon}
-                </span>}
-            </div>
-            <div style={{fontSize:10,color:C.muted,marginTop:1}}>
-              {phase.icon} {phase.name} · {player.age} yaş
-              {player.academy?" · 🎓 Altyapı":""}
-            </div>
-          </div>
-          <div style={{textAlign:"right",flexShrink:0}}>
-            <div style={{fontFamily:F.mono,fontSize:20,fontWeight:900,color:tone(player.overall)}}>{player.overall}</div>
-            {player.potential>player.overall&&<div style={{fontSize:8,color:C.muted}}>↗ {player.potential}</div>}
-          </div>
-        </div>
-        {/* Beş kritik gösterge — bacaklar, kafa, moral, takım, hoca */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6}}>
-          {[["💪","FİTNES",Math.round(player.fitness)],["🧠","ZİHİN",Math.round(player.mental??100)],["😊","MORAL",player.morale],
-            ["🎽","TAKIM",player.teamForm||70],["🎩","GÜVEN",player.managerTrust??70]].map(([ic,l,v])=>(
-            <div key={l}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:3}}>
-                <span style={{fontSize:8,color:C.muted,letterSpacing:0}}>{ic}</span>
-                <span style={{fontFamily:F.mono,fontSize:11,fontWeight:900,color:tone(v,75,55,35)}}>{v}</span>
+              <div style={{fontSize:12,color:C.muted,marginTop:2}}>
+                {phase.icon} {phase.name} · {player.age} yaş{player.academy?" · 🎓 Altyapı":""}
               </div>
-              <div className="sb" style={{height:11}}><div className="sf" style={{width:`${Math.min(100,v)}%`,background:tone(v,75,55,35)}}/></div>
-              <div style={{fontSize:7,color:C.muted,letterSpacing:0,marginTop:3,textAlign:"center"}}>{l}</div>
-            </div>))}
+              {player.potential>player.overall&&<div style={{fontSize:11.5,color:C.accent,marginTop:2,fontWeight:600}}>Potansiyel ↗ {player.potential}</div>}
+            </div>
+            {[["FİTNES",Math.round(player.fitness)],["ZİHİN",Math.round(player.mental??100)],["MORAL",player.morale],
+              ["TAKIM",player.teamForm||70],["HOCA GÜVENİ",player.managerTrust??70]].map(([l,v])=>(
+              <div key={l}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:3}}>
+                  <span style={{fontSize:11,color:C.muted,fontFamily:F.cond,fontWeight:700,letterSpacing:.6}}>{l}</span>
+                  <span style={{fontFamily:F.mono,fontSize:14,fontWeight:700,color:tone(v,75,55,35),fontVariantNumeric:"tabular-nums"}}>{v}</span>
+                </div>
+                <div className="sb" style={{height:8}}><div className="sf" style={{width:`${Math.min(100,v)}%`,background:tone(v,75,55,35)}}/></div>
+              </div>))}
+          </div>
         </div>
       </Card>
 
@@ -11659,16 +11768,16 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             border:`1px solid ${myRole.c}44`,display:"flex",alignItems:"center",
             justifyContent:"center",fontSize:17,flexShrink:0}}>{myRole.icon}</div>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:8,color:C.muted,letterSpacing:0.3,fontFamily:F.cond,fontWeight:700}}>KADRODAKİ ROLÜN</div>
+            <div style={{fontSize:9.5,color:C.muted,letterSpacing:0.3,fontFamily:F.cond,fontWeight:700}}>KADRODAKİ ROLÜN</div>
             <div style={{fontSize:13,fontWeight:700,color:myRole.c}}>{myRole.label}</div>
-            <div style={{fontSize:9,color:C.muted,marginTop:1}}>
+            <div style={{fontSize:10.5,color:C.muted,marginTop:1}}>
               {myRole.minutes>0?`Maç başına ~${myRole.minutes} dk`:"Kadroda değilsin"}
               {posRival?` · rakip: ${posRival.name} (${posRival.ovr})`:""}
             </div>
           </div>
           <div style={{textAlign:"right",flexShrink:0}}>
             <div style={{fontFamily:F.mono,fontSize:17,fontWeight:900,color:tone(mgrRating,78,58,38)}}>{mgrRating}</div>
-            <div style={{fontSize:7,color:C.muted,letterSpacing:0}}>HOCA PUANI</div>
+            <div style={{fontSize:9,color:C.muted,letterSpacing:0}}>HOCA PUANI</div>
           </div>
           <span style={{color:C.muted,fontSize:15,flexShrink:0}}>›</span>
         </div>
@@ -11686,11 +11795,11 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             <div style={{fontSize:12,fontWeight:700,color:mentalState(player.mental??100).c}}>
               {mentalState(player.mental??100).phrase}
             </div>
-            <div style={{fontSize:10,color:C.muted,marginTop:1}}>
+            <div style={{fontSize:11.5,color:C.muted,marginTop:1}}>
               Maç reytingin {mentalState(player.mental??100).ratingMod.toFixed(2)} etkileniyor · antrenman verimin düşük
             </div>
           </div>
-          <Btn v="ghost" style={{fontSize:11,padding:"7px 11px"}}>Çözüm</Btn>
+          <Btn v="ghost" style={{fontSize:12.5,padding:"7px 11px"}}>Çözüm</Btn>
         </div>
       </Card>}
 
@@ -11699,7 +11808,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <span style={{fontSize:22}}>🏛️</span>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:8,color:C.muted,letterSpacing:0.3,fontFamily:F.cond,fontWeight:700}}>KUPA ODASI</div>
+            <div style={{fontSize:9.5,color:C.muted,letterSpacing:0.3,fontFamily:F.cond,fontWeight:700}}>KUPA ODASI</div>
             <div style={{fontSize:13,fontWeight:700,color:C.gold}}>{player.trophyCabinet.length} kupa</div>
           </div>
           <div style={{display:"flex",gap:3,flexShrink:0}}>
@@ -11741,11 +11850,11 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             <div key={o.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",
               borderBottom:`1px solid ${C.border}44`}}>
               <span style={{fontSize:13,opacity:pr.ok?1:0.55}}>{o.icon}</span>
-              <span style={{flex:1,fontSize:11,color:pr.ok?C.green:C.text,overflow:"hidden",
+              <span style={{flex:1,fontSize:12.5,color:pr.ok?C.green:C.text,overflow:"hidden",
                 textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{o.label}</span>
-              <span style={{fontSize:10,fontFamily:F.mono,fontWeight:700,
+              <span style={{fontSize:11.5,fontFamily:F.mono,fontWeight:700,
                 color:pr.ok?C.green:C.muted}}>{pr.display}</span>
-              <span style={{fontSize:11}}>{pr.ok?"✅":"⬜"}</span>
+              <span style={{fontSize:12.5}}>{pr.ok?"✅":"⬜"}</span>
             </div>))}
         </Card>);
       })()}
@@ -11757,8 +11866,8 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           {matchObjectives.map(o=>(
             <div key={o.id} style={{flex:1,background:C.bg,borderRadius:R.sm,padding:"8px 4px",textAlign:"center"}}>
               <div style={{fontSize:15}}>{o.icon}</div>
-              <div style={{fontSize:9,color:C.text,marginTop:3,lineHeight:1.3}}>{o.label}</div>
-              <div style={{fontSize:8,color:C.gold,marginTop:3}}>+{o.xp} XP</div>
+              <div style={{fontSize:10.5,color:C.text,marginTop:3,lineHeight:1.3}}>{o.label}</div>
+              <div style={{fontSize:9.5,color:C.gold,marginTop:3}}>+{o.xp} XP</div>
             </div>))}
         </div>
       </Card>}
@@ -11791,9 +11900,9 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             border:`1px solid ${C.border}`,background:`linear-gradient(160deg,${t.c}12,${C.card})`,color:C.text,
             display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
             <span style={{fontSize:19}}>{t.ic}</span>
-            <span style={{fontSize:10,fontFamily:F.cond,fontWeight:700,letterSpacing:0}}>{t.l}</span>
+            <span style={{fontSize:11.5,fontFamily:F.cond,fontWeight:700,letterSpacing:0}}>{t.l}</span>
             {t.badge&&<span style={{position:"absolute",top:6,right:8,minWidth:14,height:14,borderRadius:7,
-              background:t.c,color:"#000",fontSize:8,fontWeight:900,display:"flex",alignItems:"center",
+              background:t.c,color:"#000",fontSize:9.5,fontWeight:900,display:"flex",alignItems:"center",
               justifyContent:"center",padding:"0 3px"}}>{t.badge}</span>}
           </button>))}
       </div>
@@ -11804,15 +11913,15 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           <div style={{width:36,height:36,borderRadius:"50%",background:`${C.red}18`,border:`1px solid ${C.red}44`,
             display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0}}>⚔️</div>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:8,color:C.muted,letterSpacing:0.3,fontFamily:F.cond,fontWeight:700}}>RAKİBİN</div>
+            <div style={{fontSize:9.5,color:C.muted,letterSpacing:0.3,fontFamily:F.cond,fontWeight:700}}>RAKİBİN</div>
             <div style={{fontSize:12,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{rival.name}</div>
           </div>
           <div style={{textAlign:"right",flexShrink:0}}>
-            <div style={{fontSize:11,fontFamily:F.mono,fontWeight:900,
+            <div style={{fontSize:12.5,fontFamily:F.mono,fontWeight:900,
               color:(player.sg||0)>=(rival.seasonGoals||0)?C.green:C.red}}>
               {player.sg||0} – {rival.seasonGoals||0}
             </div>
-            <div style={{fontSize:8,color:C.muted}}>gol</div>
+            <div style={{fontSize:9.5,color:C.muted}}>gol</div>
           </div>
           <span style={{color:C.muted,fontSize:15,flexShrink:0}}>›</span>
         </div>
@@ -11827,16 +11936,16 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           <span style={{fontSize:26}}>🎓</span>
           <div style={{flex:1}}>
             <div style={{fontFamily:F.mono,fontSize:13,fontWeight:900,color:C.gold}}>{club.name} ALTYAPI</div>
-            <div style={{fontSize:10,color:C.muted}}>U19 Akademi Ligi · {academyRank(player.academyPts||0)}</div>
+            <div style={{fontSize:11.5,color:C.muted}}>U19 Akademi Ligi · {academyRank(player.academyPts||0)}</div>
           </div>
           <OVR value={player.overall} size={42}/>
         </div>
         <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-          <span style={{fontSize:10,color:C.muted,letterSpacing:0,fontFamily:F.cond,fontWeight:700}}>A TAKIM YOLU</span>
+          <span style={{fontSize:11.5,color:C.muted,letterSpacing:0,fontFamily:F.cond,fontWeight:700}}>A TAKIM YOLU</span>
           <span style={{fontSize:12,fontWeight:800,color:C.gold,fontFamily:F.mono}}>{player.academyPts||0}/{ACADEMY_TARGET}</span>
         </div>
         <SB v={((player.academyPts||0)/ACADEMY_TARGET)*100} c={C.gold}/>
-        <div style={{fontSize:10,color:C.muted,marginTop:7,lineHeight:1.6}}>
+        <div style={{fontSize:11.5,color:C.muted,marginTop:7,lineHeight:1.6}}>
           İyi oynadıkça scout puanı topluyorsun. {ACADEMY_TARGET} puana ulaştığında teknik direktör seni A takıma çağıracak.
         </div>
       </Card>
@@ -11850,7 +11959,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         ? <Card glow gc={C.red} style={{textAlign:"center",padding:18,marginBottom:S.md}}>
             <div style={{fontSize:28}}>🚑</div>
             <div style={{fontFamily:F.mono,fontSize:12,color:C.red,marginTop:5}}>{player.injuryType||"SAKATLIK"}</div>
-            <div style={{fontSize:11,color:C.muted,marginTop:3}}>{player.injuryWeeks} hafta daha</div>
+            <div style={{fontSize:12.5,color:C.muted,marginTop:3}}>{player.injuryWeeks} hafta daha</div>
           </Card>
         : <Btn v="gold" style={{width:"100%",padding:"14px",fontSize:14,marginBottom:S.sm}}
             onClick={()=>{playSfx("whistle");playU19();}}>🎓 U19 MAÇINI OYNA</Btn>}
@@ -11859,7 +11968,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         // Altyapıda hafta geçirmek: lig takımın kendi maçını oynar
         skipWeek();
       }}>⏭️ Haftayı Geç</Btn>
-      {log.length>0&&<Card><Lbl>Log</Lbl>{log.slice(0,7).map(l=>(<div key={l.id} style={{fontSize:9,color:C.muted,borderBottom:`1px solid ${C.border}`,paddingBottom:3,marginBottom:3}}><span style={{color:C.accent,fontSize:8}}>S{l.season}·H{l.week} </span>{l.msg}</div>))}</Card>}
+      {log.length>0&&<Card><Lbl>Log</Lbl>{log.slice(0,7).map(l=>(<div key={l.id} style={{fontSize:10.5,color:C.muted,borderBottom:`1px solid ${C.border}`,paddingBottom:3,marginBottom:3}}><span style={{color:C.accent,fontSize:9.5}}>S{l.season}·H{l.week} </span>{l.msg}</div>))}</Card>}
     </div>}
 
     {tab==="Maç"&&!player.academy&&landscape&&LsMatchDay()}
@@ -11886,7 +11995,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             notify(`🩹 Yoğun rehabilitasyon: ${healWeeks} hafta kazandın (−€${cost.toLocaleString("tr")})`, C.green);
             addLog(`🩹 Yoğun rehabilitasyon · ${healWeeks} hafta · −€${cost.toLocaleString("tr")}`);
             skipWeek();
-          }} style={{fontSize:11}}>
+          }} style={{fontSize:12.5}}>
             🩹 Yoğun Rehabilitasyon · €{cost.toLocaleString("tr")}
           </Btn>
 
@@ -11905,14 +12014,14 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               notify(`🏃 Erken dönüş tuttu: ${healWeeks} hafta kazandın`, C.orange);
             }
             skipWeek();
-          }} style={{fontSize:11}}>
+          }} style={{fontSize:12.5}}>
             🏃 Erken Dönüşü Zorla (riskli, ücretsiz)
           </Btn>
 
-          <Btn v="ghost" onClick={skipWeek} style={{fontSize:11}}>
+          <Btn v="ghost" onClick={skipWeek} style={{fontSize:12.5}}>
             🏥 Tedaviye Devam (1 hafta)
           </Btn>
-          <div style={{fontSize:9,color:C.muted,marginTop:2,lineHeight:1.5}}>
+          <div style={{fontSize:10.5,color:C.muted,marginTop:2,lineHeight:1.5}}>
             Her seçenek bir hafta geçirir. Kulüp bu hafta kendi maçını sensiz oynar.
           </div>
             </>);})()}
@@ -11921,7 +12030,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         <>
           {/* MAÇ ÖNCESİ — Wonderkid tarzı */}
           <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:13,fontWeight:700,color:C.gold,textAlign:"center",marginBottom:4}}>MAÇ ÖNCESİ</div>
-          <div style={{textAlign:"center",fontSize:10,color:C.muted,marginBottom:12}}>SEZON {season} · {week}. HAFTA</div>
+          <div style={{textAlign:"center",fontSize:11.5,color:C.muted,marginBottom:12}}>SEZON {season} · {week}. HAFTA</div>
           {/* Eşleşme başlığı — rakip FİKSTÜRDEN gelir.
               Eskiden sabit "Rakip" ve "0 : 0" yazıyordu. */}
           {(()=>{
@@ -11937,17 +12046,17 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
                 <div style={{textAlign:"center",flex:1,minWidth:0}}>
                   <ClubKit color={club.color} secondColor={ks.secondColor} stripes={ks.stripes} hoops={ks.hoops} size={44}/>
-                  <div style={{fontSize:11,fontWeight:700,color:C.text,marginTop:5,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{club.name}</div>
-                  <div style={{fontSize:9,color:C.muted}}>{myRow?`${myRow}.`:"—"}</div>
+                  <div style={{fontSize:12.5,fontWeight:700,color:C.text,marginTop:5,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{club.name}</div>
+                  <div style={{fontSize:10.5,color:C.muted}}>{myRow?`${myRow}.`:"—"}</div>
                 </div>
                 <div style={{textAlign:"center",padding:"0 8px",flexShrink:0}}>
                   <div style={{fontFamily:F.disp,fontSize:15,color:C.gold}}>VS</div>
-                  <div style={{fontSize:9,color:C.muted,marginTop:3}}>{fo.isHome?"🏟️ EV":"✈️ DEPLASMAN"}</div>
+                  <div style={{fontSize:10.5,color:C.muted,marginTop:3}}>{fo.isHome?"🏟️ EV":"✈️ DEPLASMAN"}</div>
                 </div>
                 <div style={{textAlign:"center",flex:1,minWidth:0}}>
                   <ClubKit color={oc?.color||C.muted} secondColor={oks?.secondColor} stripes={oks?.stripes} hoops={oks?.hoops} size={44}/>
-                  <div style={{fontSize:11,fontWeight:700,color:C.text,marginTop:5,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fo.name}</div>
-                  <div style={{fontSize:9,color:C.muted}}>{opRow?`${opRow}.`:oc?`P${oc.prestige}`:"—"}</div>
+                  <div style={{fontSize:12.5,fontWeight:700,color:C.text,marginTop:5,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fo.name}</div>
+                  <div style={{fontSize:10.5,color:C.muted}}>{opRow?`${opRow}.`:oc?`P${oc.prestige}`:"—"}</div>
                 </div>
               </div>
             </div>);
@@ -11957,8 +12066,8 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             {[["🏟️","STADYUM","Açık Saha"],["☁️","HAVA",weather.label],["🌿","ZEMİN","Doğal Çim"]].map(([ic,label,val])=>(
               <div key={label} style={{textAlign:"center"}}>
                 <div style={{fontSize:18,marginBottom:2}}>{ic}</div>
-                <div style={{fontSize:7,color:C.muted,letterSpacing:0,marginBottom:2}}>{label}</div>
-                <div style={{fontSize:9,color:C.text,fontWeight:700}}>{val}</div>
+                <div style={{fontSize:9,color:C.muted,letterSpacing:0,marginBottom:2}}>{label}</div>
+                <div style={{fontSize:10.5,color:C.text,fontWeight:700}}>{val}</div>
               </div>
             ))}
           </div>
@@ -11966,9 +12075,9 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           <div style={{display:"flex",gap:10,marginBottom:12}}>
             {[["İÇ SAHA","1. Forma",club.color],["RAKİP (D)","2. Forma","#888"]].map(([role,label,c])=>(
               <div key={role} style={{flex:1,background:C.card2,borderRadius:12,padding:"12px 8px",textAlign:"center",border:`1px solid ${C.border}`}}>
-                <div style={{fontSize:8,color:C.muted,letterSpacing:0,marginBottom:8}}>{role}</div>
+                <div style={{fontSize:9.5,color:C.muted,letterSpacing:0,marginBottom:8}}>{role}</div>
                 <div style={{width:50,height:64,margin:"0 auto 8px",background:`linear-gradient(180deg,${c}cc,${c}88)`,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24}}>👕</div>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:4,fontSize:10,color:C.muted}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:4,fontSize:11.5,color:C.muted}}>
                   <span>‹</span><span>{label}</span><span>›</span>
                 </div>
               </div>
@@ -11976,10 +12085,10 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           </div>
           {/* Strateji seçimi */}
           <div style={{marginBottom:12}}>
-            <div style={{fontSize:8,color:C.muted,letterSpacing:0.3,marginBottom:8}}>STRATEJİ VE ODAK</div>
+            <div style={{fontSize:9.5,color:C.muted,letterSpacing:0.3,marginBottom:8}}>STRATEJİ VE ODAK</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>
               {[["defend","🚶 Rölanti",C.muted],["balanced","🚶 Normal",C.accent],["attack","⚡ Agresif",C.gold]].map(([k,l,c])=>(
-                <button key={k} onClick={()=>setTactic(k)} style={{padding:"10px 4px",borderRadius:10,border:`1px solid ${tactic===k?c:C.border}`,background:tactic===k?`${c}20`:C.card2,color:tactic===k?c:C.muted,fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:11,cursor:"pointer"}}>{l}</button>
+                <button key={k} onClick={()=>setTactic(k)} style={{padding:"10px 4px",borderRadius:10,border:`1px solid ${tactic===k?c:C.border}`,background:tactic===k?`${c}20`:C.card2,color:tactic===k?c:C.muted,fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:12.5,cursor:"pointer"}}>{l}</button>
               ))}
             </div>
           </div>
@@ -12014,7 +12123,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           )}
         </>
       )}
-      {log.length>0&&<Card><Lbl>Log</Lbl>{log.slice(0,7).map(l=>(<div key={l.id} style={{fontSize:9,color:C.muted,borderBottom:`1px solid ${C.border}`,paddingBottom:3,marginBottom:3}}><span style={{color:C.accent,fontSize:8}}>S{l.season}·H{l.week} </span>{l.msg}</div>))}</Card>}
+      {log.length>0&&<Card><Lbl>Log</Lbl>{log.slice(0,7).map(l=>(<div key={l.id} style={{fontSize:10.5,color:C.muted,borderBottom:`1px solid ${C.border}`,paddingBottom:3,marginBottom:3}}><span style={{color:C.accent,fontSize:9.5}}>S{l.season}·H{l.week} </span>{l.msg}</div>))}</Card>}
     </div>}
 
     {/* ── ANTRENMAN: HAFTALIK PLANLAYICI (Faz 3) ── */}
@@ -12037,14 +12146,14 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:S.sm}}>
             <div>
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-                <span style={{fontSize:10,color:C.muted,letterSpacing:0}}>🦵 FİTNESS</span>
+                <span style={{fontSize:11.5,color:C.muted,letterSpacing:0}}>🦵 FİTNESS</span>
                 <span style={{fontSize:12,fontWeight:800,color:tone(player.fitness)}}>{Math.round(player.fitness)}</span>
               </div>
               <SB v={player.fitness} c={tone(player.fitness)}/>
             </div>
             <div>
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-                <span style={{fontSize:10,color:C.muted,letterSpacing:0}}>🧠 ZİHİN</span>
+                <span style={{fontSize:11.5,color:C.muted,letterSpacing:0}}>🧠 ZİHİN</span>
                 <span style={{fontSize:12,fontWeight:800,color:ms.c}}>{Math.round(player.mental??100)}</span>
               </div>
               <SB v={player.mental??100} c={ms.c}/>
@@ -12053,8 +12162,8 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           <div style={{display:"flex",alignItems:"center",gap:6,marginTop:S.sm,
             background:`${ms.c}12`,border:`1px solid ${ms.c}33`,borderRadius:R.sm,padding:"6px 9px"}}>
             <span style={{fontSize:15}}>{ms.icon}</span>
-            <span style={{fontSize:11,color:ms.c,fontWeight:700,fontFamily:F.cond,letterSpacing:0}}>{ms.label}</span>
-            <span style={{fontSize:10,color:C.muted,marginLeft:"auto"}}>
+            <span style={{fontSize:12.5,color:ms.c,fontWeight:700,fontFamily:F.cond,letterSpacing:0}}>{ms.label}</span>
+            <span style={{fontSize:11.5,color:C.muted,marginLeft:"auto"}}>
               Maç reytingi {ms.ratingMod>=0?"+":""}{ms.ratingMod.toFixed(2)}
             </span>
           </div>
@@ -12071,7 +12180,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           {TRAIN_DAYS.map((day,i)=>{
             const d=drill((trainPlan.days||[])[i]);
             return(<div key={day} style={{marginBottom:S.sm}}>
-              <div style={{fontSize:9,color:C.muted,letterSpacing:0.3,fontFamily:F.cond,fontWeight:700,marginBottom:4}}>{day.toUpperCase()}</div>
+              <div style={{fontSize:10.5,color:C.muted,letterSpacing:0.3,fontFamily:F.cond,fontWeight:700,marginBottom:4}}>{day.toUpperCase()}</div>
               <div style={{display:"flex",gap:5,overflowX:"auto",paddingBottom:3}}>
                 {/* Seçili seans başa alınır — yoksa yatay listede görünmüyordu */}
                 {[...drillsFor].sort((a,b)=>(a.id===d.id?-1:0)-(b.id===d.id?-1:0)).map(x=>(
@@ -12082,13 +12191,13 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                       background:d.id===x.id?"linear-gradient(180deg,#ffbc5c,#ff9f1a)":C.card2,
                       color:d.id===x.id?"#3a2000":C.muted,opacity:planDone?0.55:1,
                       boxShadow:d.id===x.id?"0 4px 0 #a86200":`0 3px 0 ${C.ink}`,
-                      fontFamily:F.cond,fontWeight:700,fontSize:10,lineHeight:1.25}}>
+                      fontFamily:F.cond,fontWeight:700,fontSize:11.5,lineHeight:1.25}}>
                     <div style={{fontSize:16,marginBottom:2}}>{x.icon}</div>
                     {x.name}
                   </button>
                 ))}
               </div>
-              <div style={{fontSize:9,color:C.muted,marginTop:2}}>{d.icon} {d.name} — {d.desc}</div>
+              <div style={{fontSize:10.5,color:C.muted,marginTop:2}}>{d.icon} {d.name} — {d.desc}</div>
             </div>);
           })}
 
@@ -12121,7 +12230,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               <div key={l} style={{background:C.bg,borderRadius:R.sm,padding:"7px 4px",textAlign:"center",border:`1px solid ${C.border}`}}>
                 <div style={{fontSize:13}}>{ic}</div>
                 <div style={{fontFamily:F.mono,fontSize:12,fontWeight:800,color:c}}>{v}</div>
-                <div style={{fontSize:7.5,color:C.muted,letterSpacing:0}}>{l}</div>
+                <div style={{fontSize:9,color:C.muted,letterSpacing:0}}>{l}</div>
               </div>
             ))}
           </div>
@@ -12130,7 +12239,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             style={{width:"100%",marginTop:S.md,padding:"13px",fontSize:14}}>
             {planDone?"✅ BU HAFTA ÇALIŞILDI":player.injuryWeeks>0?`🚑 SAKATSIN (${player.injuryWeeks}h)`:"🗓️ HAFTAYI ÇALIŞ"}
           </Btn>
-          <div style={{fontSize:9,color:C.muted,textAlign:"center",marginTop:6,lineHeight:1.5}}>
+          <div style={{fontSize:10.5,color:C.muted,textAlign:"center",marginTop:6,lineHeight:1.5}}>
             Zihnin düşükken kazanç erir · Tavana yaklaştıkça gelişim yavaşlar · Yoğun plan sakatlar
           </div>
         </Card>
@@ -12168,14 +12277,14 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
                       <span style={{fontFamily:F.cond,fontWeight:700,fontSize:12,color:main?C.gold:C.text}}>{l}</span>
-                      {main&&<span style={{background:`${C.gold}2e`,border:`1px solid ${C.gold}55`,borderRadius:9,padding:"1px 6px",fontSize:8,color:C.gold,fontWeight:700}}>ANA</span>}
+                      {main&&<span style={{background:`${C.gold}2e`,border:`1px solid ${C.gold}55`,borderRadius:9,padding:"1px 6px",fontSize:9.5,color:C.gold,fontWeight:700}}>ANA</span>}
                     </div>
                     <div style={{height:4,borderRadius:2,background:"#2a2a33",overflow:"hidden"}}>
                       <div style={{height:"100%",width:`${val}%`,background:barColor,borderRadius:2,transition:"width .3s"}}/>
                     </div>
                   </div>
                   <div style={{textAlign:"right",flexShrink:0}}>
-                    <div style={{fontSize:9,color:canUp?C.gold:C.muted,marginBottom:4}}>{capped?"MAKS":`${xpCost} XP`}</div>
+                    <div style={{fontSize:10.5,color:canUp?C.gold:C.muted,marginBottom:4}}>{capped?"MAKS":`${xpCost} XP`}</div>
                     <button onClick={()=>{
                       if(capped){notify("Bu özellik tavanda.",C.orange);return;}
                       if((player.xp||0)<xpCost){notify(`XP yetersiz (${player.xp||0}/${xpCost})`,C.red);return;}
@@ -12197,7 +12306,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               </div>
             );
           })}
-          <div style={{fontSize:9,color:C.muted,textAlign:"center",marginTop:4}}>
+          <div style={{fontSize:10.5,color:C.muted,textAlign:"center",marginTop:4}}>
             Potansiyel tavanın: <strong style={{color:C.gold}}>{player.potential}</strong> · Kalan yol: {Math.max(0,(player.potential||0)-player.overall)}
           </div>
         </Card>
@@ -12232,11 +12341,11 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           return(<div style={{display:"flex",justifyContent:"space-around",marginTop:S.sm,
             paddingTop:S.md,borderTop:`1px solid ${C.border}`}}>
             <div style={{textAlign:"center"}}>
-              <div style={{fontSize:9,color:C.muted,letterSpacing:0}}>EN GÜÇLÜ</div>
+              <div style={{fontSize:10.5,color:C.muted,letterSpacing:0}}>EN GÜÇLÜ</div>
               <div style={{fontSize:12,fontWeight:700,color:C.green,marginTop:2}}>{best[1]} {player[best[0]]}</div>
             </div>
             <div style={{textAlign:"center"}}>
-              <div style={{fontSize:9,color:C.muted,letterSpacing:0}}>GELİŞTİRİLECEK</div>
+              <div style={{fontSize:10.5,color:C.muted,letterSpacing:0}}>GELİŞTİRİLECEK</div>
               <div style={{fontSize:12,fontWeight:700,color:C.red,marginTop:2}}>{worst[1]} {player[worst[0]]}</div>
             </div>
           </div>);
@@ -12250,7 +12359,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           <Bdg c={C.muted}>{lastHeat.opp}</Bdg>
         </div>
         <Heatmap key={lastHeat.id} pos={player.pos} events={lastHeat.events} height={180}/>
-        <div style={{display:"flex",justifyContent:"center",gap:11,marginTop:S.sm,fontSize:8,color:C.muted}}>
+        <div style={{display:"flex",justifyContent:"center",gap:11,marginTop:S.sm,fontSize:9.5,color:C.muted}}>
           {[["rgba(56,189,248,.6)","az"],["rgba(74,222,128,.7)","orta"],
             ["rgba(250,204,21,.8)","yoğun"],["rgba(248,113,113,.9)","çok yoğun"]].map(([c,l])=>(
             <span key={l} style={{display:"flex",alignItems:"center",gap:4}}>
@@ -12260,20 +12369,20 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
       </Card>}
       <Card style={{marginTop:0,marginBottom:9}}>
         <Lbl>Kariyer Aşaması: <span style={{color:C.gold}}>{phase.icon} {phase.name}</span></Lbl>
-        <div style={{fontSize:10,color:C.muted,marginBottom:9}}>{phase.perks}</div>
-        {[["İsim",player.name],["Yaş",`${player.age}`],["Milliyet",player.nat],["Pozisyon",player.pos],["Ayak",player.foot],["Overall",`${player.overall}/99`],["Potansiyel",`${player.potential}/99`],["Değer",`€${player.value}M`],["Şöhret",`${player.fame}/100`],["Maaş",`€${contract.salary}K/h`],["Sözleşme",`${contract.years} yıl`],["Banka",`€${player.bank.toLocaleString()}`],["Ant. Güveni",`${player.managerTrust}/100`],["Taraftar",`${player.fanLove}/100`]].map(([k,v])=>(<div key={k} style={{display:"flex",justifyContent:"space-between",borderBottom:`1px solid ${C.border}`,paddingBottom:4,marginBottom:4,fontSize:10}}><span style={{color:C.muted}}>{k}</span><span style={{fontWeight:600}}>{v}</span></div>))}
+        <div style={{fontSize:11.5,color:C.muted,marginBottom:9}}>{phase.perks}</div>
+        {[["İsim",player.name],["Yaş",`${player.age}`],["Milliyet",player.nat],["Pozisyon",player.pos],["Ayak",player.foot],["Overall",`${player.overall}/99`],["Potansiyel",`${player.potential}/99`],["Değer",`€${player.value}M`],["Şöhret",`${player.fame}/100`],["Maaş",`€${contract.salary}K/h`],["Sözleşme",`${contract.years} yıl`],["Banka",`€${player.bank.toLocaleString()}`],["Ant. Güveni",`${player.managerTrust}/100`],["Taraftar",`${player.fanLove}/100`]].map(([k,v])=>(<div key={k} style={{display:"flex",justifyContent:"space-between",borderBottom:`1px solid ${C.border}`,paddingBottom:4,marginBottom:4,fontSize:11.5}}><span style={{color:C.muted}}>{k}</span><span style={{fontWeight:600}}>{v}</span></div>))}
       </Card>
 
       {/* Pozisyon Değiştir */}
       {(()=>{
         const transitions=POS_TRANSITIONS[player.pos]||[];
-        if(transitions.length===0)return(<Card style={{marginBottom:9}}><Lbl>POZİSYON DEĞİŞTİR</Lbl><div style={{fontSize:10,color:C.muted,textAlign:"center",padding:"8px 0"}}>GK pozisyonu değiştirilemez.</div></Card>);
+        if(transitions.length===0)return(<Card style={{marginBottom:9}}><Lbl>POZİSYON DEĞİŞTİR</Lbl><div style={{fontSize:11.5,color:C.muted,textAlign:"center",padding:"8px 0"}}>GK pozisyonu değiştirilemez.</div></Card>);
         return(<Card style={{marginBottom:9}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
             <Lbl style={{margin:0}}>POZİSYON DEĞİŞTİR</Lbl>
             <Bdg c={C.orange}>Mevcut: {player.pos}</Bdg>
           </div>
-          <div style={{fontSize:9,color:C.muted,background:`${C.orange}12`,borderRadius:7,padding:"6px 9px",marginBottom:10,lineHeight:1.6}}>
+          <div style={{fontSize:10.5,color:C.muted,background:`${C.orange}12`,borderRadius:7,padding:"6px 9px",marginBottom:10,lineHeight:1.6}}>
             💡 Pozisyon değişikliği OVR'ını etkiler. Yeni pozisyona alışmak zaman alır. Minimum maç sayısını karşılamalısın.
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:7}}>
@@ -12290,12 +12399,12 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               return(<div key={to} style={{background:C.card2,borderRadius:9,padding:"9px 11px",border:`1px solid ${canChange?C.border+"88":C.border+"44"}`,opacity:canChange?1:.65}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
                   <div style={{display:"flex",alignItems:"center",gap:7}}>
-                    <div style={{background:`${diffColor}22`,border:`1px solid ${diffColor}55`,borderRadius:6,padding:"2px 8px",fontSize:11,fontFamily:"'Baloo 2',sans-serif",fontWeight:700,color:diffColor}}>{to}</div>
+                    <div style={{background:`${diffColor}22`,border:`1px solid ${diffColor}55`,borderRadius:6,padding:"2px 8px",fontSize:12.5,fontFamily:"'Baloo 2',sans-serif",fontWeight:700,color:diffColor}}>{to}</div>
                     <Bdg c={diffColor}>{diffLabel}</Bdg>
                   </div>
                   <div style={{textAlign:"right"}}>
-                    <div style={{fontSize:10,color:ovrDelta>=0?C.green:C.red,fontWeight:700}}>OVR {ovrDelta>=0?"+":""}{ovrDelta}</div>
-                    <div style={{fontSize:9,color:C.muted}}>{newOvr}/99</div>
+                    <div style={{fontSize:11.5,color:ovrDelta>=0?C.green:C.red,fontWeight:700}}>OVR {ovrDelta>=0?"+":""}{ovrDelta}</div>
+                    <div style={{fontSize:10.5,color:C.muted}}>{newOvr}/99</div>
                   </div>
                 </div>
                 <div style={{display:"flex",gap:5,marginBottom:6,flexWrap:"wrap"}}>
@@ -12309,7 +12418,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                   setTeammates(mkTeammates(to,club.prestige));
                   notify(`🔄 Pozisyon değişti: ${player.pos} → ${to}`,C.orange);
                   addLog(`🔄 Pozisyon: ${player.pos} → ${to} (€${cost.toLocaleString()})`);
-                }} style={{width:"100%",fontSize:11}}>
+                }} style={{width:"100%",fontSize:12.5}}>
                   {canChange?`${player.pos} → ${to} Geç`:`Koşullar sağlanmıyor`}
                 </Btn>
               </div>);
@@ -12322,19 +12431,19 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         <Lbl>Form Grafiği (Son {Math.min(10,player.formHistory.length)} Maç)</Lbl>
         <div style={{display:"flex",gap:2,alignItems:"flex-end",height:64,marginTop:8}}>
           {player.formHistory.slice(-10).map((r,i)=>{const h=Math.max(6,(r/10)*100);const c=r>=8?C.green:r>=6.5?C.accent:r>=5?C.gold:C.red;return(<div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-            <div style={{fontSize:7,color:c,fontWeight:700}}>{r}</div>
+            <div style={{fontSize:9,color:c,fontWeight:700}}>{r}</div>
             <div style={{width:"100%",background:c,borderRadius:"3px 3px 0 0",opacity:0.85,height:`${h}%`,minHeight:4,boxShadow:`0 0 6px ${c}55`}}/>
           </div>);})}
         </div>
         <div style={{display:"flex",justifyContent:"space-between",marginTop:4}}>
-          <span style={{fontSize:8,color:C.muted}}>Önceki</span>
-          <span style={{fontSize:8,color:C.muted}}>Son Maç</span>
+          <span style={{fontSize:9.5,color:C.muted}}>Önceki</span>
+          <span style={{fontSize:9.5,color:C.muted}}>Son Maç</span>
         </div>
-        {(()=>{const last5=player.formHistory.slice(-5);const avg=last5.length?(last5.reduce((a,b)=>a+b,0)/last5.length).toFixed(1):"–";const c=Number(avg)>=7.5?C.green:Number(avg)>=5.5?C.gold:C.red;return(<div style={{marginTop:7,background:C.bg,borderRadius:7,padding:"6px 10px",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:10,color:C.muted}}>Son 5 maç ortalaması</span><span style={{fontFamily:"'Baloo 2',sans-serif",fontSize:14,fontWeight:700,color:c}}>{avg} ⭐</span></div>);})()}
+        {(()=>{const last5=player.formHistory.slice(-5);const avg=last5.length?(last5.reduce((a,b)=>a+b,0)/last5.length).toFixed(1):"–";const c=Number(avg)>=7.5?C.green:Number(avg)>=5.5?C.gold:C.red;return(<div style={{marginTop:7,background:C.bg,borderRadius:7,padding:"6px 10px",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:11.5,color:C.muted}}>Son 5 maç ortalaması</span><span style={{fontFamily:"'Baloo 2',sans-serif",fontSize:14,fontWeight:700,color:c}}>{avg} ⭐</span></div>);})()}
       </Card>}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-        <Card><Lbl>Bu Sezon</Lbl>{[["⚽",player.sg,"Gol"],["🎯",player.sa,"Asist"],["🎮",player.sm,"Maç"]].map(([ic,v,l])=>(<div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:3}}><span style={{color:C.muted}}>{ic} {l}</span><span style={{fontWeight:700,color:C.accent}}>{v}</span></div>))}</Card>
-        <Card><Lbl>Milli & Ödüller</Lbl>{[["🌍","Cap",player.caps],["⚽","G",player.capGoals],["🏆","Lig",player.titles],["🌟","ŞL",player.clTitles||0],["🌍","DK",player.wcWon?1:0]].map(([ic,l,v])=>(<div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:9,marginBottom:2}}><span style={{color:C.muted}}>{ic} {l}</span><span style={{fontWeight:700,color:C.gold}}>{v}</span></div>))}</Card>
+        <Card><Lbl>Bu Sezon</Lbl>{[["⚽",player.sg,"Gol"],["🎯",player.sa,"Asist"],["🎮",player.sm,"Maç"]].map(([ic,v,l])=>(<div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:11.5,marginBottom:3}}><span style={{color:C.muted}}>{ic} {l}</span><span style={{fontWeight:700,color:C.accent}}>{v}</span></div>))}</Card>
+        <Card><Lbl>Milli & Ödüller</Lbl>{[["🌍","Cap",player.caps],["⚽","G",player.capGoals],["🏆","Lig",player.titles],["🌟","ŞL",player.clTitles||0],["🌍","DK",player.wcWon?1:0]].map(([ic,l,v])=>(<div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:10.5,marginBottom:2}}><span style={{color:C.muted}}>{ic} {l}</span><span style={{fontWeight:700,color:C.gold}}>{v}</span></div>))}</Card>
       </div>
 
 
@@ -12345,11 +12454,11 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           {manager&&<Bdg c={C.gold}>{MANAGERS.find(m=>m.id===manager)?.emoji} {MANAGERS.find(m=>m.id===manager)?.name}</Bdg>}
         </div>
         {manager?(
-          <div style={{fontSize:10,color:C.muted,marginBottom:8}}>{MANAGERS.find(m=>m.id===manager)?.desc}<br/>Haftalık Ücret: €{MANAGERS.find(m=>m.id===manager)?.weeklyFee}</div>
+          <div style={{fontSize:11.5,color:C.muted,marginBottom:8}}>{MANAGERS.find(m=>m.id===manager)?.desc}<br/>Haftalık Ücret: €{MANAGERS.find(m=>m.id===manager)?.weeklyFee}</div>
         ):(
-          <div style={{fontSize:10,color:C.muted,marginBottom:8}}>Henüz menajer yok. Menajer seçerek bonus kazan.</div>
+          <div style={{fontSize:11.5,color:C.muted,marginBottom:8}}>Henüz menajer yok. Menajer seçerek bonus kazan.</div>
         )}
-        <Btn v="ghost" onClick={()=>{setFinanceTab("menajer");setShowFinance(true);}} style={{width:"100%",fontSize:11}}>🎩 Menajer Seç / Değiştir</Btn>
+        <Btn v="ghost" onClick={()=>{setFinanceTab("menajer");setShowFinance(true);}} style={{width:"100%",fontSize:12.5}}>🎩 Menajer Seç / Değiştir</Btn>
       </Card>
 
       {/* Kariyer Rekorları */}
@@ -12359,8 +12468,8 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           <div key={r.id} style={{display:"flex",gap:8,alignItems:"center",padding:"5px 0",borderBottom:`1px solid ${C.border}`}}>
             <span style={{fontSize:16}}>{r.icon}</span>
             <div style={{flex:1}}>
-              <div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:11,color:C.gold}}>{r.label}</div>
-              <div style={{fontSize:9,color:C.muted}}>Rekor kırıldı!</div>
+              <div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:12.5,color:C.gold}}>{r.label}</div>
+              <div style={{fontSize:10.5,color:C.muted}}>Rekor kırıldı!</div>
             </div>
             <span style={{fontSize:14}}>✅</span>
           </div>
@@ -12387,7 +12496,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
           <div>
             <Lbl c={isTransferWindow(week,SEASON_WEEKS)?C.green:C.muted}>Transfer Dönemi</Lbl>
-            <div style={{fontSize:11,color:isTransferWindow(week,SEASON_WEEKS)?C.green:C.muted}}>
+            <div style={{fontSize:12.5,color:isTransferWindow(week,SEASON_WEEKS)?C.green:C.muted}}>
               {isTransferWindow(week,SEASON_WEEKS)?"🟢 ":"🔒 "}{transferWindowLabel(week,SEASON_WEEKS)}
             </div>
           </div>
@@ -12395,7 +12504,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             {freeAgent?"BONSERVİSSİZ":`SÖZLEŞME ${contract.years} YIL`}
           </Bdg>
         </div>
-        {transferBan&&<div style={{fontSize:10,color:C.orange,marginTop:6}}>⛔ Bu sezon kulüp değiştirdin — yeni transfer sezon sonunda.</div>}
+        {transferBan&&<div style={{fontSize:11.5,color:C.orange,marginTop:6}}>⛔ Bu sezon kulüp değiştirdin — yeni transfer sezon sonunda.</div>}
         {freeAgent&&<Btn v="gold" style={{width:"100%",marginTop:8}} onClick={()=>{setFreeAgentOffers(buildFreeAgentOffers(player,club));setShowFreeAgency(true);}}>📨 Teklifleri Gör</Btn>}
       </Card>
       {/* ── SÖZLEŞME MADDELERİ (Faz 3) ── */}
@@ -12404,7 +12513,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           <Lbl style={{margin:0}} c={C.gold}>SÖZLEŞME MADDELERİ</Lbl>
           <Bdg c={C.green}>Prim geliri €{(player.bonusEarned||0).toLocaleString("tr")}</Bdg>
         </div>
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"5px 0",borderBottom:`1px solid ${C.border}`}}>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,padding:"5px 0",borderBottom:`1px solid ${C.border}`}}>
           <span style={{color:C.muted}}>💰 Haftalık Maaş</span>
           <span style={{fontWeight:700,color:C.gold}}>€{(contract.salary*WAGE_UNIT).toLocaleString("tr")}</span>
         </div>
@@ -12413,26 +12522,26 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           if(!v)return null;
           return(<div key={m.k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",borderBottom:`1px solid ${C.border}`}}>
             <div style={{minWidth:0}}>
-              <div style={{fontSize:11,color:C.text}}>{m.icon} {m.name}</div>
-              <div style={{fontSize:9,color:C.muted}}>{m.when}</div>
+              <div style={{fontSize:12.5,color:C.text}}>{m.icon} {m.name}</div>
+              <div style={{fontSize:10.5,color:C.muted}}>{m.when}</div>
             </div>
-            <span style={{fontSize:11,fontWeight:700,color:m.k==="release"?C.red:C.green,flexShrink:0}}>
+            <span style={{fontSize:12.5,fontWeight:700,color:m.k==="release"?C.red:C.green,flexShrink:0}}>
               {m.unit==="M€"?`€${v}M`:`€${v.toLocaleString("tr")}`}
             </span>
           </div>);
         })}
-        <div style={{fontSize:9,color:C.muted,marginTop:7,lineHeight:1.5}}>
+        <div style={{fontSize:10.5,color:C.muted,marginTop:7,lineHeight:1.5}}>
           Primler maçtan hemen sonra hesabına geçer. Serbest kalma bedelini ödeyen kulüp seni doğrudan alabilir.
         </div>
       </Card>}
-      <Card glow style={{marginBottom:9}}><Lbl>Mevcut</Lbl><div style={{display:"flex",gap:9,alignItems:"center"}}><OVR value={player.overall} size={46}/><div><div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:13}}>{player.name}</div><LgBdg leagueId={club.leagueId}/><div style={{fontSize:10,color:C.gold,marginTop:2}}>€{player.value}M · Şöhret {player.fame}</div></div></div></Card>
+      <Card glow style={{marginBottom:9}}><Lbl>Mevcut</Lbl><div style={{display:"flex",gap:9,alignItems:"center"}}><OVR value={player.overall} size={46}/><div><div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:13}}>{player.name}</div><LgBdg leagueId={club.leagueId}/><div style={{fontSize:11.5,color:C.gold,marginTop:2}}>€{player.value}M · Şöhret {player.fame}</div></div></div></Card>
       {transferNegotiation?(<Card glow gc={C.gold}>
         <Lbl c={C.gold}>TRANSFER PAZARLIĞI 🤝</Lbl>
         <div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:13,marginBottom:4}}>{transferNegotiation.from.country} {transferNegotiation.from.name}</div>
         <LgBdg leagueId={transferNegotiation.from.leagueId}/>
-        <div style={{fontSize:11,color:C.gold,marginTop:5,marginBottom:9}}>Teklif: €{transferNegotiation.fee}M · €{transferNegotiation.salary}K/h</div>
+        <div style={{fontSize:12.5,color:C.gold,marginTop:5,marginBottom:9}}>Teklif: €{transferNegotiation.fee}M · €{transferNegotiation.salary}K/h</div>
         {transferNegotiation.release&&<div style={{background:`${C.gold}14`,border:`1px solid ${C.gold}44`,borderRadius:R.sm,
-          padding:"7px 10px",marginBottom:9,fontSize:10,color:C.gold,lineHeight:1.5}}>
+          padding:"7px 10px",marginBottom:9,fontSize:11.5,color:C.gold,lineHeight:1.5}}>
           🔓 Serbest kalma bedelin ödendi — kulübün bu transferi engelleyemez. Karar tamamen sende.
         </div>}
         <div style={{marginBottom:9}}>
@@ -12444,7 +12553,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           {transferNegotiation.counterSalary>transferNegotiation.salary&&<Btn v="purple" onClick={()=>{const ok=transferNegotiation.counterSalary<=transferNegotiation.salary*1.4&&Math.random()>.3;if(ok)acceptTransfer(transferNegotiation,transferNegotiation.counterSalary);else{notify("❌ Kulüp reddetti!",C.red);setTransferNegotiation(null);}}} style={{width:"100%"}}>🔄 Karşı Teklif Gönder (€{transferNegotiation.counterSalary}K/h)</Btn>}
           <Btn v="ghost" onClick={()=>setTransferNegotiation(null)} style={{width:"100%"}}>❌ Reddet</Btn>
         </div>
-      </Card>):<Card><div style={{textAlign:"center",padding:"14px 0",color:C.muted}}><div style={{fontSize:24,marginBottom:4}}>📭</div><div style={{fontSize:11}}>Aktif teklif yok</div><div style={{fontSize:9,marginTop:3}}>8.0+ rating → teklif şansı artar</div></div></Card>}
+      </Card>):<Card><div style={{textAlign:"center",padding:"14px 0",color:C.muted}}><div style={{fontSize:24,marginBottom:4}}>📭</div><div style={{fontSize:12.5}}>Aktif teklif yok</div><div style={{fontSize:10.5,marginTop:3}}>8.0+ rating → teklif şansı artar</div></div></Card>}
 
       {/* Aktif Transfer Arama Butonu */}
       {!transferNegotiation && week > 5 && (
@@ -12472,10 +12581,10 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         <Lbl c={C.gold}>👟 GOL KRALLIĞI</Lbl>
         {[...leagueScorers,{name:player.name,club:club.name,goals:player.sg,isMe:true}]
           .sort((a,b)=>b.goals-a.goals).slice(0,8)
-          .map((sc,i)=>(<div key={sc.name+i} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0",borderBottom:`1px solid ${C.border}55`,fontSize:11,color:sc.isMe?C.gold:C.text,fontWeight:sc.isMe?700:400}}>
-            <span style={{width:16,color:C.muted,fontSize:10}}>{i+1}</span>
+          .map((sc,i)=>(<div key={sc.name+i} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 0",borderBottom:`1px solid ${C.border}55`,fontSize:12.5,color:sc.isMe?C.gold:C.text,fontWeight:sc.isMe?700:400}}>
+            <span style={{width:16,color:C.muted,fontSize:11.5}}>{i+1}</span>
             <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sc.isMe?"⭐ ":""}{sc.name}</span>
-            <span style={{fontSize:9,color:C.muted,maxWidth:90,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sc.club}</span>
+            <span style={{fontSize:10.5,color:C.muted,maxWidth:90,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sc.club}</span>
             <span style={{width:24,textAlign:"right",fontWeight:700}}>{sc.goals}</span>
           </div>))}
       </Card>
@@ -12484,10 +12593,10 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
     {/* ── BAŞARIM ── */}
     {tab==="Başarım"&&<div className="si">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9}}><div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:12,color:C.gold}}>BAŞARIMLAR</div><Bdg c={C.gold}>{player.achievements.length}/{ACHIEVEMENTS.length}</Bdg></div>
-      <Card style={{marginBottom:9}}><Lbl>İlerleme</Lbl><SB v={player.achievements.length} max={ACHIEVEMENTS.length} c={C.gold}/><div style={{fontSize:9,color:C.muted,marginTop:2}}>{player.achievements.length}/{ACHIEVEMENTS.length}</div></Card>
+      <Card style={{marginBottom:9}}><Lbl>İlerleme</Lbl><SB v={player.achievements.length} max={ACHIEVEMENTS.length} c={C.gold}/><div style={{fontSize:10.5,color:C.muted,marginTop:2}}>{player.achievements.length}/{ACHIEVEMENTS.length}</div></Card>
       {["Kariyer","Özel","Sezon","Gelişim","Transfer","Ekonomi","Sosyal","Gizli"].map(cat=>{
         const ca=ACHIEVEMENTS.filter(a=>a.cat===cat);
-        return(<div key={cat} style={{marginBottom:9}}><Lbl>{cat}</Lbl><div style={{display:"flex",flexDirection:"column",gap:5}}>{ca.map(a=>{const done=player.achievements.includes(a.id);const hid=a.cat==="Gizli"&&!done;return(<div key={a.id} style={{display:"flex",gap:8,alignItems:"center",padding:"8px 10px",borderRadius:8,background:done?`${C.gold}15`:C.card2,border:`1px solid ${done?C.gold+"44":C.border}`,opacity:done?1:.5}}><span style={{fontSize:18,flexShrink:0}}>{hid?"🔒":a.icon}</span><div style={{flex:1}}><div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:11,color:done?C.gold:C.text}}>{hid?"???":a.title}</div><div style={{fontSize:9,color:C.muted}}>{hid?"Gizli başarım":a.desc}</div></div>{done&&<span style={{fontSize:14}}>✅</span>}</div>);})}</div></div>);
+        return(<div key={cat} style={{marginBottom:9}}><Lbl>{cat}</Lbl><div style={{display:"flex",flexDirection:"column",gap:5}}>{ca.map(a=>{const done=player.achievements.includes(a.id);const hid=a.cat==="Gizli"&&!done;return(<div key={a.id} style={{display:"flex",gap:8,alignItems:"center",padding:"8px 10px",borderRadius:8,background:done?`${C.gold}15`:C.card2,border:`1px solid ${done?C.gold+"44":C.border}`,opacity:done?1:.5}}><span style={{fontSize:18,flexShrink:0}}>{hid?"🔒":a.icon}</span><div style={{flex:1}}><div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:12.5,color:done?C.gold:C.text}}>{hid?"???":a.title}</div><div style={{fontSize:10.5,color:C.muted}}>{hid?"Gizli başarım":a.desc}</div></div>{done&&<span style={{fontSize:14}}>✅</span>}</div>);})}</div></div>);
       })}
     </div>}
 
@@ -12572,7 +12681,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               <div key={l} style={{background:C.bg,border:`2px solid ${C.border}`,borderRadius:R.md,
                 padding:"8px 4px",textAlign:"center"}}>
                 <div style={{fontFamily:F.mono,fontSize:17,fontWeight:800,color:c,textShadow:`0 2px 0 ${C.ink}`}}>{v}</div>
-                <div style={{fontSize:9,color:C.muted,fontWeight:600}}>{l}</div>
+                <div style={{fontSize:10.5,color:C.muted,fontWeight:600}}>{l}</div>
               </div>))}
           </div>
           <div style={{display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}>
@@ -12596,8 +12705,8 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                 border:`${BW}px solid ${C.border}`,background:C.card2,color:C.text,
                 boxShadow:posted?"none":`0 4px 0 ${C.ink}`,opacity:posted?.45:1,font:"inherit"}}>
               <div style={{fontSize:19}}>{o.icon}</div>
-              <div style={{fontSize:11.5,fontWeight:700,marginTop:3,lineHeight:1.3}}>{o.t}</div>
-              <div style={{fontSize:9,color:C.muted,marginTop:3}}>
+              <div style={{fontSize:12.5,fontWeight:700,marginTop:3,lineHeight:1.3}}>{o.t}</div>
+              <div style={{fontSize:10.5,color:C.muted,marginTop:3}}>
                 {o.fx.followers>0?`takipçi +%${(o.fx.followers*100).toFixed(1)}`:o.fx.followers<0?`takipçi −%${Math.abs(o.fx.followers*100).toFixed(1)}`:""}
                 {o.fx.bank?` · +€${o.fx.bank.toLocaleString("tr")}`:""}
               </div>
@@ -12613,13 +12722,13 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
       {/* Filter tabs */}
       <div style={{display:"flex",gap:6,marginBottom:12,borderBottom:`1px solid ${C.border}`,paddingBottom:8}}>
         {[["tumu","Tümü",C.green],["me","Gönderilerim",C.purple],["sosyal","Taraftar",C.accent],["haber","Haber",C.gold],["transfer","Transfer",C.purple]].map(([k,l,c])=>(
-          <button key={k} onClick={()=>setSocialFeedFilter(k)} style={{background:"transparent",border:"none",borderBottom:socialFeedFilter===k?`2px solid ${c}`:"2px solid transparent",color:socialFeedFilter===k?c:C.muted,fontSize:11,fontWeight:700,padding:"4px 8px",cursor:"pointer",fontFamily:"'Fredoka',sans-serif"}}>
-            {l} {k==="haber"&&social.filter(f=>f.type==="news").length>0?<span style={{background:C.red,borderRadius:9,padding:"1px 5px",fontSize:8,color:"#fff"}}>{social.filter(f=>f.type==="news").length}</span>:""}
+          <button key={k} onClick={()=>setSocialFeedFilter(k)} style={{background:"transparent",border:"none",borderBottom:socialFeedFilter===k?`2px solid ${c}`:"2px solid transparent",color:socialFeedFilter===k?c:C.muted,fontSize:12.5,fontWeight:700,padding:"4px 8px",cursor:"pointer",fontFamily:"'Fredoka',sans-serif"}}>
+            {l} {k==="haber"&&social.filter(f=>f.type==="news").length>0?<span style={{background:C.red,borderRadius:9,padding:"1px 5px",fontSize:9.5,color:"#fff"}}>{social.filter(f=>f.type==="news").length}</span>:""}
           </button>
         ))}
       </div>
       {/* Feed */}
-      {social.length===0?<Card><div style={{textAlign:"center",padding:"16px 0",color:C.muted,fontSize:10}}>Henüz haber yok. Maça çık!</div></Card>:
+      {social.length===0?<Card><div style={{textAlign:"center",padding:"16px 0",color:C.muted,fontSize:11.5}}>Henüz haber yok. Maça çık!</div></Card>:
       social.filter(f=>socialFeedFilter==="tumu"||f.type===socialFeedFilter||(!f.type&&socialFeedFilter==="sosyal")).map((f,fi)=>{
         const ACCOUNTS=[
           {handle:"@ultras_01",   name:"Tribün Sesi",     verified:false,icon:"📣",color:C.accent},
@@ -12649,18 +12758,18 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               <div style={{flex:1,minWidth:0}}>
                 <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:2,flexWrap:"wrap"}}>
                   <span style={{fontWeight:700,fontSize:12.5,color:mine?C.purple:C.text}}>{acc.name}</span>
-                  {acc.verified&&<span style={{color:C.sky,fontSize:11}}>✔</span>}
-                  <span style={{fontSize:10,color:C.muted}}>{acc.handle}</span>
-                  <span style={{marginLeft:"auto",fontSize:10,color:C.muted}}>S{season}·H{week}</span>
+                  {acc.verified&&<span style={{color:C.sky,fontSize:12.5}}>✔</span>}
+                  <span style={{fontSize:11.5,color:C.muted}}>{acc.handle}</span>
+                  <span style={{marginLeft:"auto",fontSize:11.5,color:C.muted}}>S{season}·H{week}</span>
                 </div>
-                <div style={{fontSize:11,color:C.text,lineHeight:1.5}}>{f.msg}</div>
+                <div style={{fontSize:12.5,color:C.text,lineHeight:1.5}}>{f.msg}</div>
               </div>
             </div>
             <div style={{display:"flex",gap:14,paddingTop:6,borderTop:`1px solid ${C.border}`}}>
-              <span style={{fontSize:10,color:C.muted}}>💬 {comments}</span>
-              <span style={{fontSize:10,color:C.muted}}>🔁 {retweets}</span>
-              <span style={{fontSize:10,color:"#e11d48"}}>♥ {likes}</span>
-              <button onClick={()=>notify("Paylaşıldı!",C.accent)} style={{marginLeft:"auto",background:"transparent",border:"none",color:C.muted,fontSize:10,cursor:"pointer",padding:0}}>↗</button>
+              <span style={{fontSize:11.5,color:C.muted}}>💬 {comments}</span>
+              <span style={{fontSize:11.5,color:C.muted}}>🔁 {retweets}</span>
+              <span style={{fontSize:11.5,color:"#e11d48"}}>♥ {likes}</span>
+              <button onClick={()=>notify("Paylaşıldı!",C.accent)} style={{marginLeft:"auto",background:"transparent",border:"none",color:C.muted,fontSize:11.5,cursor:"pointer",padding:0}}>↗</button>
             </div>
           </div>
         );
@@ -12673,7 +12782,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           ["Transfer",social.filter(f=>f.type==="transfer").length||0,C.purple]].map(([l,v,c])=>(
           <div key={l} style={{textAlign:"center"}}>
             <div style={{fontFamily:F.mono,fontSize:17,fontWeight:800,color:c}}>{v}</div>
-            <div style={{fontSize:10,color:C.muted}}>{l}</div>
+            <div style={{fontSize:11.5,color:C.muted}}>{l}</div>
           </div>
         ))}
       </div>
@@ -12682,10 +12791,10 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
     {/* ── MAĞAZA ── */}
     {tab==="Mağaza"&&<div className="si">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9}}><div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:12,color:C.gold}}>🛍️ MAĞAZA</div><Bdg c={C.gold}>€{player.bank.toLocaleString()}</Bdg></div>
-      <div style={{background:`${C.gold}15`,borderRadius:8,padding:"7px 10px",marginBottom:9,fontSize:10,color:C.gold}}>💡 Maaş: €{contract.salary}K/h · Haftalık: €{(player.weeklyIncome||0).toLocaleString()}</div>
+      <div style={{background:`${C.gold}15`,borderRadius:8,padding:"7px 10px",marginBottom:9,fontSize:11.5,color:C.gold}}>💡 Maaş: €{contract.salary}K/h · Haftalık: €{(player.weeklyIncome||0).toLocaleString()}</div>
       {["Ekipman","Antrenör","Sponsor","Yaşam Tarzı","Ajan & Kariyer","Özel"].map(cat=>{
         const catMap={"Ekipman":["boot_upgrade","boot_elite","physio","cryo_therapy","gloves"],"Antrenör":["coach_pace","coach_shooting","coach_dribbling","coach_passing","coach_physical","mental_coach","nutrition","sport_science"],"Sponsor":["nike_deal","adidas_deal","puma_deal","energy_drink","crypto_sponsor"],"Yaşam Tarzı":["villa","mansion","sport_car","supercar","rolex","yacht","private_jet"],"Ajan & Kariyer":["agent_basic","agent_pro","lawyer","media_team","data_analyst"],"Özel":["football_academy","recovery_pod","vr_training"]};
-        return(<div key={cat} style={{marginBottom:12}}><Lbl>{cat}</Lbl><div style={{display:"flex",flexDirection:"column",gap:6}}>{SHOP_ITEMS.filter(i=>catMap[cat]?.includes(i.id)).map(item=>{const owned=player.items.includes(item.id);const canAfford=item.price===0?player.fame>=(item.reqFame||0):player.bank>=item.price;return(<div key={item.id} style={{background:C.card2,borderRadius:9,padding:"9px 10px",border:`1px solid ${owned?C.green+"44":C.border}`,display:"flex",alignItems:"center",gap:9}}><span style={{fontSize:20,flexShrink:0}}>{item.icon}</span><div style={{flex:1,minWidth:0}}><div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:11,color:owned?C.green:C.text}}>{item.name}{owned?" ✓":""}</div><div style={{fontSize:9,color:C.muted}}>{item.desc}</div>{item.reqFame&&!owned&&<div style={{fontSize:8,color:C.orange}}>Şöhret {item.reqFame}+ (şu an:{player.fame})</div>}</div><div style={{flexShrink:0,textAlign:"right"}}><div style={{fontSize:10,color:item.price===0?C.green:C.gold,fontWeight:700,marginBottom:2}}>{item.price===0?"Ücretsiz":`€${item.price.toLocaleString()}`}</div>{!owned&&<Btn v={canAfford?"gold":"ghost"} onClick={()=>canAfford&&buyItem(item)} disabled={!canAfford} style={{padding:"3px 8px",fontSize:9}}>Al</Btn>}</div></div>);})}</div></div>);
+        return(<div key={cat} style={{marginBottom:12}}><Lbl>{cat}</Lbl><div style={{display:"flex",flexDirection:"column",gap:6}}>{SHOP_ITEMS.filter(i=>catMap[cat]?.includes(i.id)).map(item=>{const owned=player.items.includes(item.id);const canAfford=item.price===0?player.fame>=(item.reqFame||0):player.bank>=item.price;return(<div key={item.id} style={{background:C.card2,borderRadius:9,padding:"9px 10px",border:`1px solid ${owned?C.green+"44":C.border}`,display:"flex",alignItems:"center",gap:9}}><span style={{fontSize:20,flexShrink:0}}>{item.icon}</span><div style={{flex:1,minWidth:0}}><div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:12.5,color:owned?C.green:C.text}}>{item.name}{owned?" ✓":""}</div><div style={{fontSize:10.5,color:C.muted}}>{item.desc}</div>{item.reqFame&&!owned&&<div style={{fontSize:9.5,color:C.orange}}>Şöhret {item.reqFame}+ (şu an:{player.fame})</div>}</div><div style={{flexShrink:0,textAlign:"right"}}><div style={{fontSize:11.5,color:item.price===0?C.green:C.gold,fontWeight:700,marginBottom:2}}>{item.price===0?"Ücretsiz":`€${item.price.toLocaleString()}`}</div>{!owned&&<Btn v={canAfford?"gold":"ghost"} onClick={()=>canAfford&&buyItem(item)} disabled={!canAfford} style={{padding:"3px 8px",fontSize:10.5}}>Al</Btn>}</div></div>);})}</div></div>);
       })}
     </div>}
 
@@ -12696,7 +12805,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
         <Bdg c={C.gold}>€{player.bank.toLocaleString()}</Bdg>
       </div>
       {player.items.length===0
-        ?<Card><div style={{textAlign:"center",padding:"20px 0",color:C.muted}}><div style={{fontSize:28,marginBottom:6}}>🎒</div><div style={{fontSize:11}}>Henüz eşya yok</div><div style={{fontSize:9,marginTop:3}}>Mağaza'dan satın al</div></div></Card>
+        ?<Card><div style={{textAlign:"center",padding:"20px 0",color:C.muted}}><div style={{fontSize:28,marginBottom:6}}>🎒</div><div style={{fontSize:12.5}}>Henüz eşya yok</div><div style={{fontSize:10.5,marginTop:3}}>Mağaza'dan satın al</div></div></Card>
         :<div style={{display:"flex",flexDirection:"column",gap:7}}>
           {player.items.map(id=>{
             const item=SHOP_ITEMS.find(i=>i.id===id);
@@ -12705,24 +12814,24 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
               <span style={{fontSize:22}}>{item.icon}</span>
               <div style={{flex:1}}>
                 <div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:12,color:C.green}}>{item.name} ✓</div>
-                <div style={{fontSize:9,color:C.muted,marginTop:1}}>{item.desc}</div>
+                <div style={{fontSize:10.5,color:C.muted,marginTop:1}}>{item.desc}</div>
               </div>
-              <Bdg c={C.green} style={{fontSize:8}}>Aktif</Bdg>
+              <Bdg c={C.green} style={{fontSize:9.5}}>Aktif</Bdg>
             </div>);
           })}
         </div>
       }
       <div style={{marginTop:12,background:`${C.gold}12`,borderRadius:9,padding:"8px 11px"}}>
-        <div style={{fontSize:9,color:C.gold,fontFamily:"'Fredoka',sans-serif",fontWeight:700,marginBottom:4}}>💰 GELİR ÖZETİ</div>
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:3}}><span style={{color:C.muted}}>Haftalık Maaş</span><span style={{color:C.text}}>€{(contract.salary*1000).toLocaleString()}</span></div>
+        <div style={{fontSize:10.5,color:C.gold,fontFamily:"'Fredoka',sans-serif",fontWeight:700,marginBottom:4}}>💰 GELİR ÖZETİ</div>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:11.5,marginBottom:3}}><span style={{color:C.muted}}>Haftalık Maaş</span><span style={{color:C.text}}>€{(contract.salary*1000).toLocaleString()}</span></div>
         {player.items.map(id=>{
           const item=SHOP_ITEMS.find(i=>i.id===id);
           if(!item)return null;
           const inc=item.effect.type==="sponsor"||item.effect.type==="sponsor_fitness"?item.effect.val:item.effect.type==="academy"?1000:item.effect.type==="supercar"?300:0;
           if(!inc)return null;
-          return(<div key={id} style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:3}}><span style={{color:C.muted}}>{item.icon} {item.name}</span><span style={{color:C.green}}>+€{inc.toLocaleString()}</span></div>);
+          return(<div key={id} style={{display:"flex",justifyContent:"space-between",fontSize:11.5,marginBottom:3}}><span style={{color:C.muted}}>{item.icon} {item.name}</span><span style={{color:C.green}}>+€{inc.toLocaleString()}</span></div>);
         })}
-        <div style={{borderTop:`1px solid ${C.border}`,marginTop:5,paddingTop:5,display:"flex",justifyContent:"space-between",fontWeight:700}}><span style={{fontSize:10,color:C.gold}}>Toplam Haftalık</span><span style={{fontSize:11,color:C.gold,fontFamily:"'Baloo 2',sans-serif"}}>€{(player.weeklyIncome||contract.salary*1000).toLocaleString()}</span></div>
+        <div style={{borderTop:`1px solid ${C.border}`,marginTop:5,paddingTop:5,display:"flex",justifyContent:"space-between",fontWeight:700}}><span style={{fontSize:11.5,color:C.gold}}>Toplam Haftalık</span><span style={{fontSize:12.5,color:C.gold,fontFamily:"'Baloo 2',sans-serif"}}>€{(player.weeklyIncome||contract.salary*1000).toLocaleString()}</span></div>
       </div>
     </div>}
 
@@ -12737,10 +12846,10 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             .map(([ic,v,l],i)=>(<div key={i} style={{background:C.bg,borderRadius:8,padding:"7px 2px"}}>
               <div style={{fontSize:13}}>{ic}</div>
               <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:14,fontWeight:900}}>{v}</div>
-              <div style={{fontSize:8,color:C.muted,marginTop:1}}>{l}</div>
+              <div style={{fontSize:9.5,color:C.muted,marginTop:1}}>{l}</div>
             </div>))}
         </div>
-        <div style={{fontSize:10,color:C.muted,marginTop:8,lineHeight:1.5}}>
+        <div style={{fontSize:11.5,color:C.muted,marginTop:8,lineHeight:1.5}}>
           {player.banWeeks>0
             ? <span style={{color:C.red}}>🟥 {player.banReason} — {player.banWeeks} maç cezalısın.</span>
             : `Her 4 sarı kartta 1 maç ceza. Sonraki cezaya ${4-((player.sYellow||0)%4)} sarı kart kaldı.`}
@@ -12757,10 +12866,10 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           ).map(([ic,v,l],i)=>(<div key={i} style={{background:C.bg,borderRadius:8,padding:"7px 2px"}}>
             <div style={{fontSize:13}}>{ic}</div>
             <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:14,fontWeight:900,color:C.green}}>{v}</div>
-            <div style={{fontSize:8,color:C.muted,marginTop:1}}>{l}</div>
+            <div style={{fontSize:9.5,color:C.muted,marginTop:1}}>{l}</div>
           </div>))}
         </div>
-        {player.pos==="GK"&&player.sm>0&&<div style={{fontSize:10,color:C.muted,marginTop:8}}>
+        {player.pos==="GK"&&player.sm>0&&<div style={{fontSize:11.5,color:C.muted,marginTop:8}}>
           Maç başına {(( player.sSaves||0)/player.sm).toFixed(1)} kurtarış · {((player.sConceded||0)/player.sm).toFixed(2)} gol yedi
         </div>}
       </Card>}
@@ -12768,18 +12877,18 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
       <Card style={{marginBottom:9}}>
         <Lbl>Kariyer Özeti</Lbl>
         <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,textAlign:"center",marginBottom:9}}>
-          {[["⚽",player.goals,"Gol"],["🎯",player.assists,"Asist"],["🎮",player.matches,"Maç"],["🏆",player.titles,"Lig"],["🌟",player.clTitles||0,"ŞL"],["🌍",player.caps,"Cap"]].map(([ic,v,l])=>(<div key={l} style={{background:C.bg,borderRadius:6,padding:6}}><div style={{fontSize:12}}>{ic}</div><div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:15,fontWeight:700,color:C.gold}}>{v}</div><div style={{fontSize:7,color:C.muted}}>{l}</div></div>))}
+          {[["⚽",player.goals,"Gol"],["🎯",player.assists,"Asist"],["🎮",player.matches,"Maç"],["🏆",player.titles,"Lig"],["🌟",player.clTitles||0,"ŞL"],["🌍",player.caps,"Cap"]].map(([ic,v,l])=>(<div key={l} style={{background:C.bg,borderRadius:6,padding:6}}><div style={{fontSize:12}}>{ic}</div><div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:15,fontWeight:700,color:C.gold}}>{v}</div><div style={{fontSize:9,color:C.muted}}>{l}</div></div>))}
         </div>
       </Card>
       {seasonHistory.length>0&&<Card style={{marginBottom:9}}>
         <Lbl>Sezon Geçmişi</Lbl>
-        <div style={{display:"grid",gridTemplateColumns:"30px 1fr 24px 24px 20px",gap:5,marginBottom:4,fontSize:8,color:C.muted}}><span>Sn</span><span>Kulüp</span><span style={{textAlign:"center"}}>G</span><span style={{textAlign:"center"}}>OVR</span><span/></div>
-        {seasonHistory.map((s,i)=>(<div key={i} style={{display:"grid",gridTemplateColumns:"30px 1fr 24px 24px 20px",gap:5,padding:"4px 0",borderBottom:`1px solid ${C.border}`,alignItems:"center",fontSize:9}}><span style={{color:C.accent,fontWeight:700}}>S{s.season}</span><span style={{color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.club}</span><span style={{color:C.green,textAlign:"center",fontWeight:700}}>{s.goals}</span><span style={{color:C.accent,textAlign:"center"}}>{s.overall}</span><span style={{color:C.gold,textAlign:"right"}}>{s.champ?"🏆":""}</span></div>))}
+        <div style={{display:"grid",gridTemplateColumns:"30px 1fr 24px 24px 20px",gap:5,marginBottom:4,fontSize:9.5,color:C.muted}}><span>Sn</span><span>Kulüp</span><span style={{textAlign:"center"}}>G</span><span style={{textAlign:"center"}}>OVR</span><span/></div>
+        {seasonHistory.map((s,i)=>(<div key={i} style={{display:"grid",gridTemplateColumns:"30px 1fr 24px 24px 20px",gap:5,padding:"4px 0",borderBottom:`1px solid ${C.border}`,alignItems:"center",fontSize:10.5}}><span style={{color:C.accent,fontWeight:700}}>S{s.season}</span><span style={{color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.club}</span><span style={{color:C.green,textAlign:"center",fontWeight:700}}>{s.goals}</span><span style={{color:C.accent,textAlign:"center"}}>{s.overall}</span><span style={{color:C.gold,textAlign:"right"}}>{s.champ?"🏆":""}</span></div>))}
       </Card>}
       <Card>
         <Lbl>Stat Grafik</Lbl>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7}}>
-          {[["HIZ",player.pace],["ŞUT",player.shooting],["PAS",player.passing],["DRB",player.dribbling],["DEF",player.defending],["FİZ",player.physical]].map(([l,v])=>{const c=v>=80?C.green:v>=65?C.accent:v>=50?C.gold:C.red;return(<div key={l} style={{textAlign:"center"}}><div style={{fontSize:9,color:C.muted,marginBottom:3}}>{l}</div><div style={{height:44,display:"flex",alignItems:"flex-end",justifyContent:"center"}}><div style={{width:"55%",background:c,borderRadius:"3px 3px 0 0",height:`${(v/99)*100}%`,minHeight:3}}/></div><div style={{fontSize:11,fontWeight:700,color:c,marginTop:2}}>{v}</div></div>);})}</div>
+          {[["HIZ",player.pace],["ŞUT",player.shooting],["PAS",player.passing],["DRB",player.dribbling],["DEF",player.defending],["FİZ",player.physical]].map(([l,v])=>{const c=v>=80?C.green:v>=65?C.accent:v>=50?C.gold:C.red;return(<div key={l} style={{textAlign:"center"}}><div style={{fontSize:10.5,color:C.muted,marginBottom:3}}>{l}</div><div style={{height:44,display:"flex",alignItems:"flex-end",justifyContent:"center"}}><div style={{width:"55%",background:c,borderRadius:"3px 3px 0 0",height:`${(v/99)*100}%`,minHeight:3}}/></div><div style={{fontSize:12.5,fontWeight:700,color:c,marginTop:2}}>{v}</div></div>);})}</div>
       </Card>
     </div>}
 
@@ -12847,7 +12956,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
             <div>
               <Lbl c={C.gold}>🏪 TRANSFER PİYASASI</Lbl>
-              <div style={{fontSize:10,color:C.muted}}>Ligindeki kulüplere teklif gönderebilirsin</div>
+              <div style={{fontSize:11.5,color:C.muted}}>Ligindeki kulüplere teklif gönderebilirsin</div>
             </div>
             <Btn v="ghost" onClick={() => setActiveTransferSearch(false)} style={{padding:"4px 10px"}}>Kapat</Btn>
           </div>
@@ -12864,7 +12973,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                       <div>
                         <div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700}}>{target.name}</div>
-                        <div style={{fontSize:9,color:C.muted}}>{target.country} • Prestij {target.prestige}</div>
+                        <div style={{fontSize:10.5,color:C.muted}}>{target.country} • Prestij {target.prestige}</div>
                       </div>
                       <Btn v="gold" onClick={() => {
                         setActiveTransferSearch(false);
@@ -12875,18 +12984,18 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                           counterSalary: null
                         });
                         notify(`📨 ${target.name} ile görüşme başlatıldı!`, C.gold);
-                      }} style={{fontSize:11,padding:"6px 14px"}}>
+                      }} style={{fontSize:12.5,padding:"6px 14px"}}>
                         Teklif Gönder
                       </Btn>
                     </div>
-                    <div style={{fontSize:9,color:C.muted,marginTop:4}}>
+                    <div style={{fontSize:10.5,color:C.muted,marginTop:4}}>
                       Tahmini bonservis: €{estimatedFee}M • Maaş: €{estimatedSalary}K/h
                     </div>
                   </div>
                 );
               })}
           </div>
-          <div style={{fontSize:9,color:C.muted,marginTop:12,textAlign:"center"}}>
+          <div style={{fontSize:10.5,color:C.muted,marginTop:12,textAlign:"center"}}>
             Not: Teklif sonrası pazarlık yapabilirsin
           </div>
         </Card>
@@ -12902,7 +13011,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           <div style={{textAlign:"center",marginBottom:12}}>
             <div style={{fontSize:32}}>🏋️</div>
             <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:14,color:C.orange}}>ANTRENMAN KAMPI</div>
-            <div style={{fontSize:10,color:C.muted,marginTop:4}}>Stat seç, süre belirle, gelişim gör</div>
+            <div style={{fontSize:11.5,color:C.muted,marginTop:4}}>Stat seç, süre belirle, gelişim gör</div>
           </div>
 
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -12922,7 +13031,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
                     <div>
                       <div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:13,color:opt.color}}>{opt.label}</div>
-                      <div style={{fontSize:10,color:C.muted,marginTop:1}}>{opt.desc}</div>
+                      <div style={{fontSize:11.5,color:C.muted,marginTop:1}}>{opt.desc}</div>
                     </div>
                     <Bdg c={opt.color}>{opt.days} gün</Bdg>
                   </div>
@@ -12944,7 +13053,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                     setWeek(w=>Math.min(34,w+opt.days));
                     notify(`🏋️ ${opt.label} tamamlandı!`,opt.color);
                     setShowTrainingCamp(false);
-                  }} style={{width:"100%",fontSize:11}}>
+                  }} style={{width:"100%",fontSize:12.5}}>
                     {player.fitness<opt.fitLoss+10?"Fitness Yetersiz!":`Kampa Katıl (${opt.days} hafta)`}
                   </Btn>
                 </div>
@@ -12968,7 +13077,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           <div style={{textAlign:"center",marginBottom:12}}>
             <div style={{fontSize:40}}>🏅</div>
             <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:16,color:C.gold}}>BALLON D'OR</div>
-            <div style={{fontSize:10,color:C.muted}}>Sezon {season} Oy Sayımı</div>
+            <div style={{fontSize:11.5,color:C.muted}}>Sezon {season} Oy Sayımı</div>
           </div>
           {(()=>{
             // Basit oy hesaplama: oyuncunun sezon performansına göre
@@ -12983,15 +13092,15 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             return(
               <>
                 {won&&<div style={{background:`${C.gold}22`,borderRadius:10,padding:10,marginBottom:10,textAlign:"center",fontSize:13,color:C.gold,fontWeight:700}}>🎉 TEBRİKLER! BALLON D'OR SENINDIR!</div>}
-                {myRank>1&&myRank<=5&&<div style={{background:`${C.accent}15`,borderRadius:10,padding:8,marginBottom:10,textAlign:"center",fontSize:11,color:C.accent}}>Top 5'te! {myRank}. sıradasın</div>}
+                {myRank>1&&myRank<=5&&<div style={{background:`${C.accent}15`,borderRadius:10,padding:8,marginBottom:10,textAlign:"center",fontSize:12.5,color:C.accent}}>Top 5'te! {myRank}. sıradasın</div>}
                 {candidates.slice(0,10).map((c,i)=>(
                   <div key={i} style={{display:"flex",gap:8,alignItems:"center",borderBottom:`1px solid ${C.border}`,background:c.isMe?`${C.gold}12`:"transparent",borderRadius:c.isMe?6:0,padding:c.isMe?"8px 8px":"8px 0"}}>
                     <span style={{fontSize:i===0?20:14,color:i===0?C.gold:i<3?C.accent:C.muted,fontWeight:700,width:24,textAlign:"center"}}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":i+1}</span>
                     <div style={{flex:1}}>
                       <div style={{fontFamily:"'Fredoka',sans-serif",fontWeight:700,fontSize:12,color:c.isMe?C.gold:C.text}}>{c.isMe?"⭐ ":""}{c.name}</div>
-                      <div style={{fontSize:9,color:C.muted}}>{c.team} · {c.style}</div>
+                      <div style={{fontSize:10.5,color:C.muted}}>{c.team} · {c.style}</div>
                     </div>
-                    <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:11,fontWeight:700,color:i===0?C.gold:C.muted}}>{c.score}</div>
+                    <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:12.5,fontWeight:700,color:i===0?C.gold:C.muted}}>{c.score}</div>
                   </div>
                 ))}
               </>
@@ -13009,19 +13118,19 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           <div style={{textAlign:"center",marginBottom:10}}>
             <div style={{fontSize:28}}>📓</div>
             <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:14,color:C.purple}}>OYUNCU GÜNLÜĞÜ</div>
-            <div style={{fontSize:10,color:C.muted}}>S{season} · H{week} — Düşüncelerini yaz</div>
+            <div style={{fontSize:11.5,color:C.muted}}>S{season} · H{week} — Düşüncelerini yaz</div>
           </div>
           <div style={{marginBottom:10}}>
-            <textarea value={diaryInput} onChange={e=>setDiaryInput(e.target.value)} placeholder={`Bu hafta nasıldı? Hedefler, düşünceler, duygular...`} style={{width:"100%",minHeight:100,background:C.card2,border:`1px solid ${C.purple}44`,borderRadius:8,padding:"8px 10px",color:C.text,fontSize:11,resize:"vertical",fontFamily:"'Fredoka',sans-serif"}}/>
+            <textarea value={diaryInput} onChange={e=>setDiaryInput(e.target.value)} placeholder={`Bu hafta nasıldı? Hedefler, düşünceler, duygular...`} style={{width:"100%",minHeight:100,background:C.card2,border:`1px solid ${C.purple}44`,borderRadius:8,padding:"8px 10px",color:C.text,fontSize:12.5,resize:"vertical",fontFamily:"'Fredoka',sans-serif"}}/>
             <Btn v="purple" onClick={()=>{if(!diaryInput.trim())return;setPlayerDiary(d=>[{week,season,text:diaryInput,ts:Date.now()},...d].slice(0,50));setDiaryInput("");notify("📓 Günlüğe yazıldı!",C.purple);}} style={{width:"100%",marginTop:6,fontSize:12}}>Kaydet 📓</Btn>
           </div>
           <Lbl>GEÇMİŞ GİRİŞLER</Lbl>
           <div style={{maxHeight:220,overflowY:"auto"}}>
-            {playerDiary.length===0&&<div style={{textAlign:"center",color:C.muted,padding:"12px 0",fontSize:10}}>Henüz giriş yok</div>}
+            {playerDiary.length===0&&<div style={{textAlign:"center",color:C.muted,padding:"12px 0",fontSize:11.5}}>Henüz giriş yok</div>}
             {playerDiary.map((entry,i)=>(
               <div key={i} style={{background:C.card2,borderRadius:8,padding:"8px 10px",marginBottom:6,borderLeft:`3px solid ${C.purple}66`}}>
-                <div style={{fontSize:9,color:C.purple,marginBottom:3,fontFamily:"'Fredoka',sans-serif",fontWeight:700}}>Sezon {entry.season} · Hafta {entry.week}</div>
-                <div style={{fontSize:11,color:C.text,lineHeight:1.5}}>{entry.text}</div>
+                <div style={{fontSize:10.5,color:C.purple,marginBottom:3,fontFamily:"'Fredoka',sans-serif",fontWeight:700}}>Sezon {entry.season} · Hafta {entry.week}</div>
+                <div style={{fontSize:12.5,color:C.text,lineHeight:1.5}}>{entry.text}</div>
               </div>
             ))}
           </div>
@@ -13038,25 +13147,25 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
             <div style={{fontSize:28}}>😤</div>
             <div>
               <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:13,color:C.red}}>{rival.name}</div>
-              <div style={{fontSize:9,color:C.muted}}>Rakip · {rival.seasonGoals||0} gol bu sezon</div>
+              <div style={{fontSize:10.5,color:C.muted}}>Rakip · {rival.seasonGoals||0} gol bu sezon</div>
             </div>
             <button onClick={()=>setShowRivalDM(false)} style={{marginLeft:"auto",background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:18}}>✕</button>
           </div>
           {/* DM Konuşma */}
           <div style={{background:C.card2,borderRadius:10,padding:10,marginBottom:10,minHeight:180,maxHeight:260,overflowY:"auto",display:"flex",flexDirection:"column",gap:6}}>
-            {rivalDMLog.length===0&&<div style={{textAlign:"center",color:C.muted,padding:"20px 0",fontSize:10}}>Henüz mesaj yok. İlk mesajı sen at!</div>}
+            {rivalDMLog.length===0&&<div style={{textAlign:"center",color:C.muted,padding:"20px 0",fontSize:11.5}}>Henüz mesaj yok. İlk mesajı sen at!</div>}
             {rivalDMLog.map((msg,i)=>(
               <div key={i} style={{display:"flex",flexDirection:"column",alignItems:msg.from==="me"?"flex-end":"flex-start"}}>
-                <div style={{background:msg.from==="me"?`${C.accent}33`:`${C.red}22`,borderRadius:10,padding:"6px 10px",maxWidth:"80%",fontSize:11,color:C.text,borderBottomRightRadius:msg.from==="me"?2:10,borderBottomLeftRadius:msg.from==="me"?10:2}}>
+                <div style={{background:msg.from==="me"?`${C.accent}33`:`${C.red}22`,borderRadius:10,padding:"6px 10px",maxWidth:"80%",fontSize:12.5,color:C.text,borderBottomRightRadius:msg.from==="me"?2:10,borderBottomLeftRadius:msg.from==="me"?10:2}}>
                   {msg.text}
                 </div>
-                <div style={{fontSize:8,color:C.muted,marginTop:2}}>{msg.from==="me"?player.name:rival.name}</div>
+                <div style={{fontSize:9.5,color:C.muted,marginTop:2}}>{msg.from==="me"?player.name:rival.name}</div>
               </div>
             ))}
           </div>
           {/* Hazır mesajlar */}
           <div style={{marginBottom:8}}>
-            <div style={{fontSize:9,color:C.muted,marginBottom:5,fontFamily:"'Fredoka',sans-serif",fontWeight:700}}>HAZIR CAPS</div>
+            <div style={{fontSize:10.5,color:C.muted,marginBottom:5,fontFamily:"'Fredoka',sans-serif",fontWeight:700}}>HAZIR CAPS</div>
             <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
               {[
                 `😤 Seni geçmek çok kolay oldu ${rival.name}!`,
@@ -13076,7 +13185,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
                     `👊 Sahadaki cevap daha önemli!`,
                   ];
                   setTimeout(()=>setRivalDMLog(l=>[...l,{from:"rival",text:pick(replies),ts:Date.now()}]),1000);
-                }} style={{background:`${C.red}15`,border:`1px solid ${C.red}33`,borderRadius:18,padding:"4px 10px",color:C.text,cursor:"pointer",fontSize:9,fontFamily:"'Fredoka',sans-serif",fontWeight:600}}>
+                }} style={{background:`${C.red}15`,border:`1px solid ${C.red}33`,borderRadius:18,padding:"4px 10px",color:C.text,cursor:"pointer",fontSize:10.5,fontFamily:"'Fredoka',sans-serif",fontWeight:600}}>
                   {msg.slice(0,30)}...
                 </button>
               ))}
@@ -13085,7 +13194,7 @@ function Game({player:ip,club:ic,diffId,saved,slot=1,onExit}){
           {/* Manuel mesaj */}
           <div style={{display:"flex",gap:6}}>
             <input value={dmInput} onChange={e=>setDmInput(e.target.value)} placeholder="Kendi mesajını yaz..." style={{flex:1}} onKeyDown={e=>{if(e.key==="Enter"&&dmInput.trim()){setRivalDMLog(l=>[...l,{from:"me",text:dmInput,ts:Date.now()}]);const replies=[`😏 İlginç...`,`😤 Yorum yok.`,`🔥 Sahadaki cevap gelecek!`,`💀 Devam et bakalım.`];setTimeout(()=>setRivalDMLog(l=>[...l,{from:"rival",text:pick(replies),ts:Date.now()}]),1000);setDmInput("");}}}/>
-            <Btn v="red" onClick={()=>{if(!dmInput.trim())return;setRivalDMLog(l=>[...l,{from:"me",text:dmInput,ts:Date.now()}]);const replies=[`😏 İlginç...`,`😤 Yorum yok.`,`🔥 Sahadaki cevap gelecek!`];setTimeout(()=>setRivalDMLog(l=>[...l,{from:"rival",text:pick(replies),ts:Date.now()}]),1000);setDmInput("");}} style={{fontSize:11,padding:"8px 12px"}}>Gönder</Btn>
+            <Btn v="red" onClick={()=>{if(!dmInput.trim())return;setRivalDMLog(l=>[...l,{from:"me",text:dmInput,ts:Date.now()}]);const replies=[`😏 İlginç...`,`😤 Yorum yok.`,`🔥 Sahadaki cevap gelecek!`];setTimeout(()=>setRivalDMLog(l=>[...l,{from:"rival",text:pick(replies),ts:Date.now()}]),1000);setDmInput("");}} style={{fontSize:12.5,padding:"8px 12px"}}>Gönder</Btn>
           </div>
         </Card>
       </div>
@@ -13283,7 +13392,7 @@ function SplashScreen({onDone}){
         👟
       </div>
       <div style={{width:100}}>
-        <div style={{fontSize:9,color:C.muted,fontFamily:"'Fredoka',sans-serif",letterSpacing:0.3,marginBottom:5,textAlign:"center"}}>{label}</div>
+        <div style={{fontSize:10.5,color:C.muted,fontFamily:"'Fredoka',sans-serif",letterSpacing:0.3,marginBottom:5,textAlign:"center"}}>{label}</div>
         {[...Array(5)].map((_,i)=>(
           <LaceBar key={i} step={Math.max(0,laceStep-i)} totalSteps={1} color={color} />
         ))}
@@ -13333,7 +13442,7 @@ function SplashScreen({onDone}){
         opacity:titleVisible?1:0,
         transition:"opacity 0.8s ease",
       }}>
-        <div style={{fontSize:10,color:C.accent,letterSpacing:1,fontWeight:700,marginBottom:6}}>
+        <div style={{fontSize:11.5,color:C.accent,letterSpacing:1,fontWeight:700,marginBottom:6}}>
           ⚽ KARİYER MODU
         </div>
         <div style={{
@@ -13343,7 +13452,7 @@ function SplashScreen({onDone}){
         }}>
           FOOTBALL<br/><span style={{color:C.gold}}>CAREER</span>
         </div>
-        <div style={{fontSize:9,color:C.muted,letterSpacing:1,marginTop:6}}>{GAME_VERSION} — Kariyer Simülasyonu</div>
+        <div style={{fontSize:10.5,color:C.muted,letterSpacing:1,marginTop:6}}>{GAME_VERSION} — Kariyer Simülasyonu</div>
         <div style={{
           width:160,height:2,margin:"8px auto 0",
           background:`linear-gradient(90deg,transparent,${C.accent},transparent)`,
@@ -13363,14 +13472,14 @@ function SplashScreen({onDone}){
         <div style={{marginTop:18,textAlign:"center",animation:"sp_checkPop 0.5s cubic-bezier(.34,1.5,.64,1) both"}}>
           <div style={{fontSize:36,marginBottom:6}}>✅</div>
           <div style={{fontSize:14,color:C.green,fontWeight:700,letterSpacing:0.6,fontFamily:"'Fredoka',sans-serif"}}>KRAMPONLAR HAZIR!</div>
-          <div style={{fontSize:10,color:C.muted,marginTop:6,letterSpacing:0.3}}>Sahaya çıkmaya hazırlan...</div>
+          <div style={{fontSize:11.5,color:C.muted,marginTop:6,letterSpacing:0.3}}>Sahaya çıkmaya hazırlan...</div>
         </div>
       )}
 
       {/* ═══ FAZ 3: Antrenman sahnesi ═══ */}
       {phase===3&&trainVisible&&(
         <div style={{animation:"sp_fadeIn 0.6s ease both",width:"100%",maxWidth:340}}>
-          <div style={{fontSize:10,color:C.muted,letterSpacing:1,textAlign:"center",marginBottom:12,fontFamily:"'Fredoka',sans-serif"}}>
+          <div style={{fontSize:11.5,color:C.muted,letterSpacing:1,textAlign:"center",marginBottom:12,fontFamily:"'Fredoka',sans-serif"}}>
             {goalCelebration?"🎉 GOL! MUHTEŞEM!":"⚽ ANTRENMANA BAŞLIYORSUN"}
           </div>
 
@@ -13452,8 +13561,8 @@ function SplashScreen({onDone}){
             {[["💨 HIZ",72,C.accent],["🎯 ŞUT",68,C.red],["🌀 DRİBLİNG",75,C.purple],["💪 FİZİK",65,C.gold]].map(([lb,v,col])=>(
               <div key={lb} style={{background:C.card2,borderRadius:8,padding:"7px 10px",border:`1px solid ${C.border}`}}>
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                  <span style={{fontSize:9,color:C.muted,fontFamily:"'Fredoka',sans-serif",letterSpacing:0}}>{lb}</span>
-                  <span style={{fontSize:10,fontWeight:700,color:col,fontFamily:"'Baloo 2',sans-serif"}}>{v}</span>
+                  <span style={{fontSize:10.5,color:C.muted,fontFamily:"'Fredoka',sans-serif",letterSpacing:0}}>{lb}</span>
+                  <span style={{fontSize:11.5,fontWeight:700,color:col,fontFamily:"'Baloo 2',sans-serif"}}>{v}</span>
                 </div>
                 <div style={{height:3,background:"#ffffff11",borderRadius:2,overflow:"hidden"}}>
                   <div style={{height:"100%",width:`${v}%`,background:col,borderRadius:2,transition:"width 1s ease"}}/>
@@ -13467,7 +13576,7 @@ function SplashScreen({onDone}){
       {/* ═══ FAZ 4: Kariyer istatistikleri ═══ */}
       {phase===4&&statsVisible&&(
         <div style={{animation:"sp_fadeIn 0.7s ease both",width:"100%",maxWidth:320}}>
-          <div style={{fontSize:10,color:C.accent,letterSpacing:1,textAlign:"center",marginBottom:14,fontFamily:"'Fredoka',sans-serif",fontWeight:700}}>
+          <div style={{fontSize:11.5,color:C.accent,letterSpacing:1,textAlign:"center",marginBottom:14,fontFamily:"'Fredoka',sans-serif",fontWeight:700}}>
             SENİ NELER BEKLİYOR?
           </div>
 
@@ -13480,7 +13589,7 @@ function SplashScreen({onDone}){
           }}>
             <div style={{fontSize:40,marginBottom:6,transition:"all 0.3s ease"}}>{CAREER_STATS[statIdx].icon}</div>
             <div style={{fontFamily:"'Baloo 2',sans-serif",fontSize:20,fontWeight:900,color:C.gold,marginBottom:3,transition:"all 0.3s ease"}}>{CAREER_STATS[statIdx].value}</div>
-            <div style={{fontSize:10,color:C.muted,letterSpacing:0.6,fontFamily:"'Fredoka',sans-serif"}}>{CAREER_STATS[statIdx].label}</div>
+            <div style={{fontSize:11.5,color:C.muted,letterSpacing:0.6,fontFamily:"'Fredoka',sans-serif"}}>{CAREER_STATS[statIdx].label}</div>
           </div>
 
           {/* Tüm statlar küçük grid */}
@@ -13493,7 +13602,7 @@ function SplashScreen({onDone}){
                 transition:"all 0.3s ease",
               }}>
                 <div style={{fontSize:16}}>{s.icon}</div>
-                <div style={{fontSize:8,color:i===statIdx?C.accent:C.muted,marginTop:2,fontFamily:"'Fredoka',sans-serif",letterSpacing:0}}>{s.label}</div>
+                <div style={{fontSize:9.5,color:i===statIdx?C.accent:C.muted,marginTop:2,fontFamily:"'Fredoka',sans-serif",letterSpacing:0}}>{s.label}</div>
               </div>
             ))}
           </div>
@@ -13502,7 +13611,7 @@ function SplashScreen({onDone}){
           <div style={{
             background:C.card2,borderRadius:9,padding:"10px 14px",
             border:`1px solid ${C.gold}22`,
-            fontSize:10,color:C.muted,textAlign:"center",
+            fontSize:11.5,color:C.muted,textAlign:"center",
             fontFamily:"'Fredoka',sans-serif",lineHeight:1.5,
             minHeight:38,transition:"all 0.4s ease",
           }}>
@@ -13515,7 +13624,7 @@ function SplashScreen({onDone}){
       {phase===5&&(
         <div style={{width:280,animation:"sp_fadeIn 0.5s ease both"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-            <span style={{fontSize:9,color:C.muted,letterSpacing:0.3,fontFamily:"'Fredoka',sans-serif",fontWeight:700}}>YÜKLENİYOR</span>
+            <span style={{fontSize:10.5,color:C.muted,letterSpacing:0.3,fontFamily:"'Fredoka',sans-serif",fontWeight:700}}>YÜKLENİYOR</span>
             <span style={{fontSize:12,color:C.accent,fontFamily:"'Baloo 2',sans-serif",fontWeight:700}}>{Math.round(progress)}%</span>
           </div>
           <div style={{height:5,background:C.border,borderRadius:3,overflow:"hidden",marginBottom:10}}>
@@ -13527,7 +13636,7 @@ function SplashScreen({onDone}){
               borderRadius:3,transition:"width 0.08s linear",
             }}/>
           </div>
-          <div style={{fontSize:10,color:C.muted,textAlign:"center",letterSpacing:0,minHeight:16,fontFamily:"'Fredoka',sans-serif",marginBottom:18}}>
+          <div style={{fontSize:11.5,color:C.muted,textAlign:"center",letterSpacing:0,minHeight:16,fontFamily:"'Fredoka',sans-serif",marginBottom:18}}>
             {loadMsg}
           </div>
 
@@ -13537,14 +13646,14 @@ function SplashScreen({onDone}){
               <div key={lb} style={{flex:1,textAlign:"center",background:C.card2,borderRadius:10,padding:"10px 4px",border:`1px solid ${C.border}`}}>
                 <div style={{fontSize:20}}>{ic}</div>
                 <div style={{fontSize:16,fontWeight:700,color:C.gold,fontFamily:"'Baloo 2',sans-serif",marginTop:3}}>{vl}</div>
-                <div style={{fontSize:8,color:C.muted,marginTop:2,fontFamily:"'Fredoka',sans-serif",letterSpacing:0}}>{lb}</div>
+                <div style={{fontSize:9.5,color:C.muted,marginTop:2,fontFamily:"'Fredoka',sans-serif",letterSpacing:0}}>{lb}</div>
               </div>
             ))}
           </div>
 
           {progress>=95&&(
             <div style={{marginTop:14,textAlign:"center",animation:"sp_checkPop 0.5s ease both"}}>
-              <div style={{fontSize:11,color:C.green,fontFamily:"'Fredoka',sans-serif",fontWeight:700,letterSpacing:0.6}}>✅ HAZIR — KARİYER BAŞLIYOR!</div>
+              <div style={{fontSize:12.5,color:C.green,fontFamily:"'Fredoka',sans-serif",fontWeight:700,letterSpacing:0.6}}>✅ HAZIR — KARİYER BAŞLIYOR!</div>
             </div>
           )}
         </div>
@@ -13578,7 +13687,7 @@ function SettingsModal({onClose,onWipe,slot,onExport}){
         <span style={{fontSize:24}}>⚙️</span>
         <div style={{flex:1}}>
           <div style={{fontFamily:F.mono,fontSize:14,fontWeight:900}}>AYARLAR</div>
-          <div style={{fontSize:10,color:C.muted}}>Football Career {GAME_VERSION}</div>
+          <div style={{fontSize:11.5,color:C.muted}}>Football Career {GAME_VERSION}</div>
         </div>
         <button onClick={onClose} style={{background:"transparent",border:"none",color:C.muted,fontSize:20,cursor:"pointer"}}>✕</button>
       </div>
@@ -13609,13 +13718,13 @@ function SettingsModal({onClose,onWipe,slot,onExport}){
               </div>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:13,fontWeight:700,color:sel?t.c.accent:C.text}}>{t.name}</div>
-                <div style={{fontSize:10.5,color:C.muted,marginTop:2,lineHeight:1.4}}>{t.desc}</div>
+                <div style={{fontSize:12,color:C.muted,marginTop:2,lineHeight:1.4}}>{t.desc}</div>
               </div>
               {sel&&<span style={{color:t.c.accent,fontSize:15,flexShrink:0}}>✓</span>}
             </button>);
           })}
         </div>
-        <div style={{fontSize:10,color:C.muted,marginTop:8,lineHeight:1.5}}>
+        <div style={{fontSize:11.5,color:C.muted,marginTop:8,lineHeight:1.5}}>
           Tema anında uygulanır ve kaydedilir.
         </div>
       </Card>
@@ -13633,7 +13742,7 @@ function SettingsModal({onClose,onWipe,slot,onExport}){
           </button>
         </div>
         <div style={{opacity:on?1:0.4,pointerEvents:on?"auto":"none"}}>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:C.muted,marginBottom:5}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:11.5,color:C.muted,marginBottom:5}}>
             <span>Seviye</span><span>{Math.round(vol*100)}%</span>
           </div>
           <input type="range" min="0" max="100" value={Math.round(vol*100)}
@@ -13644,7 +13753,7 @@ function SettingsModal({onClose,onWipe,slot,onExport}){
             {[["click","Tık"],["whistle","Düdük"],["goal","Gol"],["win","Galibiyet"],["levelup","Seviye"]].map(([k,l])=>(
               <button key={k} onClick={()=>playSfx(k)} style={{padding:"5px 10px",borderRadius:R.sm,
                 border:`1px solid ${C.border}`,background:C.card2,color:C.muted,cursor:"pointer",
-                fontSize:10,fontFamily:F.cond,fontWeight:700}}>▶ {l}</button>))}
+                fontSize:11.5,fontFamily:F.cond,fontWeight:700}}>▶ {l}</button>))}
           </div>
         </div>
       </Card>
@@ -13658,11 +13767,11 @@ function SettingsModal({onClose,onWipe,slot,onExport}){
               style={{flex:1,padding:"10px 4px",borderRadius:R.sm,cursor:"pointer",
                 border:`1px solid ${speed===v?C.accent:C.border}`,
                 background:speed===v?`${C.accent}18`:C.card2,
-                color:speed===v?C.accent:C.muted,fontFamily:F.cond,fontWeight:700,fontSize:11}}>
-              {l}<div style={{fontSize:9,opacity:.7,marginTop:2}}>{v}x</div>
+                color:speed===v?C.accent:C.muted,fontFamily:F.cond,fontWeight:700,fontSize:12.5}}>
+              {l}<div style={{fontSize:10.5,opacity:.7,marginTop:2}}>{v}x</div>
             </button>))}
         </div>
-        <div style={{fontSize:10,color:C.muted,marginTop:8}}>Canlı maçta olayların akış hızı.</div>
+        <div style={{fontSize:11.5,color:C.muted,marginTop:8}}>Canlı maçta olayların akış hızı.</div>
       </Card>
 
       {/* OYNANIŞ */}
@@ -13671,7 +13780,7 @@ function SettingsModal({onClose,onWipe,slot,onExport}){
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
           <div style={{flex:1}}>
             <div style={{fontSize:12}}>Futbol odaklı mod</div>
-            <div style={{fontSize:10,color:C.muted,marginTop:3,lineHeight:1.5}}>
+            <div style={{fontSize:11.5,color:C.muted,marginTop:3,lineHeight:1.5}}>
               Açıkken özel hayat / gece kulübü menüsü gizlenir; oyun sahadaki kariyerine odaklanır.
             </div>
           </div>
@@ -13692,14 +13801,14 @@ function SettingsModal({onClose,onWipe,slot,onExport}){
             onClick={()=>{const err=onExport();setExportMsg(err?{t:err,c:C.red}:{t:"Kariyer dosyası indirildi. Başka bir tarayıcıda slot ekranındaki \"Dosyadan Yükle\" ile açabilirsin.",c:C.green});}}>
             💾 Bu Kariyeri Dosyaya İndir
           </Btn>
-          {exportMsg&&<div style={{fontSize:10,color:exportMsg.c,marginBottom:8,lineHeight:1.5}}>{exportMsg.t}</div>}
+          {exportMsg&&<div style={{fontSize:11.5,color:exportMsg.c,marginBottom:8,lineHeight:1.5}}>{exportMsg.t}</div>}
         </>}
         {!confirmWipe
           ? <Btn v="red" style={{width:"100%",fontSize:12}} onClick={()=>setConfirmWipe(true)}>
               🗑️ Tüm Kayıtları Sil
             </Btn>
           : <div>
-              <div style={{fontSize:11,color:C.red,marginBottom:9,lineHeight:1.6}}>
+              <div style={{fontSize:12.5,color:C.red,marginBottom:9,lineHeight:1.6}}>
                 Üç slottaki tüm kariyerler kalıcı olarak silinecek. Emin misin?
               </div>
               <div style={{display:"flex",gap:8}}>
@@ -13753,16 +13862,16 @@ export default function App(){
         <div style={{fontFamily:F.mono,fontSize:19,fontWeight:900,color:C.gold,letterSpacing:0}}>
           FOOTBALL CAREER
         </div>
-        <div style={{fontSize:10,color:C.muted,letterSpacing:0.6,marginTop:4}}>KARİYER SİMÜLATÖRÜ {GAME_VERSION}</div>
+        <div style={{fontSize:11.5,color:C.muted,letterSpacing:0.6,marginTop:4}}>KARİYER SİMÜLATÖRÜ {GAME_VERSION}</div>
       </div>
 
-      {menuMsg&&<div role="status" style={{marginBottom:10,padding:"8px 11px",borderRadius:R.sm,fontSize:11,lineHeight:1.5,
+      {menuMsg&&<div role="status" style={{marginBottom:10,padding:"8px 11px",borderRadius:R.sm,fontSize:12.5,lineHeight:1.5,
         border:`1px solid ${menuMsg.c}`,background:`${menuMsg.c}14`,color:menuMsg.c}}>{menuMsg.t}</div>}
 
       {slots.some(s=>s.empty)&&<Btn v="gold" style={{width:"100%",padding:"13px",fontSize:14,marginBottom:6,letterSpacing:0.3}}
         onClick={()=>{const free=slots.find(s=>s.empty);const q=mkQuickStart();clearSlot(free.slot);
           setGd({player:q.player,club:q.club,diffId:"pro",saved:null,slot:free.slot});}}>⚡ HEMEN OYNA</Btn>}
-      {slots.some(s=>s.empty)&&<div style={{fontSize:10,color:C.muted,textAlign:"center",marginBottom:16}}>
+      {slots.some(s=>s.empty)&&<div style={{fontSize:11.5,color:C.muted,textAlign:"center",marginBottom:16}}>
         Rastgele genç bir oyuncuyla Süper Lig'de orta ölçekli bir kulüpte başla</div>}
 
       <Lbl>KARİYER SLOTLARI</Lbl>
@@ -13775,12 +13884,12 @@ export default function App(){
                   display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,color:C.muted}}>＋</div>
                 <div style={{flex:1}}>
                   <div style={{fontSize:12,fontWeight:700,color:C.muted}}>Slot {sl.slot} — Boş</div>
-                  <div style={{fontSize:10,color:C.muted,marginTop:2}}>Yeni bir kariyer başlat</div>
+                  <div style={{fontSize:11.5,color:C.muted,marginTop:2}}>Yeni bir kariyer başlat</div>
                 </div>
                 <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                  <Btn v="pri" style={{fontSize:11,padding:"8px 13px"}}
+                  <Btn v="pri" style={{fontSize:12.5,padding:"8px 13px"}}
                     onClick={()=>setGd({__new:true,slot:sl.slot})}>Başla</Btn>
-                  <Btn v="ghost" style={{fontSize:10,padding:"6px 10px"}}
+                  <Btn v="ghost" style={{fontSize:11.5,padding:"6px 10px"}}
                     onClick={()=>pickFile(async f=>{const r=await importSaveFile(f,sl.slot);refresh();
                       flash(r.ok?`📂 ${r.name} kariyeri ${sl.slot}. slota yüklendi.`:r.error,r.ok?C.green:C.red);})}>📂 Dosyadan Yükle</Btn>
                 </div>
@@ -13799,39 +13908,39 @@ export default function App(){
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:13,fontWeight:900,fontFamily:F.cond,overflow:"hidden",
                       textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sl.name}</div>
-                    <div style={{fontSize:10,color:C.muted,marginTop:1}}>
+                    <div style={{fontSize:11.5,color:C.muted,marginTop:1}}>
                       {sl.club} · {sl.pos} · {sl.age} yaş
                     </div>
-                    <div style={{fontSize:10,color:C.muted,marginTop:1}}>
+                    <div style={{fontSize:11.5,color:C.muted,marginTop:1}}>
                       Sezon {sl.season} · Hafta {sl.week}
                     </div>
                   </div>
                   <div style={{textAlign:"right",flexShrink:0}}>
                     <div style={{fontFamily:F.mono,fontSize:18,fontWeight:900,color:tone(sl.ovr||60)}}>{sl.ovr}</div>
-                    <div style={{fontSize:7,color:C.muted,letterSpacing:0}}>OVR</div>
+                    <div style={{fontSize:9,color:C.muted,letterSpacing:0}}>OVR</div>
                   </div>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:5,margin:"10px 0"}}>
                   {[["⚽",sl.goals,"Gol"],["🎯",sl.assists,"Asist"],["🎮",sl.matches,"Maç"],["🏆",sl.titles,"Kupa"]]
                     .map(([ic,v,l])=>(
                     <div key={l} style={{background:C.bg,borderRadius:R.sm,padding:"6px 2px",textAlign:"center"}}>
-                      <div style={{fontSize:11}}>{ic}</div>
+                      <div style={{fontSize:12.5}}>{ic}</div>
                       <div style={{fontFamily:F.mono,fontSize:12,fontWeight:900}}>{v}</div>
-                      <div style={{fontSize:7,color:C.muted}}>{l}</div>
+                      <div style={{fontSize:9,color:C.muted}}>{l}</div>
                     </div>))}
                 </div>
                 {confirmDel===sl.slot
                   ? <div>
-                      <div style={{fontSize:11,color:C.red,marginBottom:7}}>Bu kariyer silinecek. Emin misin?</div>
+                      <div style={{fontSize:12.5,color:C.red,marginBottom:7}}>Bu kariyer silinecek. Emin misin?</div>
                       <div style={{display:"flex",gap:7}}>
-                        <Btn v="ghost" style={{flex:1,fontSize:11}} onClick={()=>setConfirmDel(null)}>Vazgeç</Btn>
-                        <Btn v="red" style={{flex:1,fontSize:11}}
+                        <Btn v="ghost" style={{flex:1,fontSize:12.5}} onClick={()=>setConfirmDel(null)}>Vazgeç</Btn>
+                        <Btn v="red" style={{flex:1,fontSize:12.5}}
                           onClick={()=>{clearSlot(sl.slot);setConfirmDel(null);refresh();}}>Sil</Btn>
                       </div>
                     </div>
                   : <div style={{display:"flex",gap:7}}>
-                      <Btn v="ghost" style={{flex:1,fontSize:11}} onClick={()=>setConfirmDel(sl.slot)}>🗑️ Sil</Btn>
-                      <Btn v="ghost" style={{flex:1,fontSize:11}}
+                      <Btn v="ghost" style={{flex:1,fontSize:12.5}} onClick={()=>setConfirmDel(sl.slot)}>🗑️ Sil</Btn>
+                      <Btn v="ghost" style={{flex:1,fontSize:12.5}}
                         onClick={()=>{const err=exportSlot(sl.slot);flash(err||"💾 Kariyer dosyası indirildi.",err?C.red:C.green);}}>💾 İndir</Btn>
                       <Btn v="gold" style={{flex:2,fontSize:12}}
                         onClick={()=>{const d=loadSlot(sl.slot);
@@ -13843,7 +13952,7 @@ export default function App(){
         </Card>
       ))}
 
-      <div style={{fontSize:10,color:C.muted,textAlign:"center",marginTop:14,lineHeight:1.7}}>
+      <div style={{fontSize:11.5,color:C.muted,textAlign:"center",marginTop:14,lineHeight:1.7}}>
         Üç kariyeri aynı anda sürdürebilirsin.<br/>Kayıtlar tarayıcında saklanır; kaybetmemek için<br/>ara sıra "💾 İndir" ile dosyaya yedek al.
       </div>
     </div>
