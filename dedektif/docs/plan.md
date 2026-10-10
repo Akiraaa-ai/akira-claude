@@ -45,7 +45,7 @@ test/                          → model, oyun mantığı ve baştan sona oynan�
 
 ## Aşama 3 — Kalıcılık ve yayın
 - İlerleme kaydı (`shared_preferences`): çözülen vakalar, en iyi skor, toplanan ipuçları, açılan çelişkiler, satın alınan paketler, ayarlar
-- Para kazanma altyapısı: ilk vaka ücretsiz, diğerleri `packId` ile satın alma (`in_app_purchase`); ödüllü reklamla ipucu ipucu (`google_mobile_ads`), test kimlikleri `lib/services/monetization_config.dart` içinde
+- Para kazanma altyapısı: ilk vaka ücretsiz, diğerleri `packId` ile satın alma (`in_app_purchase`); ödüllü reklamla ipucu (`google_mobile_ads`), test kimlikleri `lib/services/monetization_config.dart` içinde
 - Play Store release (aab) adımları: `docs/yayin.md`
 
 ## Varsayımlar
