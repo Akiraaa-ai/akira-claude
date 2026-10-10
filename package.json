@@ -1,0 +1,18 @@
+{
+  "name": "nextgent",
+  "version": "34.0.0",
+  "private": true,
+  "description": "NextGent — tarayıcıda çalışan bireysel futbol kariyeri simülasyonu",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "lint": "eslint game/*.jsx"
+  },
+  "devDependencies": {
+    "esbuild": "0.23.1",
+    "eslint": "8.57.0",
+    "eslint-plugin-react": "7.35.0",
+    "eslint-plugin-react-hooks": "4.6.2",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  }
+}
