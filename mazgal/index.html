@@ -860,6 +860,20 @@ function streetAssets() {
       g.fillStyle = "#3a2a1a"; g.fillRect(28, 0, 8, h);
     }),
   };
+  T.glow = makeCanvas(128, 128, (g, w, h) => stain(g, w / 2, h / 2, w / 2, "255,255,255", 1));
+  T.glow.wrapS = T.glow.wrapT = THREE.ClampToEdgeWrapping;
+  // ön camdaki yağmur damlaları
+  T.drops = makeCanvas(512, 256, (g, w, h) => {
+    g.clearRect(0, 0, w, h);
+    for (let i = 0; i < 260; i++) {
+      const x = rand(0, w), y = rand(0, h), r = rand(1.5, 6);
+      const gr = g.createRadialGradient(x - r * 0.3, y - r * 0.3, 0, x, y, r);
+      gr.addColorStop(0, "rgba(255,255,255,0.55)"); gr.addColorStop(0.6, "rgba(180,190,210,0.25)"); gr.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = gr; g.beginPath(); g.ellipse(x, y, r, r * rand(1, 1.6), 0, 0, 7); g.fill();
+      if (Math.random() < 0.15) { g.fillStyle = "rgba(200,210,225,0.18)"; g.fillRect(x - 0.6, y, 1.2, rand(8, 30)); }   // akan damla
+    }
+  });
+  T.drops.wrapS = T.drops.wrapT = THREE.ClampToEdgeWrapping;
   T.asphalt.repeat.set(0.3, 0.3); T.paving.repeat.set(0.6, 0.6); T.lino.repeat.set(1.2, 1.2);
   for (const k of ["calendar", "clock", "sign", "vest"]) T[k].wrapS = T[k].wrapT = THREE.ClampToEdgeWrapping;
   // cephe: koyu pencereler, bazıları yanık (emissive ayrı doku)
@@ -895,6 +909,13 @@ function streetAssets() {
     glass: new THREE.MeshBasicMaterial({ color: 0x1b2433, transparent: true, opacity: 0.35, depthWrite: false }),
     cone: new THREE.MeshLambertMaterial({ color: 0xd8541c }),
     rain: new THREE.LineBasicMaterial({ color: 0x9aa6b8, transparent: true, opacity: 0.32 }),
+    glow: new THREE.MeshBasicMaterial({ map: T.glow, color: 0xff9a48, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false }),
+    carBody: new THREE.MeshPhongMaterial({ color: 0xd8d8d0, specular: 0x555555, shininess: 60 }),
+    carStripe: new THREE.MeshLambertMaterial({ color: 0xe0661c }),
+    dash: new THREE.MeshLambertMaterial({ color: 0x2a2a2c }),
+    headlight: new THREE.MeshBasicMaterial({ color: 0xfff4d8 }),
+    tail: new THREE.MeshBasicMaterial({ color: 0x8a0d08 }),
+    dropsTex: T.drops,
     calendar: new THREE.MeshLambertMaterial({ map: T.calendar }),
     clock: new THREE.MeshLambertMaterial({ map: T.clock, transparent: true, alphaTest: 0.5 }),
     sign: new THREE.MeshLambertMaterial({ map: T.sign }),
@@ -904,62 +925,103 @@ function streetAssets() {
   return (STREET_ASSETS = M);
 }
 
+// Sokak düzeni (mazgala göre yerel, metre): ana cadde x boyunca (yol z -3.5..3.5), mazgal yolun ortasında;
+// ara sokak z boyunca (yol x -63.5..-56.5) ana caddeye T olarak bağlanır. Kulübe ara sokağın doğu kaldırımında.
+const ROADS = [
+  { x0: -125, x1: 55, z0: -3.5, z1: 3.5 },          // ana cadde
+  { x0: -63.5, x1: -56.5, z0: -105, z1: 3.5 },      // ara sokak
+];
+// kulübe eski yerel koordinatlarıyla kurulur, sonra döndürülüp ara sokağa taşınır
+const HUT_FRAME = { from: { x: -14, z: -3.1 }, to: { x: -55.2, z: -40 }, rot: -Math.PI / 2 };
+function hutP(x, y, z) {
+  const dx = x - HUT_FRAME.from.x, dz = z - HUT_FRAME.from.z, c = Math.cos(HUT_FRAME.rot), s = Math.sin(HUT_FRAME.rot);
+  return new THREE.Vector3(HUT_FRAME.to.x + dx * c + dz * s, y, HUT_FRAME.to.z - dx * s + dz * c);
+}
+function hutInv(x, z) {
+  const dx = x - HUT_FRAME.to.x, dz = z - HUT_FRAME.to.z, c = Math.cos(HUT_FRAME.rot), s = Math.sin(HUT_FRAME.rot);
+  return [HUT_FRAME.from.x + dx * c - dz * s, HUT_FRAME.from.z + dx * s + dz * c];
+}
+const CAR_START = { x: -57.7, z: -38, yaw: Math.PI };   // kulübenin önünde, güneye bakıyor
+const CAR_SEAT = new THREE.Vector3(-0.38, 1.22, 0.2);   // sürücü (araç yerel; ileri = -z)
+
 function buildStreet() {
   disposeStreet();
   const M = streetAssets();
   const sc = cellCenter(G.start[0], G.start[1]);
   const st = new THREE.Group(); st.position.set(sc.x, STREET_Y, sc.z);
   const box = (w, h, d, mat, x, y, z, parent = st) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); parent.add(m); return m; };
-  const R = 42, hole = 0.8;
+  const hole = 0.8;
 
-  // yol: ortasında mazgal deliği olan ıslak asfalt
-  const shape = new THREE.Shape([new THREE.Vector2(-R, -R), new THREE.Vector2(R, -R), new THREE.Vector2(R, R), new THREE.Vector2(-R, R)]);
+  // zemin: ortasında mazgal deliği olan ıslak asfalt
+  const X0 = -135, X1 = 65, Z0 = -115, Z1 = 30;
+  const shape = new THREE.Shape([new THREE.Vector2(X0, -Z1), new THREE.Vector2(X1, -Z1), new THREE.Vector2(X1, -Z0), new THREE.Vector2(X0, -Z0)]);
   shape.holes.push(new THREE.Path([new THREE.Vector2(-hole, -hole), new THREE.Vector2(-hole, hole), new THREE.Vector2(hole, hole), new THREE.Vector2(hole, -hole)]));
   const road = new THREE.ShapeGeometry(shape); road.rotateX(-Math.PI / 2); worldUV(road);
   st.add(new THREE.Mesh(road, M.asphalt));
   // su birikintileri
-  for (const [x, z, r] of [[-6, 0.6, 1.4], [3.2, 1.3, 1.1], [-3.2, 1.6, 0.8], [9, -0.6, 1.6], [-19, 1.0, 1.8]]) {
+  const puddles = [[-6, 0.6, 1.4], [3.2, 1.3, 1.1], [-3.2, 1.6, 0.8], [9, -0.6, 1.6], [-19, 1.0, 1.8], [-34, -1.5, 2.0], [-60.5, -12, 1.6], [-59, -26, 1.3], [-61.5, -55, 1.8], [-48, 2.0, 1.2]];
+  for (const [x, z, r] of puddles) {
     const p = new THREE.Mesh(new THREE.CircleGeometry(r, 18), M.puddle);
     p.rotation.x = -Math.PI / 2; p.scale.set(1, rand(0.45, 0.8), 1); p.position.set(x, 0.005, z); st.add(p);
   }
-  // kaldırımlar + bordür
-  box(2 * R, 0.15, 5, M.paving, 0, 0.075, -4.5); box(2 * R, 0.16, 0.18, M.curb, 0, 0.08, -2.0);
-  box(2 * R, 0.15, 4, M.paving, 0, 0.075, 4.6); box(2 * R, 0.16, 0.18, M.curb, 0, 0.08, 2.6);
+  // kaldırımlar + bordürler (kavşakta açıklık)
+  const walk = (x0, x1, z0, z1) => box(x1 - x0, 0.15, z1 - z0, M.paving, (x0 + x1) / 2, 0.075, (z0 + z1) / 2);
+  const curb = (x0, x1, z0, z1) => box(Math.max(0.18, x1 - x0), 0.16, Math.max(0.18, z1 - z0), M.curb, (x0 + x1) / 2, 0.08, (z0 + z1) / 2);
+  walk(-56.5, X1, -8.5, -3.5); curb(-56.5, X1, -3.59, -3.41);
+  walk(X0, -63.5, -8.5, -3.5); curb(X0, -63.5, -3.59, -3.41);
+  walk(X0, X1, 3.5, 8.5); curb(X0, X1, 3.41, 3.59);
+  walk(-56.5, -51.5, Z0, -8.5); curb(-56.59, -56.41, Z0, -3.5);
+  walk(-68.5, -63.5, Z0, -8.5); curb(-63.59, -63.41, Z0, -3.5);
   // binalar
-  for (const side of [-1, 1]) {
-    let x = -R;
-    while (x < R) {
-      const w = rand(6, 11), h = rand(7, 14), d = 8;
-      box(w - 0.2, h, d, pick(M.facades), x + w / 2, h / 2, side < 0 ? -7 - d / 2 : 6.6 + d / 2);
-      x += w;
+  const row = (a0, a1, along, depthAt, horizontal) => {
+    let a = a0;
+    while (a < a1) {
+      const w = Math.min(rand(6, 11), a1 - a), h = rand(7, 15), d = 8;
+      if (w > 2) {
+        const c = a + w / 2, m = pick(M.facades);
+        if (horizontal) box(w - 0.2, h, d, m, c, h / 2, depthAt + Math.sign(depthAt) * d / 2);
+        else box(d, h, w - 0.2, m, depthAt + Math.sign(depthAt + 60) * d / 2, h / 2, c);
+      }
+      a += w;
     }
-  }
+  };
+  row(-51.5, X1, 0, -8.5, true); row(X0, -68.5, 0, -8.5, true); row(X0, X1, 0, 8.5, true);
+  row(Z0, -8.5, 0, -51.5, false); row(Z0, -8.5, 0, -68.5, false);
+  // ara sokağın kuzey ucu: kapalı (duvar)
+  box(18, 10, 2, pick(M.facades), -60, 5, Z0 - 1);
+
   // mazgal: beton çerçeve, kenara çekilmiş ızgara, devrilmiş koni
   for (const [w, d, x, z] of [[1.9, 0.15, 0, -0.875], [1.9, 0.15, 0, 0.875], [0.15, 1.6, -0.875, 0], [0.15, 1.6, 0.875, 0]]) box(w, 0.03, d, M.concrete, x, 0.015, z);
   const cover = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), MAT.grate);
   cover.rotation.set(-Math.PI / 2, 0, 0.35); cover.position.set(1.55, 0.03, 0.55); st.add(cover);
   const cone = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.5, 10), M.cone);
-  cone.rotation.set(0.3, 0, Math.PI / 2); cone.position.set(-1.4, 0.15, 1.1); st.add(cone);
+  cone.rotation.set(0.3, 0, Math.PI / 2); cone.position.set(-0.6, 0.15, 1.6); st.add(cone);
 
-  // sokak lambaları: mazgalın yanındaki titreyip sönecek; kulübe tarafındaki yanık; uzaktaki ölü
+  // sokak lambaları: birkaçı gerçek ışık, diğerleri yalnızca parlayan baş + yerde ışık lekesi
   const lamps = [];
-  const addLamp = (x, z, armDir, on, intensity = 1.5) => {
+  const addLamp = (x, z, dx, dz, on, intensity = 0) => {
     box(0.14, 6, 0.14, M.pole, x, 3, z);
-    box(0.08, 0.08, 1.3, M.pole, x, 5.95, z + armDir * 0.65);
-    const head = box(0.5, 0.12, 0.28, on ? M.lampOn.clone() : M.dark, x, 5.88, z + armDir * 1.25);
-    const light = new THREE.PointLight(0xff9f52, on ? intensity : 0, 24, 1.2);
-    light.position.set(x, 5.6, z + armDir * 1.25); st.add(light);
-    const l = { head, light, base: on ? intensity : 0 }; lamps.push(l); return l;
+    box(0.08 + Math.abs(dx) * 1.22, 0.08, 0.08 + Math.abs(dz) * 1.22, M.pole, x + dx * 0.65, 5.95, z + dz * 0.65);
+    const hx = x + dx * 1.25, hz = z + dz * 1.25;
+    const head = box(0.5, 0.12, 0.5, on ? M.lampOn.clone() : M.dark, hx, 5.88, hz);
+    let light = null;
+    if (on && intensity) { light = new THREE.PointLight(0xff9f52, intensity, 24, 1.2); light.position.set(hx, 5.6, hz); st.add(light); }
+    let glow = null;
+    if (on) { glow = new THREE.Mesh(new THREE.CircleGeometry(5.5, 24), M.glow.clone()); glow.rotation.x = -Math.PI / 2; glow.position.set(hx, 0.02, hz); st.add(glow); }
+    const l = { head, light, glow, base: intensity }; lamps.push(l); return l;
   };
-  const mainLamp = addLamp(2.6, -2.3, 1, true, 2.4);
-  addLamp(-11.5, 2.9, -1, true, 1.3);
-  addLamp(17, -2.3, 1, false);
+  const mainLamp = addLamp(1.5, -3.8, 0, 1, true, 2.4);
+  addLamp(-60, -36, 1, 0, true, 0); addLamp(-51.9, -42, -1, 0, true, 1.6);       // kulübe önü
+  addLamp(-55.9, -6, -1, 0, true, 1.4);                                          // kavşak
+  for (const [x, z, dx, dz, on] of [[-56.1, -70, -1, 0, true], [-63.9, -20, 1, 0, false], [-25, -3.9, 0, 1, true], [-40, 3.9, 0, -1, true], [-12, 3.9, 0, -1, false], [20, -3.9, 0, 1, true], [-85, 3.9, 0, -1, true], [-100, -3.9, 0, 1, false]])
+    addLamp(x, z, dx, dz, on, 0);
 
   // ay ışığı (soğuk, zayıf)
   const moon = new THREE.DirectionalLight(0x6b7ea6, 0.22); moon.position.set(-10, 20, 8); st.add(moon, moon.target);
 
-  // Fen İşleri kulübesi
-  const hut = new THREE.Group(); hut.position.y = HUT.floor; st.add(hut);
+  // Fen İşleri kulübesi (eski yerel koordinatlarla kurulur, grup döndürülür)
+  const hut = new THREE.Group(); hut.rotation.y = HUT_FRAME.rot; st.add(hut);
+  const p0 = hutP(0, 0, 0); hut.position.set(p0.x, HUT.floor, p0.z);
   const cx = (HUT.x0 + HUT.x1) / 2, cz = (HUT.z0 + HUT.z1) / 2, W = HUT.x1 - HUT.x0, D = HUT.z1 - HUT.z0, H = HUT.h, t = 0.06;
   box(W, H, t, M.hut, cx, H / 2, HUT.z0 + t / 2, hut);                     // arka
   box(t, H, D, M.hut, HUT.x0 + t / 2, H / 2, cz, hut);                     // sol
@@ -986,19 +1048,20 @@ function buildStreet() {
   const handset = new THREE.Group();
   box(0.05, 0.045, 0.24, M.phone, 0, 0, 0, handset);
   box(0.07, 0.05, 0.06, M.phone, 0, -0.01, -0.1, handset); box(0.07, 0.05, 0.06, M.phone, 0, -0.01, 0.1, handset);
-  const cradle = new THREE.Vector3(-14.87, 0.88 + HUT.floor, -4.55);
-  handset.position.copy(cradle); st.add(handset);
+  const cradle = new THREE.Vector3(-14.87, 0.88, -4.55);
+  handset.position.copy(cradle); hut.add(handset);
   const th = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.3, 12), M.thermos); th.position.set(-14.95, 0.92, -3.95); hut.add(th);
   const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.03, 0.08, 10), M.phone); cup.position.set(-14.75, 0.81, -4.0); hut.add(cup);
   // duvarda takvim (14 Ekim işaretli), saat (23:52), yedek yelek
   const cal = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.55), M.calendar); cal.position.set(-14.25, 1.55, HUT.z0 + t + 0.005); hut.add(cal);
-  const clk = new THREE.Mesh(new THREE.CircleGeometry(0.16, 20), M.clock); clk.rotation.y = Math.PI / 2; clk.position.set(HUT.x0 + t + 0.005, 1.9, -4.75);
-  clk.material.map.repeat.set(1, 1); hut.add(clk);
+  const clk = new THREE.Mesh(new THREE.CircleGeometry(0.16, 20), M.clock); clk.rotation.y = Math.PI / 2; clk.position.set(HUT.x0 + t + 0.005, 1.9, -4.75); hut.add(clk);
   const vest = new THREE.Mesh(new THREE.PlaneGeometry(0.45, 0.65), M.vest); vest.rotation.y = -Math.PI / 2; vest.position.set(HUT.x1 - t - 0.01, 1.35, -4.8); hut.add(vest);
   // tavan ampulü
   box(0.01, 0.2, 0.01, M.dark, -14.1, H - 0.1, -4.25, hut);
   const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), M.bulb); bulb.position.set(-14.1, H - 0.24, -4.25); hut.add(bulb);
   const bulbLight = new THREE.PointLight(0xffcf8a, 1.25, 7, 1.5); bulbLight.position.set(-14.1, H - 0.32, -4.25); hut.add(bulbLight);
+
+  const car = buildCar(st, M);
 
   // yağmur: kameranın çevresinde düşen çizgiler
   const N = 1500, rpos = new Float32Array(N * 6);
@@ -1007,7 +1070,76 @@ function buildStreet() {
   const drops = Array.from({ length: N }, () => ({ x: rand(-12, 12), y: rand(0, 9), z: rand(-12, 12), v: rand(8.5, 11) }));
 
   scene.add(st);
-  G.street = { group: st, door, handset, cradle, mainLamp, lamps, bulbLight, rain, rpos, drops };
+  G.street = { group: st, hut, door, handset, cradle, mainLamp, lamps, bulbLight, rain, rpos, drops, car };
+}
+
+// Belediye kamyoneti: dışı basit kutular, içi (torpido, direksiyon, silecek, ön cam damlaları) sürüş için
+function buildCar(st, M) {
+  const g = new THREE.Group(); g.position.set(CAR_START.x, 0, CAR_START.z); g.rotation.y = CAR_START.yaw; st.add(g);
+  const box = (w, h, d, mat, x, y, z, parent = g) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); parent.add(m); return m; };
+  // dış gövde
+  box(1.9, 0.62, 1.55, M.carBody, 0, 0.72, -1.675);           // motor kaputu
+  box(1.9, 0.3, 1.85, M.carBody, 0, 0.56, 0.025);              // kabin altı (içeride koltuğun altında kalır)
+  box(1.9, 0.62, 1.3, M.carBody, 0, 0.72, 1.6);                // kasa
+  box(1.7, 0.04, 1.8, M.dark, 0, 0.73, 0.03);                  // kabin zemini
+  box(0.62, 0.14, 0.6, M.dash, CAR_SEAT.x, 0.82, 0.32); box(0.62, 0.14, 0.6, M.dash, -CAR_SEAT.x, 0.82, 0.32);   // koltuklar
+  box(1.86, 0.7, 1.75, M.carBody, 0, 1.38, 0.05);              // kabin (içeriden görünmez: arka yüzler)
+  for (const sx of [-0.955, 0.955]) box(0.02, 0.12, 4.72, M.carStripe, sx, 0.82, -0.1);   // turuncu şerit
+  box(1.9, 0.4, 0.06, M.carBody, 0, 1.2, 2.2); box(0.06, 0.4, 1.3, M.carBody, -0.92, 1.2, 1.55); box(0.06, 0.4, 1.3, M.carBody, 0.92, 1.2, 1.55);   // kasa
+  box(0.5, 0.12, 0.25, M.lampOn, 0, 1.78, 0.05);               // tepe lambası (turuncu)
+  for (const sx of [-0.62, 0.62]) { box(0.36, 0.16, 0.05, M.headlight, sx, 0.82, -2.46); box(0.3, 0.14, 0.05, M.tail, sx, 0.9, 2.26); }
+  const wheels = [];
+  for (const [x, z] of [[-0.9, -1.45], [0.9, -1.45], [-0.9, 1.4], [0.9, 1.4]]) {
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.26, 14), M.dark); w.rotation.z = Math.PI / 2; w.position.set(x, 0.38, z); g.add(w); wheels.push(w);
+  }
+  // iç
+  box(1.76, 0.24, 0.55, M.dash, 0, 1.0, -0.82);                // torpido
+  box(1.76, 0.5, 0.05, M.dash, 0, 0.75, -0.6);
+  for (const sx of [-0.88, 0.88]) {
+    const p = box(0.07, 0.86, 0.07, M.dash, sx, 1.42, -0.86); p.rotation.x = 0.5;           // ön direkler
+    box(0.06, 0.62, 1.5, M.dash, sx * 1.04, 0.95, 0.1);                                     // kapı paneli
+    box(0.05, 0.05, 1.3, M.dash, sx * 1.02, 1.72, 0.15);                                    // tavan kenarı
+  }
+  const roof = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.4), M.dash); roof.rotation.x = Math.PI / 2; roof.position.set(0, 1.74, 0.2); g.add(roof);
+  box(1.76, 0.9, 0.05, M.dash, 0, 1.3, 0.95).scale.y = 1;    // arka duvar
+  box(0.16, 0.06, 0.03, M.dark, 0, 1.6, -0.55);               // dikiz aynası
+  // direksiyon
+  const wheelMount = new THREE.Group(); wheelMount.position.set(CAR_SEAT.x, 1.08, -0.42); wheelMount.rotation.x = -1.05; g.add(wheelMount);
+  const steer = new THREE.Group(); wheelMount.add(steer);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.022, 8, 28), M.dark); steer.add(rim);
+  box(0.36, 0.03, 0.02, M.dark, 0, 0, 0, steer); box(0.03, 0.18, 0.02, M.dark, 0, -0.09, 0, steer);
+  // gösterge: hız yazısı her karede çizilir
+  const gc = document.createElement("canvas"); gc.width = 128; gc.height = 64;
+  const gaugeTex = new THREE.CanvasTexture(gc);
+  const gauge = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.13), new THREE.MeshBasicMaterial({ map: gaugeTex }));
+  gauge.position.set(CAR_SEAT.x, 1.13, -0.66); gauge.rotation.x = -0.35; g.add(gauge);
+  const dashLight = new THREE.PointLight(0xff9d3a, 0.35, 1.4, 1.5); dashLight.position.set(CAR_SEAT.x, 1.2, -0.6); g.add(dashLight);   // gösterge ışığı
+  // ön cam: yağmur damlaları + silecek
+  const shield = new THREE.Group(); shield.position.set(0, 1.42, -0.95); shield.rotation.x = 0.5; g.add(shield);
+  const dropsMat = new THREE.MeshBasicMaterial({ map: M.dropsTex, transparent: true, opacity: 0.6, depthWrite: false });
+  const glassMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.72, 0.86), dropsMat); glassMesh.rotation.y = Math.PI; shield.add(glassMesh);   // içeriden bakılır
+  const wipers = [-0.62, 0.05].map((x) => {
+    const pv = new THREE.Group(); pv.position.set(x, -0.4, 0.01); shield.add(pv);
+    box(0.02, 0.62, 0.012, M.dark, 0, 0.31, 0, pv); return pv;
+  });
+  // farlar
+  const heads = [-0.62, 0.62].map((sx) => {
+    const L = new THREE.SpotLight(0xfff0d0, 0, 38, 0.42, 0.55, 1.2); L.position.set(sx, 0.85, -2.5);
+    L.target.position.set(sx * 1.4, 0, -16); g.add(L, L.target); return L;
+  });
+  return { group: g, wheels, steer, gauge: { canvas: gc, tex: gaugeTex, last: -1 }, dropsMat, wipers, heads,
+    x: CAR_START.x, z: CAR_START.z, yaw: CAR_START.yaw, v: 0, steerAng: 0, wipe: 0, wet: 0.6 };
+}
+function drawGauge(car) {
+  const kmh = Math.round(Math.abs(car.v) * 3.6);
+  if (kmh === car.gauge.last) return;
+  car.gauge.last = kmh;
+  const g = car.gauge.canvas.getContext("2d");
+  g.fillStyle = "#0b0d0c"; g.fillRect(0, 0, 128, 64);
+  g.fillStyle = "#ff9d3a"; g.font = "bold 30px monospace"; g.textAlign = "right"; g.fillText(String(kmh), 82, 40);
+  g.font = "12px monospace"; g.fillText("km/s", 122, 40);
+  g.fillStyle = "rgba(255,157,58,0.35)"; g.fillRect(8, 50, 112 * Math.min(1, kmh / 60), 5);
+  car.gauge.tex.needsUpdate = true;
 }
 function disposeStreet() {
   if (!G || !G.street) return;
@@ -1018,17 +1150,125 @@ function disposeStreet() {
 function updateRain(dt) {
   const R = G.street; if (!R) return;
   const cam = S.pos.clone().sub(R.group.position);
-  const p = R.rpos, wind = 0.9;
+  const p = R.rpos, wind = 0.9, car = R.car, cs = Math.sin(car.yaw), cc = Math.cos(car.yaw);
   R.drops.forEach((d, i) => {
     d.y -= d.v * dt; d.x += wind * dt;
     if (d.y < 0) { d.x = cam.x + rand(-12, 12); d.z = cam.z + rand(-12, 12); d.y = cam.y + rand(3, 8); }
-    // kulübenin içine yağmasın
-    const inside = d.x > HUT.x0 - 0.1 && d.x < HUT.x1 + 0.1 && d.z > HUT.z0 - 0.1 && d.z < HUT.z1 + 0.25 && d.y < HUT.h + 0.3;
+    // kulübenin ve kabinin içine yağmasın
+    const [hx, hz] = hutInv(d.x, d.z);
+    let inside = hx > HUT.x0 - 0.1 && hx < HUT.x1 + 0.1 && hz > HUT.z0 - 0.1 && hz < HUT.z1 + 0.25 && d.y < HUT.h + 0.3;
+    if (!inside) {
+      const rx = d.x - car.x, rz = d.z - car.z, lx = rx * cc - rz * cs, lz = rx * cs + rz * cc;
+      inside = Math.abs(lx) < 1.05 && Math.abs(lz) < 2.5 && d.y < 1.9;
+    }
     const y = inside ? -50 : d.y, o = i * 6;
     p[o] = d.x; p[o + 1] = y; p[o + 2] = d.z;
     p[o + 3] = d.x - wind * 0.035; p[o + 4] = y + 0.38; p[o + 5] = d.z;
   });
   R.rain.geometry.attributes.position.needsUpdate = true;
+}
+
+// yürürken adım sesi + kafa sallanması
+function walkFx(I, prev) {
+  const sp = Math.hypot(S.pos.x - prev.x, S.pos.z - prev.z);
+  if (sp <= 0.004) return;
+  I.stepAcc += sp;
+  S.pos.y += Math.abs(Math.sin(I.stepAcc / 0.72 * Math.PI)) * 0.04 - 0.02;
+  S.roll = Math.sin(I.stepAcc / 0.72 * Math.PI) * 0.012;
+  if (I.stepAcc - (I.lastStep || 0) > 0.72) { I.lastStep = I.stepAcc; sfxStep(false); }
+}
+// ------------------------------------------------------------
+// Kamyonet: basit araba fiziği (bisiklet modeli), yol dışına çıkamaz
+// ------------------------------------------------------------
+function driveCar(car, dt, thr, brk, st) {
+  if (thr) car.v += (car.v < 0 ? 8 : 4.2 * (1 - car.v / 14)) * dt;
+  else if (brk) car.v -= (car.v > 0.2 ? 8 : 2.2) * dt;          // fren; durunca geri vites
+  else car.v -= Math.sign(car.v) * Math.min(Math.abs(car.v), 0.9 * dt);
+  car.v = clamp(car.v, -4, 14);
+  car.steerAng = lerp(car.steerAng, st * 0.6 / (1 + Math.abs(car.v) * 0.04), Math.min(1, dt * 5));
+  const nyaw = car.yaw + car.v / 2.9 * Math.tan(car.steerAng) * dt;
+  const nx = car.x - Math.sin(nyaw) * car.v * dt, nz = car.z - Math.cos(nyaw) * car.v * dt;
+  if (carFits(nx, nz, nyaw)) { car.x = nx; car.z = nz; car.yaw = nyaw; }
+  else {
+    if (Math.abs(car.v) > 2.5) { sfxThud(null, clamp(Math.abs(car.v) / 12, 0.25, 0.8)); S.interference = 0.45; }
+    car.v *= -0.25;
+  }
+  car.group.position.set(car.x, 0, car.z); car.group.rotation.y = car.yaw;
+}
+function carFits(x, z, yaw) {
+  const fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
+  for (const [a, b] of [[2.25, 0.9], [2.25, -0.9], [-2.25, 0.9], [-2.25, -0.9]]) {
+    const px = x + fx * a + rx * b, pz = z + fz * a + rz * b;
+    if (!ROADS.some((r) => px > r.x0 + 0.15 && px < r.x1 - 0.15 && pz > r.z0 + 0.15 && pz < r.z1 - 0.15)) return false;
+  }
+  return true;
+}
+// sürücü koltuğundan bakış
+function carCam(I, O) {
+  const car = G.street.car, c = Math.cos(car.yaw), s = Math.sin(car.yaw);
+  const v = Math.abs(car.v);
+  S.pos.set(O.x + car.x + CAR_SEAT.x * c + CAR_SEAT.z * s, O.y + CAR_SEAT.y + Math.sin(S.time * 23) * 0.004 * Math.min(1, v / 6) + Math.sin(S.time * 3.1) * 0.002,
+    O.z + car.z - CAR_SEAT.x * s + CAR_SEAT.z * c);
+  S.yaw = car.yaw + (I.lookYaw || 0);
+  S.pitch = -0.09 + (I.lookPitch || 0);
+  S.roll = -car.steerAng * Math.min(1, v / 10) * 0.05;
+}
+document.addEventListener("mousemove", (e) => {
+  const I = S.intro;
+  if (S.mode !== "intro" || !I || I.phase !== "drive") return;
+  if (document.pointerLockElement !== canvas && !S.lockFailed) return;
+  const k = 0.0022 * (typeof GFX !== "undefined" ? GFX.sens : 1);
+  I.lookYaw = clamp((I.lookYaw || 0) - e.movementX * k, -1.4, 1.4);
+  I.lookPitch = clamp((I.lookPitch || 0) - e.movementY * k, -0.6, 0.45);
+});
+// motor, lastik, silecek, damlalar, direksiyon, gösterge
+const CARAU = {};
+function startEngine() {
+  if (!AU.ctx || CARAU.gain) return;
+  const ctx = AU.ctx, t = ctx.currentTime;
+  CARAU.o1 = ctx.createOscillator(); CARAU.o1.type = "sawtooth"; CARAU.o1.frequency.value = 36;
+  CARAU.o2 = ctx.createOscillator(); CARAU.o2.type = "square"; CARAU.o2.frequency.value = 18;
+  CARAU.lp = ctx.createBiquadFilter(); CARAU.lp.type = "lowpass"; CARAU.lp.frequency.value = 320;
+  CARAU.gain = ctx.createGain(); CARAU.gain.gain.setValueAtTime(0, t); CARAU.gain.gain.linearRampToValueAtTime(0.11, t + 0.7);
+  const og = ctx.createGain(); og.gain.value = 0.45;
+  CARAU.o1.connect(CARAU.lp); CARAU.o2.connect(og).connect(CARAU.lp); CARAU.lp.connect(CARAU.gain).connect(AU.master);
+  CARAU.tire = ctx.createBufferSource(); CARAU.tire.buffer = AU.noise; CARAU.tire.loop = true;
+  const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 650; bp.Q.value = 0.6;
+  CARAU.tireGain = ctx.createGain(); CARAU.tireGain.gain.value = 0;
+  CARAU.tire.connect(bp).connect(CARAU.tireGain).connect(AU.master);
+  for (const n of [CARAU.o1, CARAU.o2, CARAU.tire]) n.start(t);
+  sfxStaticBurst(0.1, 0.35); sfxClick(300, 0.3, 0.2);   // marş
+}
+function stopEngine() {
+  if (!CARAU.gain || !AU.ctx) return;
+  const t = AU.ctx.currentTime;
+  CARAU.gain.gain.cancelScheduledValues(t); CARAU.gain.gain.setTargetAtTime(0, t, 0.12);
+  CARAU.tireGain.gain.setTargetAtTime(0, t, 0.1);
+  for (const n of [CARAU.o1, CARAU.o2, CARAU.tire]) n.stop(t + 0.6);
+  for (const k in CARAU) delete CARAU[k];
+}
+function updateCarFx(dt, inCar) {
+  const R = G.street; if (!R) return;
+  const car = R.car, v = Math.abs(car.v), I = S.intro;
+  car.wheels.forEach((w) => { w.rotation.x -= car.v * dt / 0.38; });
+  car.steer.rotation.z = car.steerAng * 4;
+  if (CARAU.gain && AU.ctx) {
+    const t = AU.ctx.currentTime;
+    CARAU.o1.frequency.setTargetAtTime(36 + v * 5.5 + (I.thr ? 9 : 0), t, 0.15);
+    CARAU.o2.frequency.setTargetAtTime(18 + v * 2.75 + (I.thr ? 4.5 : 0), t, 0.15);
+    CARAU.lp.frequency.setTargetAtTime(300 + v * 45 + (I.thr ? 200 : 0), t, 0.15);
+    CARAU.tireGain.gain.setTargetAtTime(Math.min(1, v / 14) * 0.1, t, 0.2);
+  }
+  // silecekler motor çalışırken gidip gelir; geçtikleri an cam temizlenir
+  if (CARAU.gain) {
+    const ph0 = car.wipe % 1; car.wipe += dt / 1.4; const ph = car.wipe % 1;
+    const a = Math.sin(ph * Math.PI) * 1.45;
+    car.wipers.forEach((w) => { w.rotation.z = -Math.PI / 2 + a; });
+    if (ph0 < 0.5 && ph >= 0.5) { car.wet = 0.08; if (inCar) sfxClick(260, 0.05, 0.08); }
+  } else car.wipers.forEach((w) => { w.rotation.z = -Math.PI / 2; });
+  car.wet = Math.min(0.75, car.wet + dt * 0.3);
+  car.dropsMat.opacity = car.wet;
+  if (inCar) drawGauge(car);
 }
 
 // ============================================================
@@ -1346,7 +1586,7 @@ function toggleLight() {
 function show(id) { $(id).classList.remove("hidden"); }
 function hide(id) { $(id).classList.add("hidden"); }
 let toastTimer = 0;
-function toast(text) { const t = $("toast"); t.textContent = text; t.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 2200); }
+function toast(text, ms = 2200) { const t = $("toast"); t.textContent = text; t.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), ms); }
 let subTimer = 0;
 function subtitle(text, ms = 3000) {
   const s = $("sub"); s.innerHTML = ""; const sp = document.createElement("span"); sp.textContent = text; s.appendChild(sp);
@@ -1419,15 +1659,16 @@ const CAM_HUT = {
 };
 // konuşma sırasında bakılan yerler (replik sırasına göre): saat, pencereden sokak, masa
 const CALL_LOOK = [[-15.2, 2.0, -4.75], [-15.2, 2.0, -4.75], [-14.6, 1.6, -5.3], [-14.5, 1.55, -2.2], [-14.3, 1.5, -1.2], [-14.6, 1.6, -5.3], [-14.75, 0.9, -4.0], [-14.75, 0.9, -4.0], [-14.85, 0.95, -4.55]];
-const CAM_WALK = {
+// kulübeden çıkış ve kamyonete yürüyüş (kulübe çerçevesinde; son nokta kamyonetin kapısı)
+const CAM_EXIT = {
   pos: [[0, -14.1, SIT - 0.03, -4.38], [1.4, -14.1, SIT - 0.03, -4.38], [2.6, -13.7, STAND, -4.1], [3.4, -13.3, STAND, -4.05], [4.4, -13.3, STAND, -3.95],
-    [6.0, -13.3, STAND, -2.55], [7.4, -12.0, STAND, -2.45], [16.2, -1.7, STAND, -2.3], [17.4, -0.9, CFG.eye, -1.6], [18.6, -0.2, CFG.eye, -1.38]],
-  look: [[0, -14.85, 0.95, -4.55], [1.4, -14.85, 0.95, -4.55], [2.6, -13.3, 1.7, -3.1], [4.4, -13.3, 1.6, -2.0], [6.0, -11.5, 1.6, -1.6],
-    [7.4, -4, 1.2, -1.8], [11.5, -1, 0.5, -1.0], [13.4, 2.6, 5.6, -1.1], [14.8, 1.0, 1.0, -1.0], [16.2, 0, 0.2, -0.4], [18.6, 0, -0.4, 0]],
+    [6.0, -13.3, STAND, -2.55], [7.8, -12.55, STAND, -2.05]],
+  look: [[0, -14.85, 0.95, -4.55], [1.4, -14.85, 0.95, -4.55], [2.6, -13.3, 1.7, -3.1], [4.4, -13.3, 1.6, -2.0], [6.0, -12.6, 1.4, -1.0], [7.8, -12.0, 1.0, -0.6]],
 };
+// mazgalın batı kenarında durur, mazgala (doğuya) bakar
 const CAM_EDGE = {
-  pos: [[0, -0.2, CFG.eye, -1.38], [3.6, -0.2, CFG.eye, -1.38], [5.2, -0.12, 1.0, -1.06], [6.0, -0.1, 0.95, -1.0]],
-  look: [[0, 0, -0.4, 0], [1.2, 2.6, 5.4, -1.1], [2.4, 2.6, 5.0, -1.1], [3.6, 0, -2.5, 0.1], [5.2, 0, -7, 0.25]],
+  pos: [[0, -1.38, CFG.eye, 0.1], [3.6, -1.38, CFG.eye, 0.1], [5.2, -1.06, 1.0, 0.08], [6.0, -1.0, 0.95, 0.07]],
+  look: [[0, 0, -0.4, 0], [1.2, 1.5, 5.4, -2.55], [2.4, 1.5, 5.0, -2.55], [3.6, 0.1, -2.5, 0], [5.2, 0.25, -7, 0]],
 };
 const INTRO_CALL = [
   { who: "SELİM", file: "selim_01", text: "Alo." },
@@ -1471,8 +1712,9 @@ function setClock(sec) {
 }
 // telefon ahizesi: masadan kulağa / kulaktan masaya
 function earPoint() {
-  const R = G.street, o = R.group.position;
-  return new THREE.Vector3(S.pos.x - o.x + Math.cos(S.yaw) * 0.22, S.pos.y - o.y - 0.12, S.pos.z - o.z - Math.sin(S.yaw) * 0.22);
+  const w = new THREE.Vector3(S.pos.x + Math.cos(S.yaw) * 0.22, S.pos.y - 0.12, S.pos.z - Math.sin(S.yaw) * 0.22);
+  G.street.group.updateMatrixWorld(true);
+  return G.street.hut.worldToLocal(w);
 }
 
 function startIntro() {
@@ -1494,19 +1736,23 @@ function introUpdate(dt) {
   if (S.surface) {
     I.total += dt; setClock(23 * 3600 + 52 * 60 + 4 + I.total);
     updateRain(dt);
-    const inHut = I.phase === "hut" || I.phase === "call" || (I.phase === "walk" && I.t < 5.2);
-    setRain(inHut ? 0.4 : 0.85, inHut, dt);
+    const inHut = I.phase === "hut" || I.phase === "call" || (I.phase === "exit" && I.t < 5.2);
+    const inCar = I.phase === "drive" || I.phase === "park" || (I.phase === "getin" && I.t > 0.7);
+    setRain(inHut ? 0.4 : inCar ? 0.6 : 0.85, inHut || inCar, dt);
+    updateCarFx(dt, inCar);
     setGain(AU.wind, 0.025, 0.5); AU.windFilter?.frequency.setTargetAtTime(220, AU.ctx.currentTime, 0.3);   // uzak şehir uğultusu
   }
   const place = (k, t) => { const p = kv(k.pos, t).add(O); S.pos.copy(p); lookFrom(p, kv(k.look, t).add(O)); };
+  const hutW = (v) => hutP(v.x, v.y, v.z).add(O);
+  const placeHut = (k, t) => { const p = hutW(kv(k.pos, t)); S.pos.copy(p); lookFrom(p, hutW(kv(k.look, t))); };
 
   if (I.phase === "hut") {
     const t = I.t;
     S.black = keyframes([[0, 1], [0.4, 1], [1.8, 0]], t);
-    place(CAM_HUT, t);
+    placeHut(CAM_HUT, t);
     S.pitch += Math.sin(S.time * 1.1) * 0.012; S.roll = Math.sin(S.time * 0.7) * 0.01;
-    if (!I.ring1 && t >= 1.6) { I.ring1 = true; I.ringer = phoneRing(new THREE.Vector3(-14.85, 0.85 + HUT.floor, -4.55).add(O), 1.6); }
-    if (!I.ring2 && t >= 4.4) { I.ring2 = true; I.ringer = phoneRing(new THREE.Vector3(-14.85, 0.85 + HUT.floor, -4.55).add(O), 1.6); }
+    if (!I.ring1 && t >= 1.6) { I.ring1 = true; I.ringer = phoneRing(hutW(new THREE.Vector3(-14.85, 0.85 + HUT.floor, -4.55)), 1.6); }
+    if (!I.ring2 && t >= 4.4) { I.ring2 = true; I.ringer = phoneRing(hutW(new THREE.Vector3(-14.85, 0.85 + HUT.floor, -4.55)), 1.6); }
     if (!I.picked && t >= 5.9) { I.picked = true; I.ringer?.stop(); sfxClick(900, 0.3, 0.05); I.from = R.handset.position.clone(); }
     if (I.picked) {
       const u = smooth(clamp((t - 5.9) / 0.6, 0, 1));
@@ -1514,13 +1760,13 @@ function introUpdate(dt) {
       R.handset.rotation.set(0, S.yaw, u * 1.2);
       R.handset.visible = u < 0.95;
     }
-    if (t >= 6.8) { I.phase = "call"; I.t = 0; I.look = kv(CAM_HUT.look, 99).add(O); I.line = -1; I.next = 0.2; setGain(AU.static, 0.015, 0.3); }
+    if (t >= 6.8) { I.phase = "call"; I.t = 0; I.look = hutW(kv(CAM_HUT.look, 99)); I.line = -1; I.next = 0.2; setGain(AU.static, 0.015, 0.3); }
     return;
   }
   if (I.phase === "call") {
-    const base = kv(CAM_HUT.pos, 99).add(O);
+    const base = hutW(kv(CAM_HUT.pos, 99));
     S.pos.set(base.x, base.y + Math.sin(S.time * 1.3) * 0.006, base.z);
-    const tgt = I.line >= 0 ? new THREE.Vector3(...CALL_LOOK[Math.min(I.line, CALL_LOOK.length - 1)]).add(O) : I.look;
+    const tgt = I.line >= 0 ? hutW(new THREE.Vector3(...CALL_LOOK[Math.min(I.line, CALL_LOOK.length - 1)])) : I.look;
     I.look.lerp(tgt, 1 - Math.exp(-dt * 2.2));
     lookFrom(S.pos, I.look); S.roll = Math.sin(S.time * 0.6) * 0.012;
     if (I.next !== null) {
@@ -1529,7 +1775,7 @@ function introUpdate(dt) {
         I.next = null; I.line++;
         if (I.line >= INTRO_CALL.length) {
           clearSub(); setGain(AU.static, 0, 0.3);
-          I.phase = "walk"; I.t = 0; I.from = earPoint(); R.handset.visible = true;
+          I.phase = "exit"; I.t = 0; I.from = earPoint(); R.handset.visible = true;
           // amir kapattı: meşgul sesi
           sfxBeep(425, 0.3, 0.035); setTimeout(() => sfxBeep(425, 0.3, 0.035), 500);
         } else sayLine(INTRO_CALL[I.line], () => { I.next = 0.35; });
@@ -1537,9 +1783,9 @@ function introUpdate(dt) {
     }
     return;
   }
-  if (I.phase === "walk") {
+  if (I.phase === "exit") {
     const t = I.t, prev = S.pos.clone();
-    place(CAM_WALK, t);
+    placeHut(CAM_EXIT, t);
     // ahize yerine
     const u = smooth(clamp((t - 0.6) / 0.6, 0, 1));
     R.handset.position.lerpVectors(I.from, R.cradle, u); R.handset.rotation.set(0, lerp(R.handset.rotation.y, 0, u), lerp(1.2, 0, u));
@@ -1547,37 +1793,88 @@ function introUpdate(dt) {
     // kapı
     if (!I.doorSnd && t >= 3.5) { I.doorSnd = true; if (!playSfxFile("kapi", 0.8)) sfxCreak(); }
     R.door.rotation.y = 1.7 * smooth(clamp((t - 3.5) / 1.0, 0, 1));
-    // yürürken adım + kafa sallanması
-    const sp = Math.hypot(S.pos.x - prev.x, S.pos.z - prev.z);
-    if (sp > 0.004) {
-      I.stepAcc += sp;
-      S.pos.y += Math.abs(Math.sin(I.stepAcc / 0.72 * Math.PI)) * 0.04 - 0.02;
-      S.roll = Math.sin(I.stepAcc / 0.72 * Math.PI) * 0.012;
-      if (I.stepAcc - (I.lastStep || 0) > 0.72) { I.lastStep = I.stepAcc; sfxStep(false); }
+    walkFx(I, prev);
+    if (t >= CAM_EXIT.pos[CAM_EXIT.pos.length - 1][0]) { I.phase = "getin"; I.t = 0; S.roll = 0; }
+    return;
+  }
+  if (I.phase === "getin") {
+    // kamyonete biniş: kısa karartma, kapı, kontak
+    const t = I.t;
+    S.black = keyframes([[0, 0], [0.35, 1], [1.0, 1], [1.5, 0]], t);
+    if (!I.doorIn && t >= 0.4) { I.doorIn = true; sfxThud(null, 0.35); sfxClick(900, 0.25, 0.05); }
+    if (t >= 0.6) carCam(I, O);
+    if (!I.ign && t >= 0.95) { I.ign = true; startEngine(); R.car.heads.forEach((L) => { L.intensity = 2.2; }); }
+    if (t >= 1.5) {
+      I.phase = "drive"; I.t = 0; I.lookYaw = 0; I.lookPitch = 0;
+      toast("W gaz · S fren / geri · A D direksiyon · fare bak", 6000);
+      subtitle("Kavşaktan sola dön. Mazgal caddenin ortasında.", 7000);
     }
-    if (!I.mutter && t >= 11.8) { I.mutter = true; sayLine(INTRO_MUTTER, null, 2800); }
+    return;
+  }
+  if (I.phase === "drive" || I.phase === "park") {
+    const car = R.car;
+    if (I.phase === "drive") {
+      const thr = keys.KeyW || keys.ArrowUp ? 1 : 0, brk = keys.KeyS || keys.ArrowDown ? 1 : 0;
+      const st = (keys.KeyA || keys.ArrowLeft ? 1 : 0) - (keys.KeyD || keys.ArrowRight ? 1 : 0);
+      I.thr = thr; driveCar(car, dt, thr, brk, st);
+      // ana caddede mazgala yaklaşınca kendiliğinden yanaşıp durur
+      if (car.x > -11 - car.v * car.v / 16 && car.z > -3.5 && car.z < 3.5) { I.phase = "park"; I.t = 0; clearSub(); }
+    } else {
+      I.thr = 0;
+      if (Math.abs(car.v) > 0.05) driveCar(car, dt, 0, car.v > 0 ? 1 : 0, 0);
+      else car.v = 0;
+      if (car.v === 0 && !I.stopT) I.stopT = I.t;
+      if (I.stopT) {
+        const u = I.t - I.stopT;
+        S.black = keyframes([[0, 0], [0.4, 1], [1.1, 1], [1.6, 0]], u);
+        if (!I.doorOut && u >= 0.45) { I.doorOut = true; stopEngine(); sfxThud(null, 0.35); sfxClick(900, 0.25, 0.05); }
+        if (u >= 0.7) {
+          // sürücü kapısından in, mazgala yürü
+          const lx = -Math.cos(car.yaw), lz = Math.sin(car.yaw), fx = -Math.sin(car.yaw), fz = -Math.cos(car.yaw);
+          const ex = car.x + lx * 1.5 + fx * 0.3, ez = car.z + lz * 1.5 + fz * 0.3;
+          const end = CAM_EDGE.pos[0], T = Math.max(2.5, Math.hypot(end[1] - ex, end[3] - ez) / 1.45);
+          I.toHole = {
+            pos: [[0, ex, CFG.eye, ez], [T, end[1], end[2], end[3]]],
+            look: [[0, ex + fx * 6, 1.4, ez + fz * 6], [1.2, 0, 0.3, 0], [T, 0, -0.4, 0]],
+          };
+          I.phase = "toHole"; I.t = 0; I.blackFrom = 1; I.mutter = false;
+          place(I.toHole, 0);
+          return;
+        }
+      }
+    }
+    if (!I.stopT || I.t - I.stopT < 0.7) carCam(I, O);
+    return;
+  }
+  if (I.phase === "toHole") {
+    const t = I.t, prev = S.pos.clone();
+    S.black = keyframes([[0, 1], [0.5, 0]], t);
+    place(I.toHole, t);
+    walkFx(I, prev);
+    if (!I.mutter && t >= 0.9) { I.mutter = true; sayLine(INTRO_MUTTER, null, 2800); }
     // mazgalın yanındaki lamba yaklaştıkça titrer
     const L = R.mainLamp;
-    if (t > 12.6) {
+    if (t > 1.5) {
       if (Math.random() < dt * 5) I.flk = rand(0.05, 0.2);
       const f = I.flk > 0 ? rand(0.1, 0.6) : 1; I.flk = (I.flk || 0) - dt;
-      L.light.intensity = L.base * f; L.head.material.color.setHex(f < 0.5 ? 0x5a3a20 : 0xffb46a);
+      L.light.intensity = L.base * f; L.head.material.color.setHex(f < 0.5 ? 0x5a3a20 : 0xffb46a); L.glow.material.opacity = 0.32 * f;
     }
-    if (t >= CAM_WALK.pos[CAM_WALK.pos.length - 1][0]) { I.phase = "edge"; I.t = 0; S.roll = 0; }
+    if (t >= I.toHole.pos[1][0]) { I.phase = "edge"; I.t = 0; S.roll = 0; }
     return;
   }
   if (I.phase === "edge") {
     const t = I.t;
     place(CAM_EDGE, t);
+    R.car.heads.forEach((L) => { L.intensity = 2.2; });
     S.pos.y += Math.sin(S.time * 1.4) * 0.005;
     setGain(AU.hum, 0.4 * smooth(clamp((t - 0.3) / 5, 0, 1)), 0.2);   // aşağıdan vızıltı
     const L = R.mainLamp;
     if (t < 1.9) {
       if (Math.random() < dt * 9) I.flk = rand(0.05, 0.15);
       const f = I.flk > 0 ? rand(0, 0.5) : 0.9; I.flk = (I.flk || 0) - dt;
-      L.light.intensity = L.base * f; L.head.material.color.setHex(f < 0.5 ? 0x5a3a20 : 0xffb46a);
+      L.light.intensity = L.base * f; L.head.material.color.setHex(f < 0.5 ? 0x5a3a20 : 0xffb46a); L.glow.material.opacity = 0.32 * f;
     } else if (!I.lampDead) {
-      I.lampDead = true; L.light.intensity = 0; L.head.material.color.setHex(0x221a12);
+      I.lampDead = true; L.light.intensity = 0; L.head.material.color.setHex(0x221a12); L.glow.visible = false;
       sfxClick(4200, 0.3, 0.03); sfxClick(700, 0.2, 0.1);
     }
     if (!I.torch && t >= 2.8) { I.torch = true; S.lightOn = true; sfxClick(1400, 0.18, 0.03); }
@@ -1640,7 +1937,7 @@ function introUpdate(dt) {
 }
 // sokaktan aşağıya geçiş: sokak silinir, fener kapanır, saat sıfırda donar
 function leaveStreet() {
-  disposeStreet(); stopRain();
+  stopEngine(); disposeStreet(); stopRain();
   S.surface = false; S.lightOn = false;
   setClock(0); $("hud").classList.remove("cine");
   clearSub();

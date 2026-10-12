@@ -9,7 +9,7 @@ Açılmazsa PowerShell'de `serve.ps1` çalıştırın, http://localhost:8765 adr
 
 ## Kontroller
 
-WASD yürü · Shift koş · F fener · Fare ya da ok tuşları bak · Boşluk sinematiği/kaseti atla · T son kaseti tekrar izle · I parazit testi · B Bekçi mesafesi (test)
+WASD yürü (açılışta kamyoneti sürer: W gaz, S fren/geri, A D direksiyon) · Shift koş · F fener · Fare ya da ok tuşları bak · Boşluk sinematiği/kaseti atla · T son kaseti tekrar izle · I parazit testi · B Bekçi mesafesi (test)
 
 ## Dosyalar
 
@@ -35,7 +35,7 @@ Kod tarafında `index.html` başındaki `CFG` nesnesi: yürüme/koşma hızı, s
 - **Oyuncu:** ızgara tabanlı çarpışma, stamina, yürüme/koşma için ayrı kafa sallanması.
 - **Işık:** en yakın lambalara atanan ışık havuzu, ara sıra titreme, yaratık yakındayken güçlü titreme.
 - **Fener ve pil, karanlık bölgeler, yaratık, kasetler, ses:** ayrıntılar `GDD.md` içinde.
-- **Açılış sinematiği:** yağmurlu sokakta Fen İşleri kulübesi → telefon → mazgala yürüyüş → kuyudan düşüş → karartma → yerde uyanma. Sokak (`buildStreet`) yalnızca açılışta kurulur, düşüşten sonra silinir.
+- **Açılış sinematiği:** yağmurlu sokakta Fen İşleri kulübesi → telefon → kulübenin önündeki kamyonete biniş → oyuncu kamyoneti mazgala sürer (ara sokak, kavşakta sola, ana cadde; yaklaşınca kendiliğinden durur) → mazgala yürüyüş → kuyudan düşüş → karartma → yerde uyanma. Sokak (`buildStreet`) yalnızca açılışta kurulur, düşüşten sonra silinir.
 - **Görsellik:** floresanlarda parlama (bloom, çeyrek çözünürlükte iki geçiş), duvar diplerinde ve tavan köşelerinde gölge (duvar maskesinden bulanıklaştırılmış doku, zemin ve tavana çarpılarak bindirilir), geniş alanlarda kolonlar, priz, havalandırma, eksik ve lekeli tavan karoları, halı lekeleri. Kalite ayarı çözünürlüğü, ışık sayısını, parlamayı ve detay yoğunluğunu değiştirir.
 - **Duvar yazıları:** canvas ile boyanmış yarı saydam paneller; ilki başlangıçta görüş alanına, diğerleri uzağa ve aralıklı yerleşir (`WALL_TEXTS`).
 
