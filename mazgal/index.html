@@ -99,6 +99,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
 <script src="dokular.js"></script>
+<script src="modeller.js"></script>
 <script>
 "use strict";
 
@@ -1039,6 +1040,32 @@ function hutInv(x, z) {
 const CAR_START = { x: -57.7, z: -38, yaw: Math.PI };   // kulübenin önünde, güneye bakıyor
 const CAR_SEAT = new THREE.Vector3(-0.38, 1.22, 0.2);   // sürücü (araç yerel; ileri = -z)
 
+// modeller.js paketinden mesh grubu kurar. Kapı parçaları ayrı bir menteşe grubunda döner.
+const MODEL_MATS = {};
+function buildModel(key, { doorPivot = null, tweak = {} } = {}) {
+  const P = window.MODELLER && window.MODELLER[key]; if (!P) return null;
+  const dec = (b64, T) => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new T(u.buffer); };
+  const texOf = (src) => { if (!src) return null; const img = new Image(); const t = new THREE.Texture(img); img.onload = () => { t.needsUpdate = true; }; img.src = src; t.flipY = false; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; return t; };
+  const mats = MODEL_MATS[key] || (MODEL_MATS[key] = P.mats.map((m) => {
+    const o = { map: texOf(m.map), normalMap: texOf(m.normalMap), shininess: 8, specular: 0x111111 };
+    if (m.transparent) Object.assign(o, { transparent: true, depthWrite: false, opacity: 1 });
+    Object.assign(o, tweak[m.name] || {});
+    return new THREE.MeshPhongMaterial(o);
+  }));
+  const g = new THREE.Group(), door = new THREE.Group();
+  if (doorPivot) { door.position.copy(doorPivot); g.add(door); }
+  for (const m of P.meshes) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(dec(m.pos, Float32Array), 3));
+    geo.setAttribute("normal", new THREE.BufferAttribute(dec(m.nor, Float32Array), 3));
+    geo.setAttribute("uv", new THREE.BufferAttribute(dec(m.uv, Float32Array), 2));
+    geo.setIndex(new THREE.BufferAttribute(dec(m.idx, m.i32 ? Uint32Array : Uint16Array), 1));
+    const mesh = new THREE.Mesh(geo, mats[m.mat]);
+    if (m.door && doorPivot) { mesh.position.copy(doorPivot).negate(); door.add(mesh); } else g.add(mesh);
+  }
+  return { group: g, door };
+}
+
 function buildStreet() {
   disposeStreet();
   const M = streetAssets();
@@ -1117,24 +1144,38 @@ function buildStreet() {
   // Fen İşleri kulübesi (eski yerel koordinatlarla kurulur, grup döndürülür)
   const hut = new THREE.Group(); hut.rotation.y = HUT_FRAME.rot; st.add(hut);
   const p0 = hutP(0, 0, 0); hut.position.set(p0.x, HUT.floor, p0.z);
-  const cx = (HUT.x0 + HUT.x1) / 2, cz = (HUT.z0 + HUT.z1) / 2, W = HUT.x1 - HUT.x0, D = HUT.z1 - HUT.z0, H = HUT.h, t = 0.06;
-  box(W, H, t, M.hut, cx, H / 2, HUT.z0 + t / 2, hut);                     // arka
-  box(t, H, D, M.hut, HUT.x0 + t / 2, H / 2, cz, hut);                     // sol
-  box(t, H, D, M.hut, HUT.x1 - t / 2, H / 2, cz, hut);                     // sağ
-  // ön duvar: pencere (-14.9..-14.1, y 1.0..1.9) ve kapı (-13.7..-12.9, y 0..2.0)
-  const fz = HUT.z1 - t / 2;
-  box(0.3, H, t, M.hut, -15.05, H / 2, fz, hut);
-  box(0.8, 1.0, t, M.hut, -14.5, 0.5, fz, hut); box(0.8, 0.6, t, M.hut, -14.5, 2.2, fz, hut);
-  box(0.4, H, t, M.hut, -13.9, H / 2, fz, hut);
-  box(0.9, 0.5, t, M.hut, -13.25, 2.25, fz, hut);
-  const glass = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.9), M.glass); glass.position.set(-14.5, 1.45, fz); hut.add(glass);
-  box(W + 0.3, 0.08, D + 0.4, M.hut, cx, H + 0.04, cz + 0.1, hut);          // çatı
-  box(W - 0.1, 0.03, D - 0.1, M.lino, cx, 0.015, cz, hut);                  // zemin
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 0.35), M.sign); sign.position.set(-14.1, 2.32, HUT.z1 + 0.01); hut.add(sign);
-  // kapı: menteşe sağda, dışarı açılır
-  const door = new THREE.Group(); door.position.set(-12.9, 0, HUT.z1 - 0.03); hut.add(door);
-  box(0.78, 1.98, 0.04, M.door, -0.4, 0.99, 0, door);
-  box(0.04, 0.03, 0.14, M.dark, -0.7, 1.0, 0, door);   // kol
+  const cx = (HUT.x0 + HUT.x1) / 2, cz = (HUT.z0 + HUT.z1) / 2, W = HUT.x1 - HUT.x0, D = HUT.z1 - HUT.z0, t = 0.06;
+  // Sketchfab kulübe modeli (CC BY, castleonsandYT): kapı sağ duvarda (+x), menteşe ön köşede, dışarı açılır.
+  // Model yoksa eski kutu kulübe kurulur.
+  const KM = buildModel("kulube", { doorPivot: new THREE.Vector3(0.895, 0, 0.795),
+    tweak: { Glass: { opacity: 0.55 }, Light: { emissive: 0xffd9a0, emissiveIntensity: 0.9 } } });
+  let door, H, IN;   // H: iç tavan yüksekliği, IN: iç duvar yüzleri
+  if (KM) {
+    KM.group.scale.setScalar(1.2); KM.group.position.set(-13.976, -0.19, -4.176); hut.add(KM.group);
+    door = KM.door; door.userData.dir = -1;
+    H = 2.15; IN = { x0: -15.15, x1: -12.82, z0: -5.34, z1: -3.05 };
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.22), M.sign); sign.position.set(-14.2, 2.14, -2.985); hut.add(sign);
+    const porch = new THREE.PointLight(0xffc887, 0.35, 3.2, 2); porch.position.set(-12.6, 2.05, -3.62); hut.add(porch);   // kapı üstü lamba
+  } else {
+    H = HUT.h; IN = { x0: HUT.x0 + t, x1: HUT.x1 - t, z0: HUT.z0 + t, z1: HUT.z1 - t };
+    box(W, H, t, M.hut, cx, H / 2, HUT.z0 + t / 2, hut);                     // arka
+    box(t, H, D, M.hut, HUT.x0 + t / 2, H / 2, cz, hut);                     // sol
+    box(t, H, D, M.hut, HUT.x1 - t / 2, H / 2, cz, hut);                     // sağ
+    // ön duvar: pencere (-14.9..-14.1, y 1.0..1.9) ve kapı (-13.7..-12.9, y 0..2.0)
+    const fz = HUT.z1 - t / 2;
+    box(0.3, H, t, M.hut, -15.05, H / 2, fz, hut);
+    box(0.8, 1.0, t, M.hut, -14.5, 0.5, fz, hut); box(0.8, 0.6, t, M.hut, -14.5, 2.2, fz, hut);
+    box(0.4, H, t, M.hut, -13.9, H / 2, fz, hut);
+    box(0.9, 0.5, t, M.hut, -13.25, 2.25, fz, hut);
+    const glass = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.9), M.glass); glass.position.set(-14.5, 1.45, fz); hut.add(glass);
+    box(W + 0.3, 0.08, D + 0.4, M.hut, cx, H + 0.04, cz + 0.1, hut);          // çatı
+    box(W - 0.1, 0.03, D - 0.1, M.lino, cx, 0.015, cz, hut);                  // zemin
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 0.35), M.sign); sign.position.set(-14.1, 2.32, HUT.z1 + 0.01); hut.add(sign);
+    // kapı: menteşe sağda, dışarı açılır
+    door = new THREE.Group(); door.userData.dir = 1; door.position.set(-12.9, 0, HUT.z1 - 0.03); hut.add(door);
+    box(0.78, 1.98, 0.04, M.door, -0.4, 0.99, 0, door);
+    box(0.04, 0.03, 0.14, M.dark, -0.7, 1.0, 0, door);   // kol
+  }
   // masa, telefon, termos, bardak
   box(0.6, 0.04, 1.4, M.wood, -14.85, 0.75, -4.4, hut);
   for (const [x, z] of [[-15.1, -5.05], [-14.6, -5.05], [-15.1, -3.75], [-14.6, -3.75]]) box(0.04, 0.73, 0.04, M.wood, x, 0.365, z, hut);
@@ -1170,20 +1211,31 @@ function buildStreet() {
   box(0.42, 0.04, 0.42, M.chair, -13.75, 0.45, -4.3, hut);
   box(0.04, 0.45, 0.4, M.chair, -13.53, 0.72, -4.3, hut);
   for (const [x, z] of [[-13.95, -4.1], [-13.95, -4.5], [-13.55, -4.1], [-13.55, -4.5]]) box(0.03, 0.45, 0.03, M.dark, x, 0.225, z, hut);
-  // arka duvarda raf: klasörler, baret
-  box(0.7, 0.025, 0.22, M.wood, -13.35, 1.75, HUT.z0 + 0.17, hut);
-  const bd = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.26), M.binders); bd.position.set(-13.5, 1.895, HUT.z0 + 0.25); hut.add(bd);
-  box(0.42, 0.26, 0.18, M.dark, -13.5, 1.895, HUT.z0 + 0.16, hut);
-  const hat = new THREE.Mesh(new THREE.SphereGeometry(0.12, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), M.hardhat); hat.position.set(-13.13, 1.765, HUT.z0 + 0.17); hut.add(hat);
-  box(0.28, 0.01, 0.28, M.hardhat, -13.13, 1.77, HUT.z0 + 0.17, hut).scale.set(1, 1, 0.85);
+  // arka duvarda raf: klasörler, baret (modelde arka duvar camlı: raf pencerenin altına iner)
+  const sy = KM ? 0.8 : 1.75;
+  box(0.7, 0.025, 0.22, M.wood, -13.35, sy, IN.z0 + 0.11, hut);
+  const bd = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.26), M.binders); bd.position.set(-13.5, sy + 0.145, IN.z0 + 0.19); hut.add(bd);
+  box(0.42, 0.26, 0.18, M.dark, -13.5, sy + 0.145, IN.z0 + 0.10, hut);
+  const hat = new THREE.Mesh(new THREE.SphereGeometry(0.12, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), M.hardhat); hat.position.set(-13.13, sy + 0.015, IN.z0 + 0.11); hut.add(hat);
+  box(0.28, 0.01, 0.28, M.hardhat, -13.13, sy + 0.02, IN.z0 + 0.11, hut).scale.set(1, 1, 0.85);
   // elektrikli soba (kızgın teller)
-  box(0.36, 0.42, 0.12, M.dark, -13.15, 0.21, HUT.z0 + 0.15, hut);
-  for (let i = 0; i < 3; i++) box(0.28, 0.018, 0.01, M.heaterGlow, -13.15, 0.12 + i * 0.1, HUT.z0 + 0.215, hut);
-  const heatLight = new THREE.PointLight(0xff5a1e, 0.5, 2.2, 1.6); heatLight.position.set(-13.15, 0.3, HUT.z0 + 0.45); hut.add(heatLight);
+  box(0.36, 0.42, 0.12, M.dark, -13.15, 0.21, IN.z0 + 0.09, hut);
+  for (let i = 0; i < 3; i++) box(0.28, 0.018, 0.01, M.heaterGlow, -13.15, 0.12 + i * 0.1, IN.z0 + 0.155, hut);
+  const heatLight = new THREE.PointLight(0xff5a1e, 0.5, 2.2, 1.6); heatLight.position.set(-13.15, 0.3, IN.z0 + 0.39); hut.add(heatLight);
   // duvarda takvim (14 Ekim işaretli), saat (23:52), yedek yelek
-  const cal = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.55), M.calendar); cal.position.set(-14.25, 1.55, HUT.z0 + t + 0.005); hut.add(cal);
-  const clk = new THREE.Mesh(new THREE.CircleGeometry(0.16, 20), M.clock); clk.rotation.y = Math.PI / 2; clk.position.set(HUT.x0 + t + 0.005, 1.9, -4.75); hut.add(clk);
-  const vest = new THREE.Mesh(new THREE.PlaneGeometry(0.45, 0.65), M.vest); vest.rotation.y = -Math.PI / 2; vest.position.set(HUT.x1 - t - 0.01, 1.35, -4.8); hut.add(vest);
+  const cal = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.55), M.calendar);
+  const clk = new THREE.Mesh(new THREE.CircleGeometry(0.16, 20), M.clock);
+  const vest = new THREE.Mesh(new THREE.PlaneGeometry(0.45, 0.65), M.vest);
+  if (KM) {   // modelde duvarların çoğu cam: takvim ön köşe direğinde, saat dolabın üstünde, yelek sandalyede
+    cal.rotation.y = Math.PI; cal.position.set(-13.05, 1.5, IN.z1 - 0.005);
+    clk.scale.setScalar(0.8); clk.position.set(...CLOCK_POS); clk.position.z = IN.z0 + 0.005;
+    vest.rotation.y = Math.PI / 2; vest.scale.setScalar(0.85); vest.position.set(-13.505, 0.78, -4.3);
+  } else {
+    cal.position.set(-14.25, 1.55, HUT.z0 + t + 0.005);
+    clk.rotation.y = Math.PI / 2; clk.position.set(HUT.x0 + t + 0.005, 1.9, -4.75);
+    vest.rotation.y = -Math.PI / 2; vest.position.set(HUT.x1 - t - 0.01, 1.35, -4.8);
+  }
+  hut.add(cal, clk, vest);
   // tavan ampulü
   box(0.01, 0.2, 0.01, M.dark, -14.1, H - 0.1, -4.25, hut);
   const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), M.bulb); bulb.position.set(-14.1, H - 0.24, -4.25); hut.add(bulb);
@@ -1801,9 +1853,17 @@ const CAM_HUT = {
   look: [[0, -14.55, 1.25, -2.0], [2.6, -14.4, 1.2, -2.1], [3.6, -14.85, 0.95, -4.55], [5.6, -14.85, 0.95, -4.55], [6.8, -14.9, 1.95, -4.75]],
 };
 // konuşma sırasında bakılan yerler (replik sırasına göre): saat, pencereden sokak, masa
-const CALL_LOOK = [[-15.2, 2.0, -4.75], [-15.2, 2.0, -4.75], [-14.6, 1.6, -5.3], [-14.5, 1.55, -2.2], [-14.3, 1.5, -1.2], [-14.6, 1.6, -5.3], [-14.75, 0.9, -4.0], [-14.75, 0.9, -4.0], [-14.85, 0.95, -4.55]];
+// Sketchfab kulübe modeli varsa (modeller.js) kapı sağ duvarda, saat dolabın üstünde durur
+const HUT_MODEL = !!(window.MODELLER && window.MODELLER.kulube);
+const CLOCK_POS = HUT_MODEL ? [-14.95, 1.99, -5.34] : [-15.2, 2.0, -4.75];
+const CALL_LOOK = [CLOCK_POS, CLOCK_POS, [-14.6, 1.6, -5.3], [-14.5, 1.55, -2.2], [-14.3, 1.5, -1.2], [-14.6, 1.6, -5.3], [-14.75, 0.9, -4.0], [-14.75, 0.9, -4.0], [-14.85, 0.95, -4.55]];
 // kulübeden çıkış ve kamyonete yürüyüş (kulübe çerçevesinde; son nokta kamyonetin kapısı)
-const CAM_EXIT = {
+const CAM_EXIT = HUT_MODEL ? {
+  // sandalyeden kalk, sağ duvardaki kapıya dön, dışarı çık, açık kanadın ucundan dolanıp kamyonete yürü
+  pos: [[0, -14.1, SIT - 0.03, -4.38], [1.4, -14.1, SIT - 0.03, -4.38], [2.6, -13.7, STAND, -4.0], [3.4, -13.3, STAND, -3.7], [4.4, -13.25, STAND, -3.66],
+    [5.6, -12.3, STAND, -3.62], [6.4, -11.85, STAND, -3.3], [7.8, -12.55, STAND, -2.05]],
+  look: [[0, -14.85, 0.95, -4.55], [1.4, -14.85, 0.95, -4.55], [2.6, -12.8, 1.7, -3.66], [4.4, -12.2, 1.6, -3.66], [5.6, -11.5, 1.4, -3.2], [6.4, -12.0, 1.3, -2.0], [7.8, -12.0, 1.0, -0.6]],
+} : {
   pos: [[0, -14.1, SIT - 0.03, -4.38], [1.4, -14.1, SIT - 0.03, -4.38], [2.6, -13.7, STAND, -4.1], [3.4, -13.3, STAND, -4.05], [4.4, -13.3, STAND, -3.95],
     [6.0, -13.3, STAND, -2.55], [7.8, -12.55, STAND, -2.05]],
   look: [[0, -14.85, 0.95, -4.55], [1.4, -14.85, 0.95, -4.55], [2.6, -13.3, 1.7, -3.1], [4.4, -13.3, 1.6, -2.0], [6.0, -12.6, 1.4, -1.0], [7.8, -12.0, 1.0, -0.6]],
@@ -1935,7 +1995,7 @@ function introUpdate(dt) {
     if (!I.hung && t >= 1.2) { I.hung = true; sfxClick(700, 0.35, 0.06); }
     // kapı
     if (!I.doorSnd && t >= 3.5) { I.doorSnd = true; if (!playSfxFile("kapi", 0.8)) sfxCreak(); }
-    R.door.rotation.y = 1.7 * smooth(clamp((t - 3.5) / 1.0, 0, 1));
+    R.door.rotation.y = R.door.userData.dir * (R.door.userData.dir < 0 ? 1.4 : 1.7) * smooth(clamp((t - 3.5) / 1.0, 0, 1));
     walkFx(I, prev);
     if (t >= CAM_EXIT.pos[CAM_EXIT.pos.length - 1][0]) { I.phase = "getin"; I.t = 0; S.roll = 0; }
     return;

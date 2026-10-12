@@ -20,6 +20,7 @@ WASD yürü (açılışta kamyoneti sürer: W gaz, S fren/geri, A D direksiyon) 
 | `serve.ps1` | Yerel test sunucusu (PowerShell) |
 | `SESLENDIRME.md` | Seslendirme metni: karakterler, ses yönü, dosya adları |
 | `dokular.js`, `dokular/` | Flow ile üretilen doku görselleri (duvar, tavan, asfalt, kulübe duvarı, torpido, kapı paneli, cam damlaları). `dokular.js` aynı görsellerin gömülü hâli; çift tıklayınca (file://) da çalışsın diye. Dosya yoksa oyun kodla çizilen dokulara döner. |
+| `modeller.js` | Sketchfab'dan alınan 3B modellerin gömülü hâli (şimdilik bekçi kulübesi). Dosya yoksa oyun kodla kurulan kulübeye döner. |
 | `ses/` | Seslendirme ve efekt mp3'leri: `yagmur.mp3` hazır; `zil.mp3`, `kapi.mp3`, `yaklasma.mp3` isteğe bağlı (yoksa kodla üretilen ses çalar) |
 
 ## Ayarlar
@@ -52,3 +53,7 @@ Kasetler `TAPES` listesindedir; `src` alanına video dosyası yazılırsa (ör. 
 ## Ses kaynakları
 
 - `ses/yagmur.mp3`: Pixabay, liecio, "Calming Rain" (Pixabay İçerik Lisansı). Döngü için 58 sn'ye kısaltıldı.
+
+## Model kaynakları
+
+- Bekçi kulübesi: "Guard Booth with interior", castleonsandYT, CC BY 4.0. https://sketchfab.com/3d-models/guard-booth-with-interior-181cd7b921c14f70ba5b64d3f4fdd8db (oyun için küçültülmüş dokular, kapı ayrı parça).
