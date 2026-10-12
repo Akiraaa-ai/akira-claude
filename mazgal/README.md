@@ -18,6 +18,8 @@ WASD yürü · Shift koş · F fener · Fare bak · Boşluk sinematiği/kaseti a
 | `index.html` | Oyunun tamamı (HTML + CSS + JS, tek dosya) |
 | `GDD.md` | Oyun tasarım dokümanı: hikâye, yaratık, ipucu zinciri, final, sistem sırası |
 | `serve.ps1` | Yerel test sunucusu (PowerShell) |
+| `SESLENDIRME.md` | Seslendirme metni: karakterler, ses yönü, dosya adları |
+| `ses/` | Seslendirme mp3'leri (yoksa tarayıcı sesi kullanılır) |
 
 ## Ayarlar
 
@@ -33,6 +35,8 @@ WASD yürü · Shift koş · F fener · Fare bak · Boşluk sinematiği/kaseti a
 - **Fener ve pil, karanlık bölgeler, yaratık, kasetler, ses:** ayrıntılar `GDD.md` içinde.
 - **Açılış sinematiği:** daktilo yazısı → kuyudan düşüş → karartma → yerde uyanma.
 - **Duvar yazıları:** canvas ile boyanmış yarı saydam paneller; ilki başlangıçta görüş alanına, diğerleri uzağa ve aralıklı yerleşir (`WALL_TEXTS`).
+
+Seslendirme: `ses/` klasörüne `SESLENDIRME.md`'deki adlarla mp3 konursa kasetler ve Selim'in replikleri o kayıtlarla çalar. `serve.ps1` ile açınca kayda bodycam mikrofonu filtresi ve oda yankısı eklenir.
 
 Kasetler `TAPES` listesindedir; `src` alanına video dosyası yazılırsa (ör. `kasetler/mehmet.mp4`) altyazılı ses yerine o video oynar.
 

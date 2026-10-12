@@ -1,0 +1,3 @@
+Seslendirme dosyalarını (mp3) bu klasöre koyun.
+Dosya adları ve replikler için bir üst klasördeki SESLENDIRME.md dosyasına bakın.
+Örnek: mehmet_01.mp3, ayse_03.mp3, selim_giris_01.mp3, selim_neredeyim.mp3
