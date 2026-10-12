@@ -129,7 +129,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
 <script src="dokular.js"></script>
-<script src="modeller.js?v=3"></script>
+<script src="modeller.js?v=4"></script>
 <script>
 "use strict";
 
@@ -1098,7 +1098,7 @@ const CAR_SEAT = new THREE.Vector3(-0.38, 1.22, 0.2);   // sürücü (araç yere
 
 // modeller.js paketinden mesh grubu kurar. Kapı parçaları ayrı bir menteşe grubunda döner.
 const MODEL_MATS = {}, MODEL_GEOS = {};
-// only: yalnız o parçayı kur (paketteki "part" adı). glow: dokuyu karanlıkta hafif parlatır.
+// only: yalnız o parça(lar)ı kur (paketteki "part" adı ya da ad listesi). glow: dokuyu karanlıkta hafif parlatır.
 function buildModel(key, { doorPivot = null, tweak = {}, only = null } = {}) {
   const P = window.MODELLER && window.MODELLER[key]; if (!P) return null;
   const dec = (b64, T) => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new T(u.buffer); };
@@ -1115,7 +1115,7 @@ function buildModel(key, { doorPivot = null, tweak = {}, only = null } = {}) {
   const g = new THREE.Group(), door = new THREE.Group(), parts = {};
   if (doorPivot) { door.position.copy(doorPivot); g.add(door); }
   P.meshes.forEach((m, i) => {
-    if (only && m.part !== only) return;
+    if (only && (Array.isArray(only) ? !only.includes(m.part) : m.part !== only)) return;
     const geo = MODEL_GEOS[key + i] || (MODEL_GEOS[key + i] = (() => {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute("position", new THREE.BufferAttribute(dec(m.pos, Float32Array), 3));
@@ -1159,7 +1159,8 @@ function buildStreet() {
   walk(X0, X1, 3.5, 8.5); curb(X0, X1, 3.41, 3.59);
   walk(-56.5, -51.5, Z0, -8.5); curb(-56.59, -56.41, Z0, -3.5);
   walk(-68.5, -63.5, Z0, -8.5); curb(-63.59, -63.41, Z0, -3.5);
-  // binalar
+  // binalar: caddeye bakan bitişik alçak dükkânlar (street city 7, Türkçe tabelalar), arkalarında kuleler.
+  // Model paketi yoksa eski kutu cepheler kurulur.
   const row = (a0, a1, along, depthAt, horizontal) => {
     let a = a0;
     while (a < a1) {
@@ -1172,33 +1173,72 @@ function buildStreet() {
       a += w;
     }
   };
-  if (window.MODELLER && window.MODELLER.sokak) {
-    // Sketchfab apartman blokları (dasy444): kaldırım çizgisine dizilir, aralarda dar boşluk.
-    // Ana caddede yalnız alçak blok yan yatırılır (derinlik 18), ara sokak sıraları köşeden sonra başlar.
-    const tw = (part, x, z, ry) => { const b = buildModel("sokak", { only: part, tweak: { "*": { glow: 0.09 } } }); b.group.position.set(x, 0, z); b.group.rotation.y = ry; st.add(b.group); };
-    const BL = window.MODELLER.sokak.parts.blok, KU = window.MODELLER.sokak.parts.kule;
-    const along = (a0, a1, front, dir, horizontal, shallow) => {
-      let a = a0;
-      while (a < a1 - 8) {
-        const tall = !shallow && rand(0, 1) < 0.45;
-        const P = tall ? KU : BL, wide = P[1][0] - P[0][0], deep = P[1][2] - P[0][2];
-        // sığ sıra: bloğun uzun yüzü caddeye (genişlik 30, derinlik 18); diğerlerinde dar yüz caddeye
-        const w = shallow ? deep : wide, d = shallow ? wide : deep;
-        if (a + w > a1 + 2) break;
-        const c = a + w / 2, off = front + dir * d / 2;
-        if (horizontal) tw(tall ? "kule" : "blok", c, off, shallow ? Math.PI / 2 : 0);
-        else tw(tall ? "kule" : "blok", off, c, shallow ? 0 : Math.PI / 2);
-        a += w + rand(2, 5);
+  const DK = window.MODELLER && window.MODELLER.dukkan, SK = window.MODELLER && window.MODELLER.sokak;
+  if (DK) {
+    const used = [];   // kaplanan taban dikdörtgenleri [x0, z0, x1, z1]; çakışan bina konmaz
+    const free = (r) => used.every((u) => r[0] >= u[2] - 0.01 || r[2] <= u[0] + 0.01 || r[1] >= u[3] - 0.01 || r[3] <= u[1] + 0.01);
+    // f: cephe sırası. h: x boyunca mı, line: cephe çizgisi, face: cephenin baktığı yön (+1/-1).
+    // Modelde cephe +z'ye bakar, gövde -z'dedir; dönüş buna göre seçilir.
+    const put = (key, part, f, a, back = 0) => {
+      const B = window.MODELLER[key].parts[part], w = B[1][0] - B[0][0];
+      const d0 = key === "sokak" ? (B[1][2] - B[0][2]) / 2 : 0, d1 = key === "sokak" ? d0 * 2 : -B[0][2];
+      const n = f.line - f.face * (back + d0), far = f.line - f.face * (back + d1), near = f.line - f.face * back;
+      const r = f.h ? [a - w / 2, Math.min(near, far), a + w / 2, Math.max(near, far)] : [Math.min(near, far), a - w / 2, Math.max(near, far), a + w / 2];
+      // cephe çıkıntısı (tente, tabela) kulübeye değmesin
+      const out = key === "dukkan" ? f.line + f.face * B[1][2] : f.line;
+      const q = f.h ? [a - w / 2, Math.min(f.line, out), a + w / 2, Math.max(f.line, out)] : [Math.min(f.line, out), a - w / 2, Math.max(f.line, out), a + w / 2];
+      const HUTZ = [-56.5, -46, -51.5, -34];
+      if (!free(r) || (B[1][2] > 0.6 && !(q[0] >= HUTZ[2] || q[2] <= HUTZ[0] || q[1] >= HUTZ[3] || q[3] <= HUTZ[1]))) return false;
+      used.push(r);
+      const b = buildModel(key, { only: part, tweak: { "*": { glow: key === "sokak" ? 0.09 : 0.11 } } });
+      b.group.position.set(f.h ? a : n, 0, f.h ? n : a);
+      b.group.rotation.y = f.h ? (f.face > 0 ? 0 : Math.PI) : (f.face > 0 ? Math.PI / 2 : -Math.PI / 2);
+      st.add(b.group); return true;
+    };
+    const SHOPS = ["d1", "d2", "d3", "d4", "d5", "d6", "d8"], WEIGHT = [3, 3, 3, 2, 3, 2, 1.4];
+    const wOf = (p) => DK.parts[p][1][0] - DK.parts[p][0][0];
+    const pickShop = (last) => {
+      for (;;) {
+        let r = rand(0, WEIGHT.reduce((s, v) => s + v, 0)), i = 0;
+        while (r > WEIGHT[i]) r -= WEIGHT[i++];
+        if (SHOPS[i] !== last) return SHOPS[i];
       }
     };
-    along(-51.5, X1, -8.5, -1, true, true); along(X0, -68.5, -8.5, -1, true, true); along(X0, X1, 8.5, 1, true, false);
-    along(Z0, -28, -51.5, 1, false, false); along(Z0, -28, -68.5, -1, false, false);
+    const shops = (f) => {
+      let a = f.a0, last = null;
+      while (a < f.a1 - 4) {
+        // önce rastgele seçilen, sığmazsa diğerleri denenir; hiçbiri olmazsa 1 m ilerlenir
+        const first = pickShop(last), fit = SHOPS.filter((q) => a + wOf(q) <= f.a1);
+        if (!fit.length) break;
+        const tries = (fit.includes(first) ? [first] : []).concat(fit.filter((q) => q !== first && q !== last).sort(() => Math.random() - 0.5));
+        const p = tries.find((q) => put("dukkan", q, f, a + wOf(q) / 2));
+        if (p) { a += wOf(p) + 0.08; last = p; } else a += 1;
+      }
+    };
+    const towers = (f) => {
+      if (!SK) return;
+      let a = f.a0 + rand(0, 6);
+      while (a < f.a1) {
+        const p = rand(0, 1) < 0.5 ? "kule" : "blok", B = SK.parts[p], w = B[1][0] - B[0][0];
+        put("sokak", p, f, a + w / 2, rand(14, 19));
+        a += w + rand(3, 9);
+      }
+    };
+    const FRONTS = [
+      { h: true, line: -8.5, face: 1, a0: -51.5, a1: 52 },      // ana cadde güney, kavşağın doğusu
+      { h: true, line: -8.5, face: 1, a0: -118, a1: -68.5 },    // ana cadde güney, kavşağın batısı
+      { h: true, line: 8.5, face: -1, a0: -118, a1: 52 },       // ana cadde kuzey
+      { h: false, line: -51.5, face: -1, a0: -104, a1: -8.5 },  // ara sokak doğu (kulübe önünde)
+      { h: false, line: -68.5, face: 1, a0: -104, a1: -8.5 },   // ara sokak batı
+      { h: true, line: -106, face: 1, a0: -68.5, a1: -51.5 },   // ara sokağın kuzey ucu
+    ];
+    FRONTS.forEach(shops); FRONTS.slice(0, 5).forEach(towers);
   } else {
     row(-51.5, X1, 0, -8.5, true); row(X0, -68.5, 0, -8.5, true); row(X0, X1, 0, 8.5, true);
     row(Z0, -8.5, 0, -51.5, false); row(Z0, -8.5, 0, -68.5, false);
+    // ara sokağın kuzey ucu: kapalı (duvar)
+    box(18, 10, 2, pick(M.facades), -60, 5, Z0 - 1);
   }
-  // ara sokağın kuzey ucu: kapalı (duvar)
-  box(18, 10, 2, pick(M.facades), -60, 5, Z0 - 1);
 
   // mazgal: beton çerçeve, kenara çekilmiş ızgara, devrilmiş koni
   for (const [w, d, x, z] of [[1.9, 0.15, 0, -0.875], [1.9, 0.15, 0, 0.875], [0.15, 1.6, -0.875, 0], [0.15, 1.6, 0.875, 0]]) box(w, 0.03, d, M.concrete, x, 0.015, z);
@@ -1216,24 +1256,38 @@ function buildStreet() {
   }
   box(0.36, 0.035, 0.36, M.cone, 0, -0.245, 0, cone);
 
-  // sokak lambaları: birkaçı gerçek ışık, diğerleri yalnızca parlayan baş + yerde ışık lekesi
+  // sokak lambaları (street city 7 modeli; yoksa kutu): birkaçı gerçek ışık, diğerleri yalnızca parlayan baş + yerde ışık lekesi
   const lamps = [];
   const addLamp = (x, z, dx, dz, on, intensity = 0) => {
-    box(0.14, 6, 0.14, M.pole, x, 3, z);
-    box(0.08 + Math.abs(dx) * 1.22, 0.08, 0.08 + Math.abs(dz) * 1.22, M.pole, x + dx * 0.65, 5.95, z + dz * 0.65);
-    const hx = x + dx * 1.25, hz = z + dz * 1.25;
-    const head = box(0.5, 0.12, 0.5, on ? M.lampOn.clone() : M.dark, hx, 5.88, hz);
+    let head, hx = x + dx * 1.25, hz = z + dz * 1.25, hy = 5.6;
+    if (DK) {
+      const b = buildModel("dukkan", { only: ["lamba", "lambaCam"], tweak: { "*": { glow: 0.11 } } });
+      b.group.position.set(x, 0, z); b.group.rotation.y = Math.atan2(-dz, dx); st.add(b.group);
+      head = b.parts.lambaCam[0]; head.material = on ? M.lampOn.clone() : M.dark;
+      const L = DK.parts.lambaCam, r = (L[0][0] + L[1][0]) / 2;
+      hx = x + dx * r; hz = z + dz * r; hy = L[0][1] - 0.2;
+    } else {
+      box(0.14, 6, 0.14, M.pole, x, 3, z);
+      box(0.08 + Math.abs(dx) * 1.22, 0.08, 0.08 + Math.abs(dz) * 1.22, M.pole, x + dx * 0.65, 5.95, z + dz * 0.65);
+      head = box(0.5, 0.12, 0.5, on ? M.lampOn.clone() : M.dark, hx, 5.88, hz);
+    }
     let light = null;
-    if (on && intensity) { light = new THREE.PointLight(0xff9f52, intensity, 24, 1.2); light.position.set(hx, 5.6, hz); st.add(light); }
+    if (on && intensity) { light = new THREE.PointLight(0xff9f52, intensity, 24, 1.2); light.position.set(hx, hy, hz); st.add(light); }
     let glow = null;
     if (on) { glow = new THREE.Mesh(new THREE.CircleGeometry(5.5, 24), M.glow.clone()); glow.rotation.x = -Math.PI / 2; glow.position.set(hx, 0.02, hz); st.add(glow); }
     const l = { head, light, glow, base: intensity }; lamps.push(l); return l;
   };
   const mainLamp = addLamp(1.5, -3.8, 0, 1, true, 2.4);
-  addLamp(-60, -36, 1, 0, true, 0); addLamp(-51.9, -42, -1, 0, true, 1.6);       // kulübe önü
+  addLamp(-64.1, -36, 1, 0, true, 0); addLamp(-51.9, -42, -1, 0, true, 1.6);     // kulübe önü
   addLamp(-55.9, -6, -1, 0, true, 1.4);                                          // kavşak
   for (const [x, z, dx, dz, on] of [[-56.1, -70, -1, 0, true], [-63.9, -20, 1, 0, false], [-25, -3.9, 0, 1, true], [-40, 3.9, 0, -1, true], [-12, 3.9, 0, -1, false], [20, -3.9, 0, 1, true], [-85, 3.9, 0, -1, true], [-100, -3.9, 0, 1, false]])
     addLamp(x, z, dx, dz, on, 0);
+  // oluklu çöp kutuları: kaldırımlarda, kimi bordürde kimi duvar dibinde
+  if (DK) {
+    for (const [x, z, ry] of [[-3.2, -4.25, 0.4], [6.5, -7.9, 1.2], [-21, 7.8, 2.0], [-33.5, -4.3, 0.1], [-47, 4.3, 2.7], [-52.3, -14, 0.8], [-67.8, -27, 1.9], [-55.9, -51, 0.3], [-64.2, -60, 2.2], [-79, -7.8, 1.0], [14, 7.9, 0.6], [26, -4.3, 2.4]]) {
+      const b = buildModel("dukkan", { only: "cop", tweak: { "*": { glow: 0.11 } } }); b.group.position.set(x, 0.15, z); b.group.rotation.y = ry; st.add(b.group);
+    }
+  }
 
   // ay ışığı (soğuk, zayıf)
   const moon = new THREE.DirectionalLight(0x6b7ea6, 0.22); moon.position.set(-10, 20, 8); st.add(moon, moon.target);
