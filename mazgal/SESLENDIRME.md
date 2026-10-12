@@ -78,4 +78,37 @@ Genç kadın, hızlı ve fısıltılı konuşuyor, sanki biri duyacakmış gibi.
 | `kenan_03.mp3` | Biri buradan çıkmış. Eminim. Bir pano gördüm, kilitliydi. |
 | `kenan_04.mp3` | Şifreyi... şifre kasetteydi. Diğer kasette. Ben onu— |
 
+## Kaset 4 · Halil (2016)
+
+Belediye işçisi, 40'larında, Selim'le aynı işi yapmış. Sakin, biraz utangaç, köylü ağzı hafif. Kendini anlatırken resmî, sonlara doğru sesi kısılıyor. Son repliği bir isim fısıldar gibi, sanki dinleyenin kim olduğunu biliyormuş gibi söylemeli.
+
+| Dosya | Replik |
+| --- | --- |
+| `halil_01.mp3` | Belediyeden... Halil. Mazgalın kapağını kapatmaya gelmiştim. |
+| `halil_02.mp3` | Biri ihbar etmiş. Açık kalmış dediler. Kim açmış, söyleyen olmadı. |
+| `halil_03.mp3` | Düştüğüm delik kapandı. Arkamdan. Yukarı baktım, tavan vardı. |
+| `halil_04.mp3` | Selim'e söyleyin... gelmesin. |
+
+## Kaset 5 · Zeynep (2024)
+
+20'lerinin ortası, uzun süredir içeride, artık panik yok, tuhaf bir sakinlik var. Kısık sesle, kelimeleri tartarak konuşuyor, arada uzun susmalar. Kayıt yapıyor ama kendine not alır gibi.
+
+| Dosya | Replik |
+| --- | --- |
+| `zeynep_01.mp3` | Gün... sanırım dokuz. Uyuduğum yere işaret koyuyorum. |
+| `zeynep_02.mp3` | Uyandığımda işaretler başka duvardaydı. |
+| `zeynep_03.mp3` | Pil bulunca sevinmeyin. Hep karanlığın içine bırakılmış oluyor. |
+| `zeynep_04.mp3` | Ben artık feneri yakmıyorum. Dinliyorum. Kapatınca daha iyi duyuluyor. |
+
+## Kaset 6 · Selim (14.10.2026)
+
+Oyuncunun kendisi. Açılıştaki Selim'in sesiyle aynı kişi, ama çok yorgun, sesi çatlamış, belki günlerdir konuşmamış. Oyuncu bu kaseti bulunca kendi sesini duyduğunu anlamalı. Bağırma yok. Son replik bir rica gibi.
+
+| Dosya | Replik |
+| --- | --- |
+| `selim_kaset_01.mp3` | Kaç kere düştüm bilmiyorum. Saat yine sıfırda. |
+| `selim_kaset_02.mp3` | Pano çıkışın yanında değil. Çıkış... panonun arkasında. |
+| `selim_kaset_03.mp3` | Şifreyi unutmayın. Kameraya bakın. Tarih hiç değişmiyor. |
+| `selim_kaset_04.mp3` | Telefon çalınca... açmayın. |
+
 Metni değiştirirseniz `index.html` içindeki `TAPES` ve `INTRO_CALL` listelerini de güncelleyin, altyazılar oradan gelir.

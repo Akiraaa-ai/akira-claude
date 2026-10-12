@@ -53,7 +53,7 @@ Davranış:
 
 ## İpuçları ve hikâye
 
-- **Kasetler:** Önceki girenlerin bodycam kayıtları (Mehmet, Ayşe, Kenan). Altyazılı ve sesli oynar, yaratıktan açıkça bahsetmez, sadece belirsiz uyarılar verir: "ışığı takip etmeyin", "ses kesilen yerde durun", "koşunca ayak seslerim çoğalıyor". Kayıt oynarken oyun durur.
+- **Kasetler:** Önceki girenlerin bodycam kayıtları (Mehmet 2019, Ayşe 2021, Kenan 2023, Halil 2016, Zeynep 2024) ve sonuncusu Selim'in kendi kaydı (14.10.2026). Halil de mazgalı kapatmaya gelmiş bir belediye işçisi; son sözü "Selim'e söyleyin... gelmesin." Selim'in kaseti döngüyü ve sonraki adımı açar: pano çıkışın önünde, şifre kameradaki tarih (14.10 → 1410), "telefon çalınca açmayın". Kasetler başlangıçtan giderek uzaklaşarak yerleşir, Selim'inki en uzaktadır. Altyazılı ve sesli oynar, yaratıktan açıkça bahsetmez, sadece belirsiz uyarılar verir: "ışığı takip etmeyin", "ses kesilen yerde durun", "koşunca ayak seslerim çoğalıyor". Kayıt oynarken oyun durur.
 - **Duvar yazıları:** Sürülmüş, akmış koyu boya. Uyanınca karşıdaki duvarda hep "IŞIĞI TAKİP ETME" yazar; Selim doğrulurken başını ona çevirir. Labirentte aralıklı 6 yazı daha: "KOŞMA", "SES KESİLİRSE DUR", "KARANLIKTA KIPIRDAMA", "KASETLERİ DİNLE", "SAYMAYI BIRAKTIM", "BURASI AYNI YER", çentik sayımı. Liste `WALL_TEXTS`, adet `CFG.wallTexts`.
 - **Planlanan ipucu zinciri:** duvar yazısı → kaset (çıkışın nerede olduğu ve şifre) → elektrik panosu → bulunan bodycam → harita parçası → çıkış.
 
@@ -64,7 +64,7 @@ Davranış:
 - [ ] Elektrik panosu ve şifre
 - [ ] Harita parçası
 - [ ] Çıkış ve final
-- [ ] Daha fazla kaset / bodycam kaydı
+- [x] Daha fazla kaset / bodycam kaydı (Halil, Zeynep, Selim)
 - [ ] İngilizce desteği
 
 ## Telif notu
