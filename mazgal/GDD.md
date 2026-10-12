@@ -18,7 +18,7 @@ Oyuncu izler, kontrol sonda gelir. Gece, yağmur yağıyor. Ekranda bodycam saat
 
 1. **Kulübe:** Selim, belediyenin Fen İşleri kulübesinde nöbette, sandalyede uyuklamış. Pencereden yağmurlu sokak görünür. Masadaki eski telefon çalar, Selim döner ve açar. Duvarda 23:52'yi gösteren saat ve 14 Ekim'i işaretli takvim.
 2. **Telefon:** Amiri arar: köşedeki mazgalın kapağı açık kalmış, biri ihbar etmiş, gidip kapatması lazım. Konuşmanın sonunda amir "içinden ses geliyormuş" der, bilmediğini söyleyip kapatır. Meşgul sesi.
-3. **Yürüyüş:** Selim ahizeyi kapatır, kalkar, kapıyı açıp yağmura çıkar. Kaldırımdan mazgala yürür. Kapak kenara çekilmiş, yanında devrilmiş bir koni var. "Kim açar bunu bu saatte..." Mazgalın yanındaki sokak lambası titremeye başlar.
+3. **Sürüş:** Selim ahizeyi kapatır, kapıdan çıkıp kulübenin önündeki belediye kamyonetine biner. Buradan oyuncu sürer (W gaz, S fren/geri, A D direksiyon, fare ile etrafa bakış). Ara sokaktan çıkıp kavşakta sola döner; ana caddede mazgala yaklaşınca kamyonet kendiliğinden yanaşıp durur. Silecekler, yağmur damlaları, motor sesi ve gösterge çalışır. Selim inip mazgala yürür: kapak kenara çekilmiş, yanında devrilmiş bir koni var. "Kim açar bunu bu saatte..." Mazgalın yanındaki sokak lambası titremeye başlar.
 4. **Mazgalın başı:** Aşağıdan vızıltı yükselir. Lamba söner, Selim feneri yakar, kuyuya eğilir: "...bu ses ne?" Kenar çöker.
 5. **Düşüş:** Beton kuyuda dönerek düşer, rüzgâr sesi ve parazit artar, aşağıda floresan ışığı belirir.
 6. **Çarpma:** Ağır bir çarpma sesi, kayıt kararır, kulak çınlaması. Bodycam saati 00:00:00'da donar ve oyun boyunca öyle kalır.
@@ -59,7 +59,7 @@ Davranış:
 
 ## Yapılacaklar (sırayla)
 
-- [x] Açılış sinematiği (kulübe, telefon, yağmurda yürüyüş, düşme)
+- [x] Açılış sinematiği (kulübe, telefon, kamyonetle sürüş, yağmurda yürüyüş, düşme)
 - [x] Duvar yazıları
 - [ ] Elektrik panosu ve şifre
 - [ ] Harita parçası
