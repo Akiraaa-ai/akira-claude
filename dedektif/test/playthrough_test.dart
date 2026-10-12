@@ -98,7 +98,7 @@ void main() {
     // Doğru ipucu çelişkiyi açar.
     await tap(t, find.descendant(of: q1, matching: find.text('İpucu sun')));
     await present(t, 'islak_semsiye');
-    expect(find.text('ÇELİŞKİ!'), findsOneWidget);
+    expect(find.text('YALAN SÖYLÜYORSUN!'), findsOneWidget);
     await tap(t, find.text('Devam'));
 
     final q2 = find.byKey(const ValueKey('question_s2'));

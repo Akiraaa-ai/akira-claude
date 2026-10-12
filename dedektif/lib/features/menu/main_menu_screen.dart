@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../../core/routes.dart';
 import '../../core/theme.dart';
+import '../../models/rank.dart';
+import '../../services/app_services.dart';
 import '../../services/audio_service.dart';
 import '../../widgets/case_image.dart';
 import '../../widgets/effects/ken_burns.dart';
@@ -81,6 +83,31 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     'Her ifade bir iz bırakır.',
                     style: Theme.of(context).textTheme.titleMedium
                         ?.copyWith(color: AppTheme.brass),
+                  ),
+                  const SizedBox(height: 20),
+                  ListenableBuilder(
+                    listenable: context.read<AppServices>().progress,
+                    builder: (context, _) {
+                      final stars = context
+                          .read<AppServices>()
+                          .progress
+                          .totalStars;
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.local_police_outlined,
+                            size: 18,
+                            color: Colors.white70,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Rütbe: ${DetectiveRank.forStars(stars).title} · $stars ★',
+                            style: const TextStyle(color: Colors.white70),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                   const Spacer(flex: 3),
                   FilledButton(

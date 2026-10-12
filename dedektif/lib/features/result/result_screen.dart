@@ -7,7 +7,9 @@ import '../../services/app_services.dart';
 import '../../widgets/case_image.dart';
 import '../../widgets/effects/ken_burns.dart';
 import '../../widgets/effects/screen_shake.dart';
+import '../../models/rank.dart';
 import '../../widgets/effects/typewriter_text.dart';
+import '../../widgets/star_row.dart';
 import '../game/game_controller.dart';
 
 class ResultSounds {
@@ -33,7 +35,13 @@ class _ResultScreenState extends State<ResultScreen> {
   List<String> get _paragraphs {
     if (_solved) return _game.data.solution.finale.paragraphs;
     final w = _game.data.wrongAnswer;
-    final culpritRight = _game.lastAccusation?.culpritCorrect ?? false;
+    final a = _game.lastAccusation;
+    final culpritRight = a?.culpritCorrect ?? false;
+    if (culpritRight && (a?.reasonCorrect ?? false)) {
+      return [
+        w.wrongEvidenceText ?? 'Kişi ve neden doğru, ama seçtiğin kanıtlar onu mahkûm ettirmeye yetmez. Yalanını hangi kanıtlar gösteriyor?',
+      ];
+    }
     if (culpritRight && w.wrongReasonText != null) return [w.wrongReasonText!];
     return w.paragraphs;
   }
@@ -143,9 +151,39 @@ class _SolvedSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = game.data.solution;
     final p = game.progress;
+    final a = game.lastAccusation;
+    final stars = a?.stars ?? p.bestStars ?? 0;
+    final total = context.read<AppServices>().progress.totalStars;
+    final rank = DetectiveRank.forStars(total);
+    final next = DetectiveRank.nextAfter(rank);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Center(child: StarRow(stars: stars, size: 48, animate: true)),
+        const SizedBox(height: 8),
+        if (a?.rankUp != null)
+          Text(
+            'Rütbe atladın: ${a!.rankUp!.title}!',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppTheme.brass,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          )
+        else
+          Text(
+            'Rütben: ${rank.title}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppTheme.brass, fontSize: 16),
+          ),
+        if (next != null)
+          Text(
+            '${next.title} rütbesine ${next.minStars - total} yıldız kaldı.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white54),
+          ),
+        const SizedBox(height: 12),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -160,6 +198,17 @@ class _SolvedSummary extends StatelessWidget {
                   '${p.contradictionIds.length}/${game.data.interrogations.where((q) => q.contradiction != null).length}',
                 ),
                 _Stat('Yanlış suçlama', '${p.wrongAttempts}'),
+                _Stat('Ceza puanı', '${p.penaltyPoints}'),
+                if (game.data.connections.isNotEmpty)
+                  _Stat(
+                    'Panodaki çıkarım',
+                    '${game.foundConnections.length}/${game.data.connections.length}',
+                  ),
+                if (game.data.timeline != null)
+                  _Stat(
+                    'Zaman çizelgesi',
+                    p.timelineSolved ? 'Tamam' : 'Eksik',
+                  ),
                 if (p.hintsUsed > 0)
                   _Stat('Kullanılan ipucu yardımı', '${p.hintsUsed}'),
               ],
@@ -221,6 +270,12 @@ class _WrongActions extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Text(
+          'Ceza puanı +${game.data.wrongAnswer.penaltyPoints} '
+          '(toplam ${game.progress.penaltyPoints})',
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: AppTheme.blood),
+        ),
         if (game.data.wrongAnswer.hintPenalty > 0)
           Text(
             'İpucu hakkın ${game.data.wrongAnswer.hintPenalty} eksildi. '

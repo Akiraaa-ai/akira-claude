@@ -8,7 +8,7 @@ import '../game/game_controller.dart';
 import '../game/game_routes.dart';
 import '../result/result_screen.dart';
 
-/// Suçlu seçimi: önce kim, sonra neden.
+/// Suçlu seçimi: kim, neden ve (vakada istenirse) hangi kanıtla.
 class AccusationScreen extends StatefulWidget {
   const AccusationScreen({super.key});
 
@@ -19,6 +19,7 @@ class AccusationScreen extends StatefulWidget {
 class _AccusationScreenState extends State<AccusationScreen> {
   String? _suspectId;
   String? _reasonId;
+  final Set<String> _evidence = {};
 
   late final GameController _game = context.read<GameController>();
   late final AudioService _audio = context.read<AudioService>();
@@ -59,7 +60,7 @@ class _AccusationScreenState extends State<AccusationScreen> {
       ),
     );
     if (ok != true || !mounted) return;
-    game.accuse(_suspectId!, _reasonId);
+    game.accuse(_suspectId!, _reasonId, _evidence);
     await GameRoutes.replace(context, const ResultScreen());
   }
 
@@ -67,7 +68,11 @@ class _AccusationScreenState extends State<AccusationScreen> {
   Widget build(BuildContext context) {
     final game = context.watch<GameController>();
     final reasons = game.data.solution.reasonOptions;
-    final ready = _suspectId != null && (reasons.isEmpty || _reasonId != null);
+    final rule = game.data.solution.evidence;
+    final ready =
+        _suspectId != null &&
+        (reasons.isEmpty || _reasonId != null) &&
+        (rule == null || _evidence.length == rule.pick);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Suçlu kim?')),
@@ -144,7 +149,43 @@ class _AccusationScreenState extends State<AccusationScreen> {
               ),
             ),
           ],
-          const SizedBox(height: 20),
+          if (rule != null) ...[
+            const SizedBox(height: 20),
+            Text(
+              '${reasons.isEmpty ? 2 : 3}. Kanıtın ne?',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Suçlamayı ispatlayan ${rule.pick} kanıt seç '
+              '(${_evidence.length}/${rule.pick}).',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 8),
+            for (final c in game.foundClues)
+              Card(
+                child: CheckboxListTile(
+                  key: ValueKey('evidence_${c.id}'),
+                  value: _evidence.contains(c.id),
+                  onChanged:
+                      _evidence.contains(c.id) || _evidence.length < rule.pick
+                      ? (v) => setState(
+                          () => v == true
+                              ? _evidence.add(c.id)
+                              : _evidence.remove(c.id),
+                        )
+                      : null,
+                  title: Text(c.title),
+                ),
+              ),
+          ],
+          const SizedBox(height: 12),
+          Text(
+            'Yanlış suçlama ceza puanı verir ve yıldızını düşürür.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppTheme.blood),
+          ),
+          const SizedBox(height: 12),
           FilledButton.icon(
             onPressed: ready ? _confirm : null,
             icon: const Icon(Icons.gavel),

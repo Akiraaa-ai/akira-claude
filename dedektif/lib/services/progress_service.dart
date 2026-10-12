@@ -36,6 +36,16 @@ class ProgressService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Tüm vakalarda kazanılan en iyi yıldızların toplamı (rütbe için).
+  int get totalStars {
+    final ids = {
+      ..._cache.keys,
+      for (final k in _prefs.getKeys())
+        if (k.startsWith('progress.')) k.substring('progress.'.length),
+    };
+    return ids.fold(0, (sum, id) => sum + (caseProgress(id).bestStars ?? 0));
+  }
+
   Set<String> get ownedPacks =>
       (_prefs.getStringList(_packsKey) ?? const []).toSet();
 

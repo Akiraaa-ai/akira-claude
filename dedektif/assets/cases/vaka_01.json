@@ -135,7 +135,8 @@
       },
       "title": "Kahve fincanı",
       "description": "Fincanın dibinde erimemiş küçük şeker taneleri var. Kahve yarıya kadar içilmiş. Not: Biri kahveye şeker atmış.",
-      "suspectIds": []
+      "suspectIds": [],
+      "needsMagnifier": true
     },
     {
       "id": "kahve_tepsisi",
@@ -341,6 +342,123 @@
       }
     }
   ],
+  "connections": [
+    {
+      "id": "b_zehir",
+      "clueIds": [
+        "kahve_fincani",
+        "sise_analizi"
+      ],
+      "deductionStep": 1
+    },
+    {
+      "id": "b_seker",
+      "clueIds": [
+        "kahve_fincani",
+        "mutfak_defteri"
+      ],
+      "deductionStep": 2
+    },
+    {
+      "id": "b_aliskanlik",
+      "clueIds": [
+        "mutfak_defteri",
+        "ilac_dolabi"
+      ],
+      "deductionStep": 3
+    },
+    {
+      "id": "b_oda",
+      "clueIds": [
+        "koridor_kamerasi",
+        "bahce_kamerasi"
+      ],
+      "deductionStep": 4
+    },
+    {
+      "id": "b_bilmiyor",
+      "clueIds": [
+        "ceket_cebi",
+        "kahve_fincani"
+      ],
+      "deductionStep": 5
+    }
+  ],
+  "timeline": {
+    "slots": [
+      "21:05",
+      "21:10",
+      "21:15",
+      "21:22",
+      "21:25",
+      "21:40"
+    ],
+    "events": [
+      {
+        "id": "t_arama",
+        "suspectId": "kerem",
+        "text": "Telefondaki son arama bitiyor.",
+        "time": "21:05",
+        "requiresClueIds": [
+          "telefon_kaydi"
+        ]
+      },
+      {
+        "id": "t_kahve",
+        "suspectId": "hasan",
+        "place": "Mutfak",
+        "text": "Kahveyi şekersiz hazırlıyor.",
+        "time": "21:10",
+        "requiresClueIds": [
+          "mutfak_defteri"
+        ]
+      },
+      {
+        "id": "t_tepsi",
+        "suspectId": "hasan",
+        "place": "Çalışma odası",
+        "text": "Tepsiyi masaya bırakıp çıkıyor.",
+        "time": "21:15"
+      },
+      {
+        "id": "t_doktor",
+        "suspectId": "aylin",
+        "place": "Kapı",
+        "text": "Yalıdan çıkıyor.",
+        "time": "21:15",
+        "requiresClueIds": [
+          "kapi_kaydi"
+        ]
+      },
+      {
+        "id": "t_giris",
+        "suspectId": "kerem",
+        "place": "Çalışma odası",
+        "text": "Odaya giriyor.",
+        "time": "21:22",
+        "requiresClueIds": [
+          "koridor_kamerasi"
+        ]
+      },
+      {
+        "id": "t_cikis",
+        "suspectId": "kerem",
+        "place": "Çalışma odası",
+        "text": "Odadan çıkıyor.",
+        "time": "21:25",
+        "requiresClueIds": [
+          "koridor_kamerasi"
+        ]
+      },
+      {
+        "id": "t_ceset",
+        "suspectId": "hasan",
+        "place": "Çalışma odası",
+        "text": "Kapıyı çalıyor, cevap alamıyor, içeri giriyor.",
+        "time": "21:40"
+      }
+    ]
+  },
   "solution": {
     "culpritId": "kerem",
     "correctReasonId": "seker",
@@ -383,6 +501,16 @@
         "“Kerem, sen 21:22'de çalışma odasına girdin, zehri şeker paketleriyle birlikte kahveye karıştırdın ve bahçeye çıkıp telefon konuşması yaptığını söyledin. Ama kamera, telefon kaydı ve cebindeki boş şişe bunun tersini söylüyor.”",
         "Kerem’in yüzü beyazlıyor. Polis kelepçeyi takıyor. Selma bir an gözlerini kapatıyor, Hasan sessizce başını eğiyor."
       ]
+    },
+    "evidence": {
+      "clueIds": [
+        "koridor_kamerasi",
+        "bahce_kamerasi",
+        "telefon_kaydi",
+        "ceket_cebi",
+        "sise_analizi"
+      ],
+      "pick": 3
     }
   },
   "wrongAnswer": {
@@ -390,6 +518,11 @@
     "hintPenalty": 1,
     "paragraphs": [
       "Kanıtların hepsini birleştirmedin. Kahveye neden şeker atıldığını düşün. Kim bunu bilmeden yapmış olabilir?"
-    ]
+    ],
+    "penaltyPoints": 1
+  },
+  "stars": {
+    "three": 0,
+    "two": 2
   }
 }

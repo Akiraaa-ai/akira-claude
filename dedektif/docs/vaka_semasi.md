@@ -23,6 +23,7 @@ Görsel ve ses alanlarına **uzantısız dosya adı** yazılır (`"image": "vaka
 | `scenes`, `suspects`, `clues`, `interrogations` | liste | Aşağıda |
 | `solution` | nesne | Çözüm ve final |
 | `wrongAnswer` | nesne | Yanlış suçlama sahnesi |
+| `connections`, `timeline`, `stars` | liste / nesne | Delil panosu, zaman çizelgesi, yıldız eşikleri (isteğe bağlı, aşağıda) |
 
 ## `scenes[]`
 `id`, `title`, `image`, `description`, `rain` (true ise sahnede yağmur yağar).
@@ -39,6 +40,7 @@ Görsel ve ses alanlarına **uzantısız dosya adı** yazılır (`"image": "vaka
 | `area` | Dokunma alanı, sahne görselinin oranı olarak: `{"x":0.1,"y":0.5,"w":0.2,"h":0.1}` (sol üst köşe + genişlik/yükseklik, 0–1) |
 | `suspectIds` | Bağlantılı şüpheliler |
 | `image` | İsteğe bağlı yakın çekim görseli |
+| `needsMagnifier` | `true` ise ipucu ancak büyüteç üzerindeyken alınır (küçük ayrıntılar için) |
 
 ## `interrogations[]`
 | Alan | Açıklama |
@@ -56,9 +58,19 @@ Görsel ve ses alanlarına **uzantısız dosya adı** yazılır (`"image": "vaka
 | `explanation` | Kısa açıklama |
 | `deductionChain` | Çıkarım zinciri adımları (metin listesi) |
 | `finale` | `{"title": "...", "paragraphs": ["..."], "image": "..."}` |
+| `evidence` | İsteğe bağlı kanıt adımı: `{"clueIds": ["a","b","c"], "pick": 2}`. Oyuncu defterinden `pick` kanıt seçer, hepsi `clueIds` içinde olmalı. Vaka kişi + gerekçe + kanıt doğruysa çözülür |
 
 ## `wrongAnswer`
-`title`, `paragraphs` (yanlış kişi seçilince), `wrongReasonText` (kişi doğru, gerekçe yanlışsa; isteğe bağlı), `image`, `hintPenalty` (her yanlış suçlamada eksilen ipucu hakkı).
+`title`, `paragraphs` (yanlış kişi seçilince), `wrongReasonText` (kişi doğru, gerekçe yanlışsa; isteğe bağlı), `wrongEvidenceText` (kişi ve gerekçe doğru, kanıt yanlışsa; isteğe bağlı), `image`, `hintPenalty` (her yanlış suçlamada eksilen ipucu hakkı), `penaltyPoints` (her yanlış suçlamada eklenen ceza puanı, varsayılan 1).
+
+## `connections[]`: delil panosu
+Panoda iki ipucu iple bağlanınca açılan çıkarımlar: `{"id": "b1", "clueIds": ["a", "b"], "deductionStep": 2}`. Metin `deductionStep` ile `solution.deductionChain` içinden (1'den başlar) alınır; istenirse doğrudan `"text"` yazılır. Liste boşsa Pano sekmesi görünmez.
+
+## `timeline`: zaman çizelgesi
+`{"slots": ["21:05", "21:10"], "events": [...]}`. Her olay: `id`, `text`, `time` (doğru saat, `slots` içinden), `suspectId` ve `place` (kartın başlığı, isteğe bağlı), `requiresClueIds` (kart ancak bu ipuçları bulununca gelir). Oyuncu kartları saatlere yerleştirir; tüm kartlar açık ve doğru saatteyse çizelge çözülür. Yoksa Zaman sekmesi görünmez.
+
+## `stars`: yıldız eşikleri
+`{"three": 0, "two": 2}`. Ceza = kullanılan ipucu yardımı + yanlış suçlama puanı. Ceza `three` değerini aşmazsa 3, `two` değerini aşmazsa 2, aksi halde 1 yıldız. Toplam yıldız dedektif rütbesini belirler (Çaylak → Başkomiser).
 
 Doğrulama, her ipucunun oyunda bir yolla (sahne, çelişki ya da otomatik açılma) elde edilebildiğini de kontrol eder.
 

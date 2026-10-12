@@ -44,6 +44,29 @@ class NotebookScreen extends StatelessWidget {
               for (final id in c.suspectIds) game.data.suspect(id).name,
             ],
           ),
+        if (game.data.connections.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          Text(
+            'Çıkarımlar (${game.foundConnections.length}/${game.data.connections.length})',
+            style: h,
+          ),
+          const SizedBox(height: 6),
+          if (game.foundConnections.isEmpty)
+            const Text(
+              'Panoda ipuçlarını iple bağlayarak çıkarım yap.',
+              style: TextStyle(color: Colors.white54),
+            ),
+          for (final c in game.foundConnections)
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.timeline, color: AppTheme.brass),
+                title: Text(game.data.connectionText(c)),
+                subtitle: Text(
+                  c.clueIds.map((id) => game.data.clue(id).title).join(' ↔ '),
+                ),
+              ),
+            ),
+        ],
         const SizedBox(height: 20),
         Text('Çelişkiler (${contradictions.length})', style: h),
         const SizedBox(height: 6),

@@ -3,14 +3,17 @@ import 'package:provider/provider.dart';
 
 import '../../services/audio_service.dart';
 import '../accusation/accusation_screen.dart';
+import '../board/board_screen.dart';
 import '../game/game_controller.dart';
 import '../game/game_routes.dart';
 import '../intro/intro_screen.dart';
 import '../notebook/notebook_screen.dart';
 import '../scene/scene_screen.dart';
 import '../suspects/suspects_screen.dart';
+import '../timeline/timeline_screen.dart';
 
-/// Soruşturma merkezi: sahne, defter ve şüpheliler sekmeleri + suçlama düğmesi.
+/// Soruşturma merkezi: sahne, defter, pano, zaman çizelgesi ve şüpheliler
+/// sekmeleri + suçlama düğmesi. Vakada pano/çizelge verisi yoksa o sekme gizlenir.
 class InvestigationScreen extends StatefulWidget {
   const InvestigationScreen({super.key});
 
@@ -66,6 +69,61 @@ class _InvestigationScreenState extends State<InvestigationScreen> {
   @override
   Widget build(BuildContext context) {
     final game = context.watch<GameController>();
+    final hasBoard = game.data.connections.isNotEmpty;
+    final hasTimeline = game.data.timeline != null;
+    final tabs = <(Widget, NavigationDestination)>[
+      (
+        const SceneScreen(),
+        const NavigationDestination(
+          icon: Icon(Icons.travel_explore),
+          label: 'Sahne',
+        ),
+      ),
+      (
+        const NotebookScreen(),
+        NavigationDestination(
+          icon: Badge.count(
+            count: game.foundClueCount,
+            isLabelVisible: game.foundClueCount > 0,
+            child: const Icon(Icons.menu_book),
+          ),
+          label: 'Defter',
+        ),
+      ),
+      if (hasBoard)
+        (
+          const BoardScreen(),
+          const NavigationDestination(
+            icon: Icon(Icons.push_pin_outlined),
+            label: 'Pano',
+          ),
+        ),
+      if (hasTimeline)
+        (
+          const TimelineScreen(),
+          NavigationDestination(
+            icon: Icon(
+              game.progress.timelineSolved
+                  ? Icons.check_circle_outline
+                  : Icons.schedule,
+            ),
+            label: 'Zaman',
+          ),
+        ),
+      (
+        const SuspectsScreen(),
+        NavigationDestination(
+          icon: Badge(
+            isLabelVisible: game.data.suspects.any(
+              (s) => game.hasNewQuestions(s.id),
+            ),
+            child: const Icon(Icons.groups),
+          ),
+          label: 'Şüpheliler',
+        ),
+      ),
+    ];
+    final tab = _tab.clamp(0, tabs.length - 1);
     return Scaffold(
       appBar: AppBar(
         title: Text(game.data.title),
@@ -86,10 +144,7 @@ class _InvestigationScreenState extends State<InvestigationScreen> {
           ),
         ],
       ),
-      body: IndexedStack(
-        index: _tab,
-        children: const [SceneScreen(), NotebookScreen(), SuspectsScreen()],
-      ),
+      body: IndexedStack(index: tab, children: [for (final t in tabs) t.$1]),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'accuse',
         onPressed: () => GameRoutes.push(context, const AccusationScreen()),
@@ -98,31 +153,10 @@ class _InvestigationScreenState extends State<InvestigationScreen> {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _tab,
+        selectedIndex: tab,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         onDestinationSelected: (i) => setState(() => _tab = i),
-        destinations: [
-          const NavigationDestination(
-            icon: Icon(Icons.travel_explore),
-            label: 'Sahne',
-          ),
-          NavigationDestination(
-            icon: Badge.count(
-              count: game.foundClueCount,
-              isLabelVisible: game.foundClueCount > 0,
-              child: const Icon(Icons.menu_book),
-            ),
-            label: 'Defter',
-          ),
-          NavigationDestination(
-            icon: Badge(
-              isLabelVisible: game.data.suspects.any(
-                (s) => game.hasNewQuestions(s.id),
-              ),
-              child: const Icon(Icons.groups),
-            ),
-            label: 'Şüpheliler',
-          ),
-        ],
+        destinations: [for (final t in tabs) t.$2],
       ),
     );
   }
