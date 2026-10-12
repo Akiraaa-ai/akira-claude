@@ -23,8 +23,7 @@ WASD yürü · Shift koş · F fener · Fare ya da ok tuşları bak · Boşluk s
 
 Oyun içi menü (başlık ve duraklatma ekranı): grafik kalitesi (Düşük / Orta / Yüksek), parlaklık, bodycam efekti şiddeti, fare hassasiyeti. Seçimler tarayıcıda saklanır. Bilgisayar yavaşsa Düşük seçin.
 
-Kod tarafında 
-`index.html` başındaki `CFG` nesnesi: yürüme/koşma hızı, stamina, kafa sallanması, bodycam efekt şiddeti, labirent boyutu, pil, karanlık bölgeler, yaratık davranışı, açılış sinematiği (`intro`).
+Kod tarafında `index.html` başındaki `CFG` nesnesi: yürüme/koşma hızı, stamina, kafa sallanması, bodycam efekt şiddeti, labirent boyutu, pil, karanlık bölgeler, yaratık davranışı, açılış sinematiği (`intro`).
 
 ## Sistemler (index.html içinde sırayla)
 
