@@ -38,12 +38,6 @@
   #typer .cursor { animation: blink .9s steps(1) infinite; }
   #skip { position: fixed; bottom: 22px; right: 28px; font-size: 12px; color: #6f6a55; letter-spacing: 1px; }
   #pause { background: rgba(0,0,0,.72); font-size: 18px; letter-spacing: 2px; }
-  .settings { margin-top: 34px; font-size: 13px; letter-spacing: 1px; color: #b9b294; text-align: left; border: 1px solid rgba(232,226,200,.25); padding: 14px 18px; background: rgba(0,0,0,.55); }
-  .settings .row { display: flex; align-items: center; gap: 12px; margin: 8px 0; }
-  .settings .row > span:first-child { width: 150px; }
-  .settings button { font: inherit; color: #b9b294; background: transparent; border: 1px solid rgba(232,226,200,.3); padding: 4px 10px; cursor: pointer; }
-  .settings button.on { color: #111; background: #d9cf9a; }
-  .settings input[type=range] { width: 160px; accent-color: #d9cf9a; }
   #dead { background: transparent; }
   #dead h2 { font-size: 46px; letter-spacing: 10px; margin: 0; color: #f2f2f2; font-weight: normal; }
   #dead p { color: #aaa; letter-spacing: 2px; margin-top: 18px; }
@@ -80,14 +74,13 @@
 <div id="title" class="screen">
   <h1>MAZGAL</h1>
   <p>Kulaklık önerilir.</p>
-  <p>WASD yürü · Shift koş · F fener · Fare ya da ok tuşları bak</p>
+  <p>WASD yürü · Shift koş · F fener · Fare bak</p>
   <div class="go">[ başlamak için tıkla ]</div>
-  <div class="settings" data-settings></div>
 </div>
 
 <div id="typer" class="screen hidden"></div>
 <div id="skip" class="hidden">BOŞLUK · geç</div>
-<div id="pause" class="screen hidden"><div>[ devam etmek için tıkla ]</div><div class="settings" data-settings></div></div>
+<div id="pause" class="screen hidden">[ devam etmek için tıkla ]</div>
 <div id="dead" class="screen hidden"><h2>KAYIT KESİLDİ</h2><p>[ tıkla ]</p></div>
 
 <div id="tape" class="screen hidden">
@@ -202,21 +195,9 @@ function keyframes(k, t) {
 // ============================================================
 // RENDERER, SAHNE, BODYCAM SHADER
 // ============================================================
-// Grafik ayarları (oyun içi menüden değişir, tarayıcıda saklanır)
-const QUALITY = {
-  dusuk:  { label: "DÜŞÜK",  scale: 0.6,  lights: 4, bloom: false, props: 0.5 },
-  orta:   { label: "ORTA",   scale: 0.85, lights: 6, bloom: true,  props: 1 },
-  yuksek: { label: "YÜKSEK", scale: 1.0,  lights: 8, bloom: true,  props: 1 },
-};
-const GFX = { quality: "orta", bright: 1.0, fx: 1.0, sens: 1.0 };
-try { Object.assign(GFX, JSON.parse(localStorage.getItem("mazgal.gfx") || "{}")); } catch (e) { /* depolama kapalı */ }
-if (!QUALITY[GFX.quality]) GFX.quality = "orta";
-const Q = () => QUALITY[GFX.quality];
-function saveGfx() { try { localStorage.setItem("mazgal.gfx", JSON.stringify(GFX)); } catch (e) { /* yok say */ } }
-
 const canvas = $("view");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5) * Q().scale);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 renderer.setSize(innerWidth, innerHeight, false);
 
 const scene = new THREE.Scene();
@@ -231,38 +212,17 @@ scene.add(camera);
 const rt = new THREE.WebGLRenderTarget(1, 1, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
 const postScene = new THREE.Scene();
 const postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-// Floresan parlaması: parlak kısımlar çeyrek çözünürlükte ayıklanıp iki geçişte bulanıklaştırılır
-const bloomA = new THREE.WebGLRenderTarget(1, 1, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
-const bloomB = bloomA.clone();
-const blurMat = new THREE.ShaderMaterial({
-  uniforms: { tIn: { value: null }, uDir: { value: new THREE.Vector2() }, uThresh: { value: 0 } },
-  vertexShader: "varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }",
-  fragmentShader: `
-    uniform sampler2D tIn; uniform vec2 uDir; uniform float uThresh; varying vec2 vUv;
-    vec3 s(vec2 o){ vec3 c = texture2D(tIn, vUv + o).rgb; return uThresh > 0.0 ? max(c - uThresh, 0.0) / (1.0 - uThresh) : c; }
-    void main(){
-      vec3 c = s(vec2(0.0)) * 0.2;
-      c += (s(uDir * 1.5) + s(-uDir * 1.5)) * 0.18;
-      c += (s(uDir * 3.5) + s(-uDir * 3.5)) * 0.12;
-      c += (s(uDir * 6.0) + s(-uDir * 6.0)) * 0.1;
-      gl_FragColor = vec4(c, 1.0);
-    }`,
-  depthTest: false, depthWrite: false,
-});
-const blurScene = new THREE.Scene();
-blurScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), blurMat));
 const postMat = new THREE.ShaderMaterial({
   uniforms: {
     tDiffuse: { value: rt.texture }, uTime: { value: 0 }, uInter: { value: 0 }, uBlack: { value: 0 },
     uFish: { value: CFG.fx.fisheye }, uChroma: { value: CFG.fx.chroma }, uGrain: { value: CFG.fx.grain },
     uScan: { value: CFG.fx.scan }, uVig: { value: CFG.fx.vignette }, uTint: { value: CFG.fx.tint },
     uRes: { value: new THREE.Vector2(1, 1) },
-    tBloom: { value: bloomB.texture }, uBloom: { value: 0 }, uBright: { value: 1 },
   },
   vertexShader: "varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }",
   fragmentShader: `
     precision highp float;
-    uniform sampler2D tDiffuse, tBloom; uniform float uTime, uInter, uBlack, uFish, uChroma, uGrain, uScan, uVig, uTint, uBloom, uBright; uniform vec2 uRes;
+    uniform sampler2D tDiffuse; uniform float uTime, uInter, uBlack, uFish, uChroma, uGrain, uScan, uVig, uTint; uniform vec2 uRes;
     varying vec2 vUv;
     float rnd(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     vec2 barrel(vec2 uv){ vec2 c = uv - 0.5; float r2 = dot(c, c); return 0.5 + c * (1.0 - uFish * 0.5 + uFish * r2 * 1.6) / (1.0 - uFish * 0.18); }
@@ -282,9 +242,6 @@ const postMat = new THREE.ShaderMaterial({
       col.r = texture2D(tDiffuse, uv + c * ca + vec2(ca * 0.6 * uInter, 0.0)).r;
       col.g = texture2D(tDiffuse, uv).g;
       col.b = texture2D(tDiffuse, uv - c * ca).b;
-      vec3 bl = texture2D(tBloom, uv).rgb;
-      col += mix(bl, vec3(dot(bl, vec3(0.333))), 0.55) * uBloom;   // parlama hafif beyaza çeker
-      col *= uBright;
       if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) col = vec3(0.0);
       // renk kayması: hafif yeşil-sarı bodycam tonu, doygunluk düşük
       float l = dot(col, vec3(0.299, 0.587, 0.114));
@@ -315,8 +272,6 @@ function onResize() {
   camera.updateProjectionMatrix();
   const s = renderer.getDrawingBufferSize(new THREE.Vector2());
   rt.setSize(s.x, s.y);
-  bloomA.setSize(Math.max(1, s.x >> 2), Math.max(1, s.y >> 2));
-  bloomB.setSize(Math.max(1, s.x >> 2), Math.max(1, s.y >> 2));
   postMat.uniforms.uRes.value.copy(s);
 }
 addEventListener("resize", onResize);
@@ -350,11 +305,6 @@ const TEX = {
     speckle(g, w, h, 5000, "90,70,20", 0.03, 0.12, 1, 2);
     for (let i = 0; i < 7; i++) stain(g, rand(0, w), rand(h * 0.55, h), rand(40, 110), "95,75,25", rand(0.15, 0.3));
     for (let i = 0; i < 3; i++) stain(g, rand(0, w), rand(0, h * 0.4), rand(30, 80), "110,90,40", rand(0.08, 0.18));
-    // tavan ve zemin köşesinde biriken gölge
-    const top = g.createLinearGradient(0, 0, 0, h * 0.22); top.addColorStop(0, "rgba(40,30,5,0.45)"); top.addColorStop(1, "rgba(40,30,5,0)");
-    g.fillStyle = top; g.fillRect(0, 0, w, h * 0.22);
-    const bot = g.createLinearGradient(0, h, 0, h * 0.8); bot.addColorStop(0, "rgba(40,30,5,0.4)"); bot.addColorStop(1, "rgba(40,30,5,0)");
-    g.fillStyle = bot; g.fillRect(0, h * 0.8, w, h * 0.2);
     g.fillStyle = "#5c4a22"; g.fillRect(0, h - 18, w, 18);
     g.fillStyle = "rgba(0,0,0,0.25)"; g.fillRect(0, h - 20, w, 2);
   }),
@@ -362,7 +312,7 @@ const TEX = {
     g.fillStyle = "#86763f"; g.fillRect(0, 0, w, h);
     speckle(g, w, h, 14000, "60,50,20", 0.05, 0.25, 1, 2);
     speckle(g, w, h, 5000, "170,150,90", 0.04, 0.15, 1, 1);
-    for (let i = 0; i < 2; i++) stain(g, rand(0, w), rand(0, h), rand(25, 60), "50,42,18", rand(0.1, 0.2));
+    for (let i = 0; i < 5; i++) stain(g, rand(0, w), rand(0, h), rand(25, 70), "50,42,18", rand(0.25, 0.45));
   }),
   ceiling: makeCanvas(256, 256, (g, w, h) => {
     g.fillStyle = "#d4cdb0"; g.fillRect(0, 0, w, h);
@@ -541,17 +491,8 @@ function buildWorld() {
   ]));
   const ceilGeo = new THREE.ShapeGeometry(shape);
   ceilGeo.rotateX(Math.PI / 2); ceilGeo.translate(0, CFG.wallH, 0);
-  const aoCeilGeo = ceilGeo.clone();
   worldUV(ceilGeo);
   G.world.add(new THREE.Mesh(ceilGeo, MAT.ceiling));
-
-  // köşe gölgeleri: duvar maskesi bulanıklaştırılıp zemin ve tavanın üstüne çarpılarak bindirilir
-  G.pillars = buildPillars();
-  const aoTex = makeAOTexture();
-  const aoMat = new THREE.MeshBasicMaterial({ map: aoTex, blending: THREE.MultiplyBlending, transparent: true, depthWrite: false, fog: false });
-  const aoFloorGeo = new THREE.PlaneGeometry(Wm, Hm); aoFloorGeo.rotateX(-Math.PI / 2); aoFloorGeo.translate(Wm / 2, 0.006, Hm / 2);
-  normUV(aoFloorGeo, Wm, Hm); normUV(aoCeilGeo, Wm, Hm); aoCeilGeo.translate(0, -0.006, 0);
-  G.world.add(new THREE.Mesh(aoFloorGeo, aoMat), new THREE.Mesh(aoCeilGeo, aoMat));
 
   // düşülen kuyu + mazgal
   const shaftH = 13;
@@ -570,17 +511,13 @@ function buildWorld() {
   // lambalar: oda karelerinde floresan panel
   G.lamps = [];
   const darkPanels = [];
-  const pillarSet = new Set(G.pillars.map((p) => p.cell.join()));
   for (const [x, y] of rooms) {
-    // kolonlu karede ve düşülen deliğin olduğu karede lamba kenara kayar; kolonu yakmasın diye ışık vermez
-    const isStart = x === G.start[0] && y === G.start[1], hasPillar = pillarSet.has(x + "," + y);
-    const shift = hasPillar || isStart ? 1.6 : 0;
-    if (G.dark[y][x]) darkPanels.push([x, y]);
-    else G.lamps.push({ x, y, noLight: hasPillar, pos: cellCenter(x, y).setY(CFG.wallH - 0.25).add(new THREE.Vector3(shift, 0, 0)) });
+    if (x === G.start[0] && y === G.start[1]) continue;
+    if (G.dark[y][x]) darkPanels.push([x, y]); else G.lamps.push({ x, y, pos: cellCenter(x, y).setY(CFG.wallH - 0.25) });
   }
   // koridor kareleri de ara sıra
   for (const [x, y] of openCells((x, y) => (x + y) % 2 === 1 && Math.random() < 0.25)) {
-    if (G.dark[y][x] || pillarSet.has(x + "," + y)) continue;
+    if (G.dark[y][x]) continue;
     G.lamps.push({ x, y, pos: cellCenter(x, y).setY(CFG.wallH - 0.25) });
   }
   const panelGeo = new THREE.PlaneGeometry(1.4, 0.55); panelGeo.rotateX(Math.PI / 2);
@@ -591,11 +528,10 @@ function buildWorld() {
   off.count = darkPanels.length;
   on.frustumCulled = off.frustumCulled = false;
   G.world.add(on, off);
-  buildProps();
 
   // toplanabilirler
   G.pickups = [];
-  const used = new Set([G.start.join(), ...G.pillars.map((p) => p.cell.join())]);
+  const used = new Set([G.start.join()]);
   const freeCell = (pred) => {
     const cand = openCells((x, y) => !used.has(x + "," + y) && pred(x, y));
     if (!cand.length) return null;
@@ -702,100 +638,6 @@ function buildWritings(distStart) {
     if (!ok.length) break;
     place(pick(ok), text);
   }
-}
-
-// tüm haritayı 0..1 aralığına yayan UV (AO dokusu için; canvas dokusu ters çevrildiğinden v = 1 - z)
-function normUV(geo, Wm, Hm) {
-  const pos = geo.attributes.position, uv = geo.attributes.uv;
-  for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i) / Wm, 1 - pos.getZ(i) / Hm);
-  uv.needsUpdate = true;
-}
-function makeAOTexture() {
-  const px = 16;   // kare başına piksel (4 m)
-  const mask = document.createElement("canvas"); mask.width = G.W * px; mask.height = G.H * px;
-  const mg = mask.getContext("2d");
-  mg.fillStyle = "#fff"; mg.fillRect(0, 0, mask.width, mask.height);
-  mg.fillStyle = "#3a3a3a";
-  for (let y = 0; y < G.H; y++) for (let x = 0; x < G.W; x++) if (G.grid[y][x]) mg.fillRect(x * px, y * px, px, px);
-  for (const p of G.pillars) mg.fillRect((p.x - p.r) / C * px, (p.z - p.r) / C * px, p.r * 2 / C * px, p.r * 2 / C * px);
-  const tex = makeCanvas(mask.width, mask.height, (g) => {
-    g.fillStyle = "#fff"; g.fillRect(0, 0, mask.width, mask.height);
-    g.filter = "blur(3px)"; g.drawImage(mask, 0, 0); g.filter = "none";
-  });
-  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
-  return tex;
-}
-
-// ============================================================
-// DETAYLAR: kolon, priz, havalandırma, eksik tavan karosu, halı lekesi
-// ============================================================
-TEX.vent = makeCanvas(128, 64, (g, w, h) => {
-  g.fillStyle = "#9c967c"; g.fillRect(0, 0, w, h);
-  g.fillStyle = "#2a2820"; for (let y = 8; y < h - 6; y += 8) g.fillRect(8, y, w - 16, 4);
-  g.strokeStyle = "#6e6a55"; g.lineWidth = 4; g.strokeRect(2, 2, w - 4, h - 4);
-});
-TEX.stain = makeCanvas(128, 128, (g, w, h) => {
-  g.fillStyle = "#fff"; g.fillRect(0, 0, w, h);
-  for (let i = 0; i < 6; i++) {
-    const x = 64 + rand(-22, 22), y = 64 + rand(-22, 22), r = rand(18, 40);
-    const gr = g.createRadialGradient(x, y, 0, x, y, r);
-    gr.addColorStop(0, "rgba(95,80,45,0.55)"); gr.addColorStop(1, "rgba(255,255,255,0)");
-    g.fillStyle = gr; g.fillRect(0, 0, w, h);
-  }
-});
-TEX.stain.wrapS = TEX.stain.wrapT = THREE.ClampToEdgeWrapping;
-Object.assign(MAT, {
-  outlet: new THREE.MeshLambertMaterial({ color: 0xd8d2bc }),
-  vent: new THREE.MeshLambertMaterial({ map: TEX.vent }),
-  hole: new THREE.MeshBasicMaterial({ color: 0x0c0b08 }),
-  tileStain: new THREE.MeshLambertMaterial({ color: 0x9a8a5a }),
-  stain: new THREE.MeshBasicMaterial({ map: TEX.stain, blending: THREE.MultiplyBlending, transparent: true, depthWrite: false, fog: false }),
-});
-function buildPillars() {
-  // geniş alanlarda (dört yanı açık karelerde) kolonlar
-  const out = [];
-  const cand = openCells((x, y) => !isWall(x + 1, y) && !isWall(x - 1, y) && !isWall(x, y + 1) && !isWall(x, y - 1) && !(x === G.start[0] && y === G.start[1]));
-  for (const [x, y] of cand) if (Math.random() < 0.35 * Q().props) {
-    const p = cellCenter(x, y);
-    out.push({ cell: [x, y], x: p.x, z: p.z, r: 0.4 });
-  }
-  if (out.length) {
-    const m = new THREE.InstancedMesh(new THREE.BoxGeometry(0.8, CFG.wallH, 0.8), MAT.wall, out.length);
-    const mtx = new THREE.Matrix4();
-    out.forEach((p, i) => { mtx.makeTranslation(p.x, CFG.wallH / 2, p.z); m.setMatrixAt(i, mtx); });
-    m.frustumCulled = false; G.world.add(m);
-  }
-  return out;
-}
-function buildProps() {
-  const dens = Q().props;
-  const faces = [];
-  for (const [x, y] of openCells()) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (isWall(x + dx, y + dy)) faces.push({ x, y, dx, dy });
-  const onWall = (f, h, off) => {
-    const p = cellCenter(f.x, f.y).add(new THREE.Vector3(f.dx, 0, f.dy).multiplyScalar(C / 2 - off));
-    p.add(new THREE.Vector3(f.dy, 0, -f.dx).multiplyScalar(rand(-1.4, 1.4))); p.y = h;
-    return { p, ry: Math.atan2(-f.dx, -f.dy) };
-  };
-  const inst = (geo, mat, items) => {
-    if (!items.length) return;
-    const m = new THREE.InstancedMesh(geo, mat, items.length);
-    const o = new THREE.Object3D();
-    items.forEach((it, i) => { o.position.copy(it.p); o.rotation.set(it.rx || 0, it.ry || 0, 0); o.scale.setScalar(it.s || 1); o.updateMatrix(); m.setMatrixAt(i, o.matrix); });
-    m.frustumCulled = false; G.world.add(m);
-  };
-  inst(new THREE.BoxGeometry(0.09, 0.13, 0.02), MAT.outlet, faces.filter(() => Math.random() < 0.18 * dens).map((f) => onWall(f, 0.32, 0.01)));
-  inst(new THREE.PlaneGeometry(0.7, 0.35), MAT.vent, faces.filter(() => Math.random() < 0.07 * dens).map((f) => onWall(f, CFG.wallH - 0.4, 0.01)));
-  // tavan: 1 m'lik karolar; bazıları eksik (kara boşluk), bazıları lekeli
-  const tile = (x, y) => ({ p: new THREE.Vector3(x * C + Math.floor(rand(0, C)) + 0.5, CFG.wallH - 0.004, y * C + Math.floor(rand(0, C)) + 0.5), rx: Math.PI / 2 });
-  const lampSet = new Set(G.lamps.map((l) => l.x + "," + l.y));
-  const ceilCells = openCells((x, y) => !lampSet.has(x + "," + y) && !(x === G.start[0] && y === G.start[1]));
-  const tileGeo = new THREE.PlaneGeometry(0.96, 0.96);
-  inst(tileGeo, MAT.hole, ceilCells.filter(() => Math.random() < 0.06 * dens).map(([x, y]) => tile(x, y)));
-  inst(tileGeo, MAT.tileStain, ceilCells.filter(() => Math.random() < 0.1 * dens).map(([x, y]) => tile(x, y)));
-  // halı lekeleri
-  inst(new THREE.PlaneGeometry(1, 1), MAT.stain, openCells(() => Math.random() < 0.3 * dens).map(([x, y]) => ({
-    p: cellCenter(x, y).add(new THREE.Vector3(rand(-1.2, 1.2), 0.008, rand(-1.2, 1.2))), rx: -Math.PI / 2, ry: 0, s: rand(1, 2.4),
-  })));
 }
 
 // PlaneGeometry/ShapeGeometry için UV'yi dünya x/z'den üret (doku tekrarı metre cinsinden)
@@ -931,7 +773,7 @@ const S = {
   battery: 100, lightOn: false,
   lamp: 1, lampTarget: 1, flicker: 0,
   darkness: 0,
-  interference: 0, interTest: false, showDbg: false, lockFailed: false,
+  interference: 0, interTest: false, showDbg: false,
   black: 0,
   lastTape: -1, tapesFound: 0,
   intro: null,
@@ -961,24 +803,16 @@ function resetRun() {
 // ============================================================
 // GİRİŞ / KONTROLLER
 // ============================================================
-// Fare kilidi bazı ortamlarda (gömülü önizleme, izin yok) alınamaz; o zaman serbest fareyle ve ok tuşlarıyla bakılır.
-function lockPointer() {
-  if (document.pointerLockElement === canvas || !canvas.requestPointerLock) return;
-  try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => { S.lockFailed = true; }); }
-  catch (e) { S.lockFailed = true; }
-}
-document.addEventListener("pointerlockerror", () => { S.lockFailed = true; });
+function lockPointer() { if (document.pointerLockElement !== canvas) canvas.requestPointerLock?.(); }
 document.addEventListener("pointerlockchange", () => {
   const locked = document.pointerLockElement === canvas;
   if (!locked && S.mode === "play") { S.paused = true; show("pause"); }
   if (locked && S.mode === "play" && S.paused) { S.paused = false; hide("pause"); }
 });
 document.addEventListener("mousemove", (e) => {
-  if (S.mode !== "play" || S.paused) return;
-  if (document.pointerLockElement !== canvas && !S.lockFailed) return;
-  const k = 0.0022 * GFX.sens;
-  S.yaw -= e.movementX * k;
-  S.pitch = clamp(S.pitch - e.movementY * k, -1.35, 1.35);
+  if (document.pointerLockElement !== canvas || S.mode !== "play" || S.paused) return;
+  S.yaw -= e.movementX * 0.0022;
+  S.pitch = clamp(S.pitch - e.movementY * 0.0022, -1.35, 1.35);
 });
 document.addEventListener("click", () => {
   if (S.mode === "title") { initAudio(); lockPointer(); startIntro(); return; }
@@ -1030,42 +864,6 @@ function updateHud() {
   $("stamWrap").style.opacity = S.stamina < CFG.staminaMax - 0.5 ? 1 : 0;
   if (S.showDbg) $("dbg").textContent = `BEKÇİ: yol ${CR.pathDist * C} m · düz ${creatureEuclid().toFixed(1)} m${S.playTime < CFG.creature.grace ? " · bekliyor" : ""}`;
 }
-
-// ------------------------------------------------------------
-// Grafik menüsü (başlık ve duraklatma ekranında)
-// ------------------------------------------------------------
-function renderSettings() {
-  for (const box of document.querySelectorAll("[data-settings]")) {
-    box.innerHTML = "";
-    const row = (label, el) => { const r = document.createElement("div"); r.className = "row"; const l = document.createElement("span"); l.textContent = label; r.append(l, el); box.append(r); };
-    const qs = document.createElement("span");
-    for (const [key, q] of Object.entries(QUALITY)) {
-      const b = document.createElement("button"); b.textContent = q.label; if (key === GFX.quality) b.className = "on";
-      b.onclick = () => { GFX.quality = key; applyGfx(); };
-      qs.append(b, " ");
-    }
-    row("GRAFİK", qs);
-    const slider = (label, keyName, min, max) => {
-      const w = document.createElement("span");
-      const r = document.createElement("input"); r.type = "range"; r.min = min; r.max = max; r.step = 0.05; r.value = GFX[keyName];
-      const v = document.createElement("span"); v.textContent = Math.round(GFX[keyName] * 100) + "%";
-      r.oninput = () => { GFX[keyName] = +r.value; v.textContent = Math.round(GFX[keyName] * 100) + "%"; saveGfx(); };
-      w.append(r, " ", v); row(label, w);
-    };
-    slider("PARLAKLIK", "bright", 0.6, 1.8);
-    slider("BODYCAM EFEKTİ", "fx", 0, 1.5);
-    slider("FARE HASSASİYETİ", "sens", 0.3, 2.5);
-    // menüye tıklamak oyunu başlatmasın / devam ettirmesin
-    if (!box.dataset.bound) { box.dataset.bound = 1; for (const ev of ["click", "mousedown", "pointerdown"]) box.addEventListener(ev, (e) => e.stopPropagation()); }
-  }
-}
-function applyGfx() {
-  saveGfx();
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5) * Q().scale);
-  onResize();
-  renderSettings();
-}
-renderSettings();
 
 // ============================================================
 // AÇILIŞ SİNEMATİĞİ
@@ -1164,7 +962,7 @@ function finishIntro(natural) {
 }
 function startPlay() {
   S.mode = "play"; S.playTime = 0; S.roll = 0;
-  S.paused = document.pointerLockElement !== canvas && !S.lockFailed;
+  S.paused = document.pointerLockElement !== canvas;
   S.paused ? show("pause") : hide("pause");
 }
 
@@ -1173,7 +971,6 @@ function startPlay() {
 // ============================================================
 const PR = 0.32;
 function blocked(x, z) {
-  for (const p of G.pillars) if (Math.abs(x - p.x) < p.r + PR && Math.abs(z - p.z) < p.r + PR) return true;
   for (const [dx, dz] of [[-PR, -PR], [PR, -PR], [-PR, PR], [PR, PR]]) {
     const [gx, gy] = worldToCell(x + dx, z + dz);
     if (isWall(gx, gy)) return true;
@@ -1181,10 +978,6 @@ function blocked(x, z) {
   return false;
 }
 function updatePlayer(dt) {
-  // ok tuşlarıyla bakış (fare yedeği)
-  const turn = (keys.ArrowLeft ? 1 : 0) - (keys.ArrowRight ? 1 : 0), tilt = (keys.ArrowUp ? 1 : 0) - (keys.ArrowDown ? 1 : 0);
-  S.yaw += turn * 2.2 * dt;
-  S.pitch = clamp(S.pitch + tilt * 1.6 * dt, -1.35, 1.35);
   const f = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
   const s = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
   const moving = f !== 0 || s !== 0;
@@ -1255,7 +1048,7 @@ function updateLights(dt) {
   if (lampPickTimer <= 0) {
     lampPickTimer = 0.2;
     const px = S.pos.x, pz = S.pos.z;
-    const near = G.lamps.filter((l) => !l.noLight).map((l) => ({ l, d: (l.pos.x - px) ** 2 + (l.pos.z - pz) ** 2 })).sort((a, b) => a.d - b.d).slice(0, Q().lights);
+    const near = G.lamps.map((l) => ({ l, d: (l.pos.x - px) ** 2 + (l.pos.z - pz) ** 2 })).sort((a, b) => a.d - b.d).slice(0, LIGHT_POOL.length);
     LIGHT_POOL.forEach((L, i) => { L.userData.lamp = near[i]?.l || null; if (near[i]) L.position.copy(near[i].l.pos); });
   }
   // titreme
@@ -1272,7 +1065,7 @@ function updateLights(dt) {
   const inDark = G.dark[cy]?.[cx] ? 1 : 0;
   S.darkness = lerp(S.darkness, inDark, Math.min(1, dt * 1.5));
   const L = S.lamp, dk = S.darkness;
-  LIGHT_POOL.forEach((l) => { l.intensity = l.userData.lamp ? 1.0 * L : 0; });
+  LIGHT_POOL.forEach((l) => { l.intensity = l.userData.lamp ? 1.15 * L : 0; });
   MAT.panelOn.color.setScalar(0.15 + 0.85 * L);
   ambient.intensity = (0.32 * L + 0.02) * (1 - dk * 0.95);
   hemi.intensity = 0.22 * L * (1 - dk);
@@ -1457,19 +1250,7 @@ function frame(now) {
 
   const u = postMat.uniforms;
   u.uTime.value = S.time; u.uInter.value = clamp(S.interference, 0, 1); u.uBlack.value = clamp(S.black, 0, 1);
-  u.uBright.value = GFX.bright;
-  u.uGrain.value = CFG.fx.grain * GFX.fx; u.uScan.value = CFG.fx.scan * GFX.fx;
-  u.uChroma.value = CFG.fx.chroma * GFX.fx; u.uVig.value = CFG.fx.vignette * Math.min(1, GFX.fx);
-  u.uFish.value = CFG.fx.fisheye * Math.min(1, 0.5 + GFX.fx * 0.5);
   renderer.setRenderTarget(rt); renderer.render(scene, camera);
-  if (Q().bloom) {
-    const bw = bloomA.width, bh = bloomA.height;
-    blurMat.uniforms.tIn.value = rt.texture; blurMat.uniforms.uThresh.value = 0.86; blurMat.uniforms.uDir.value.set(1 / bw, 0);
-    renderer.setRenderTarget(bloomA); renderer.render(blurScene, postCam);
-    blurMat.uniforms.tIn.value = bloomA.texture; blurMat.uniforms.uThresh.value = 0; blurMat.uniforms.uDir.value.set(0, 1 / bh);
-    renderer.setRenderTarget(bloomB); renderer.render(blurScene, postCam);
-    u.uBloom.value = 0.55;
-  } else u.uBloom.value = 0;
   renderer.setRenderTarget(null); renderer.render(postScene, postCam);
   if (S.mode !== "title") updateHud();
 }
