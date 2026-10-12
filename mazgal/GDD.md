@@ -4,7 +4,7 @@
 
 ## Oyunun özü
 
-Selim, gece vardiyasında bir mazgaldan düşüp sarı duvarlı, nemli halılı, floresan ışıklı sonsuz bir koridor labirentine düşer. Amaç çıkışı bulmak. Ekranda hep bodycam görüntüsü var: REC ●, tarih ve 00:00'da donmuş saat. Oyuncu bir şeyin kendisini avladığını bilmez, görmez, adını da duymaz. Sadece hisseder.
+Belediye işçisi Selim, yağmurlu bir gecede açık kalan bir mazgalı kapatmaya giderken içine düşer ve kendini sarı duvarlı, nemli halılı, floresan ışıklı sonsuz bir koridor labirentinde bulur. Amaç çıkışı bulmak. Ekranda hep bodycam görüntüsü var: REC ●, tarih ve 00:00'da donmuş saat. Oyuncu bir şeyin kendisini avladığını bilmez, görmez, adını da duymaz. Sadece hisseder.
 
 ## Oyuncu ne yapar
 
@@ -14,12 +14,18 @@ Selim, gece vardiyasında bir mazgaldan düşüp sarı duvarlı, nemli halılı,
 
 ## Açılış sinematiği
 
-1. **Daktilo yazısı:** Siyah ekranda satır satır, daktilo sesiyle:
-   *"14 Ekim, 23:52. / Gece vardiyasının son turu. / Sokak lambası söndü. Mazgalın altından bir vızıltı geliyordu. / Eğildim. Izgara yerinden oynadı."*
-2. **Düşüş:** Bodycam açılır. Kamera beton kuyunun tepesinden, mazgalın altından düşer; dönerek yuvarlanır, rüzgâr sesi yükselir, parazit artar. Aşağıda floresan ışığı belirir.
-3. **Çarpma:** Ağır bir çarpma sesi, kayıt kararır. Kulak çınlaması.
-4. **Uyanma:** Yerde, yan yatmış görüntü. Göz kırpar gibi kararma açılıp kapanır, Selim yavaşça doğrulur. Vızıltı geri gelir. Altyazı: *"...neredeyim?"*
-5. Kontrol oyuncuya geçer. Başlangıç karesinin tavanında düşülen delik ve yukarıda mazgal görünür.
+Oyuncu izler, kontrol sonda gelir. Gece, yağmur yağıyor. Ekranda bodycam saati 23:52'den akar.
+
+1. **Kulübe:** Selim, belediyenin Fen İşleri kulübesinde nöbette, sandalyede uyuklamış. Pencereden yağmurlu sokak görünür. Masadaki eski telefon çalar, Selim döner ve açar. Duvarda 23:52'yi gösteren saat ve 14 Ekim'i işaretli takvim.
+2. **Telefon:** Amiri arar: köşedeki mazgalın kapağı açık kalmış, biri ihbar etmiş, gidip kapatması lazım. Konuşmanın sonunda amir "içinden ses geliyormuş" der, bilmediğini söyleyip kapatır. Meşgul sesi.
+3. **Yürüyüş:** Selim ahizeyi kapatır, kalkar, kapıyı açıp yağmura çıkar. Kaldırımdan mazgala yürür. Kapak kenara çekilmiş, yanında devrilmiş bir koni var. "Kim açar bunu bu saatte..." Mazgalın yanındaki sokak lambası titremeye başlar.
+4. **Mazgalın başı:** Aşağıdan vızıltı yükselir. Lamba söner, Selim feneri yakar, kuyuya eğilir: "...bu ses ne?" Kenar çöker.
+5. **Düşüş:** Beton kuyuda dönerek düşer, rüzgâr sesi ve parazit artar, aşağıda floresan ışığı belirir.
+6. **Çarpma:** Ağır bir çarpma sesi, kayıt kararır, kulak çınlaması. Bodycam saati 00:00:00'da donar ve oyun boyunca öyle kalır.
+7. **Uyanma:** Yerde, yan yatmış görüntü. Göz kırpar gibi kararma açılıp kapanır, Selim yavaşça doğrulur. Vızıltı geri gelir. Altyazı: *"...neredeyim?"*
+8. Kontrol oyuncuya geçer. Başlangıç karesinin tavanında düşülen delik görünür.
+
+Replikler ve dosya adları `SESLENDIRME.md`'de. Yağmur sesi `ses/yagmur.mp3`; `ses/zil.mp3`, `ses/kapi.mp3` konursa kodla üretilen zil ve kapı sesinin yerine çalar.
 
 Boşluk tuşu sinematiği geçer. `CFG.intro = false` ile tamamen kapatılabilir.
 
@@ -53,7 +59,7 @@ Davranış:
 
 ## Yapılacaklar (sırayla)
 
-- [x] Açılış sinematiği (daktilo yazısı, düşme)
+- [x] Açılış sinematiği (kulübe, telefon, yağmurda yürüyüş, düşme)
 - [x] Duvar yazıları
 - [ ] Elektrik panosu ve şifre
 - [ ] Harita parçası

@@ -19,7 +19,7 @@ WASD yürü · Shift koş · F fener · Fare bak · Boşluk sinematiği/kaseti a
 | `GDD.md` | Oyun tasarım dokümanı: hikâye, yaratık, ipucu zinciri, final, sistem sırası |
 | `serve.ps1` | Yerel test sunucusu (PowerShell) |
 | `SESLENDIRME.md` | Seslendirme metni: karakterler, ses yönü, dosya adları |
-| `ses/` | Seslendirme mp3'leri (yoksa tarayıcı sesi kullanılır) |
+| `ses/` | Seslendirme ve efekt mp3'leri: `yagmur.mp3` hazır; `zil.mp3`, `kapi.mp3`, `yaklasma.mp3` isteğe bağlı (yoksa kodla üretilen ses çalar) |
 
 ## Ayarlar
 
@@ -33,7 +33,7 @@ WASD yürü · Shift koş · F fener · Fare bak · Boşluk sinematiği/kaseti a
 - **Oyuncu:** ızgara tabanlı çarpışma, stamina, yürüme/koşma için ayrı kafa sallanması.
 - **Işık:** en yakın lambalara atanan ışık havuzu, ara sıra titreme, yaratık yakındayken güçlü titreme.
 - **Fener ve pil, karanlık bölgeler, yaratık, kasetler, ses:** ayrıntılar `GDD.md` içinde.
-- **Açılış sinematiği:** daktilo yazısı → kuyudan düşüş → karartma → yerde uyanma.
+- **Açılış sinematiği:** yağmurlu sokakta Fen İşleri kulübesi → telefon → mazgala yürüyüş → kuyudan düşüş → karartma → yerde uyanma. Sokak (`buildStreet`) yalnızca açılışta kurulur, düşüşten sonra silinir.
 - **Duvar yazıları:** canvas ile boyanmış yarı saydam paneller; ilki başlangıçta görüş alanına, diğerleri uzağa ve aralıklı yerleşir (`WALL_TEXTS`).
 
 Seslendirme: `ses/` klasörüne `SESLENDIRME.md`'deki adlarla mp3 konursa kasetler ve Selim'in replikleri o kayıtlarla çalar. `serve.ps1` ile açınca kayda bodycam mikrofonu filtresi ve oda yankısı eklenir.
@@ -44,3 +44,7 @@ Kasetler `TAPES` listesindedir; `src` alanına video dosyası yazılırsa (ör. 
 
 - `window.__mazgal` ve B tuşu göstergesi test içindir, yayından önce kaldırılmalı.
 - Telif: Kane Pixels içeriği, Backrooms wiki seviye/yaratık adları ve orijinal fotoğraf kullanılmaz.
+
+## Ses kaynakları
+
+- `ses/yagmur.mp3`: Pixabay, liecio, "Calming Rain" (Pixabay İçerik Lisansı). Döngü için 58 sn'ye kısaltıldı.

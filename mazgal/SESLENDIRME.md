@@ -11,19 +11,39 @@ Her replik ayrı bir mp3 dosyasıdır. Dosyaları `ses/` klasörüne aşağıdak
 
 **ElevenLabs için:** Türkçe destekleyen çok dilli bir model, Stability düşük (%30-45, daha duygusal), Style biraz açık. Her repliği ayrı üretip mp3 indirin. Yavaş okutmak için cümle sonlarına "..." eklemek işe yarar.
 
-## Selim (oyuncu karakteri)
+## Giriş sahnesi: Selim ve Amir
 
-Gece bekçisi/güvenlik görevlisi, 30'larında. Giriş anlatımında sakin ve yorgun, sanki olaydan sonra raporunu kaydediyor. "Neredeyim" düşüşten sonra sersemlemiş, boğuk.
+Gece, belediyenin Fen İşleri kulübesinde nöbetteki Selim'e amiri telefon eder, açık kalan mazgalın kapağını kapatmaya yollar. Selim yürüyüp mazgala gider, aşağıdan gelen sesi dinlemek için eğilir ve düşer.
 
-| Dosya | Replik |
+**Selim:** Belediye işçisi, 30'larında, gece nöbetinde uyuklarken telefon çalmış. Yorgun, biraz huysuz ama saygılı ("abi" diyor). Mazgalın başında sesi kısılır, yarı fısıltı. "Neredeyim" düşüşten sonra sersemlemiş, boğuk.
+
+**Amir:** 50'lerinde, kalın sesli, evden arıyor, uykulu ve aceleci. Telefon hattı efektini oyun ekliyor (`serve.ps1` ile açınca), siz düz kaydedin. "İçinden ses geliyormuş" kısmını kendisi de tuhaf bulduğu için duraksayarak söylüyor.
+
+| Dosya | Kim | Replik |
+| --- | --- | --- |
+| `selim_01.mp3` | Selim | Alo. |
+| `amir_01.mp3` | Amir | Selim, uyumuyorsun değil mi? |
+| `selim_02.mp3` | Selim | Yok abi. Söyle. |
+| `amir_02.mp3` | Amir | Köşedeki mazgalın kapağı açık kalmış. Biri aramış. |
+| `amir_03.mp3` | Amir | Git bir bak, kapat şunu. Sabah çocuklar oradan geçiyor. |
+| `selim_03.mp3` | Selim | Tamam abi, çıkıyorum. |
+| `amir_04.mp3` | Amir | Bir de... içinden ses geliyormuş. Öyle dedi kadın. |
+| `selim_04.mp3` | Selim | Ne sesi? |
+| `amir_05.mp3` | Amir | Bilmiyorum. Git bak işte. |
+| `selim_05.mp3` | Selim | Kim açar bunu bu saatte... (yürürken kendi kendine, mırıldanarak) |
+| `selim_06.mp3` | Selim | ...bu ses ne? (mazgalın başında, fısıltı) |
+| `selim_neredeyim.mp3` | Selim | ...neredeyim? (düşüşten sonra) |
+
+## Efekt sesleri (isteğe bağlı)
+
+| Dosya | Ne zaman çalar |
 | --- | --- |
-| `selim_giris_01.mp3` | 14 Ekim, 23:52. |
-| `selim_giris_02.mp3` | Gece vardiyasının son turu. |
-| `selim_giris_03.mp3` | Sokak lambası söndü. Mazgalın altından bir vızıltı geliyordu. |
-| `selim_giris_04.mp3` | Eğildim. Izgara yerinden oynadı. |
-| `selim_neredeyim.mp3` | ...neredeyim? |
+| `yagmur.mp3` | Açılıştaki sokak sahnesi boyunca, döngüde (hazır) |
+| `zil.mp3` | Kulübedeki telefon çalarken |
+| `kapi.mp3` | Selim kulübenin kapısını açarken |
+| `yaklasma.mp3` | Labirentte ışıklar söndüğünde bir şey yaklaşırken (ağır adım sesleri yerine) |
 
-Giriş satırları yazı ekrana gelirken çalar. Her biri 3-4 saniyeyi geçmesin.
+Yoksa oyun bunları kodla üretir.
 
 ## Kaset 1 · Mehmet (2019)
 
@@ -58,4 +78,4 @@ Genç kadın, hızlı ve fısıltılı konuşuyor, sanki biri duyacakmış gibi.
 | `kenan_03.mp3` | Biri buradan çıkmış. Eminim. Bir pano gördüm, kilitliydi. |
 | `kenan_04.mp3` | Şifreyi... şifre kasetteydi. Diğer kasette. Ben onu— |
 
-Metni değiştirirseniz `index.html` içindeki `TAPES` ve `INTRO_LINES` listelerini de güncelleyin, altyazılar oradan gelir.
+Metni değiştirirseniz `index.html` içindeki `TAPES` ve `INTRO_CALL` listelerini de güncelleyin, altyazılar oradan gelir.
