@@ -73,7 +73,7 @@
 <div id="title" class="screen">
   <h1>MAZGAL</h1>
   <p>Kulaklık önerilir.</p>
-  <p>WASD yürü · Shift koş · F fener · Fare bak</p>
+  <p>WASD yürü · Shift koş · F fener · Fare ya da ok tuşları bak</p>
   <div class="go">[ başlamak için tıkla ]</div>
 </div>
 
@@ -1103,7 +1103,7 @@ const S = {
   battery: 100, lightOn: false,
   lamp: 1, lampTarget: 1, flicker: 0,
   darkness: 0,
-  interference: 0, interTest: false, showDbg: false,
+  interference: 0, interTest: false, showDbg: false, lockFailed: false,
   black: 0,
   lastTape: -1, tapesFound: 0,
   intro: null, surface: false,
@@ -1134,14 +1134,21 @@ function resetRun() {
 // ============================================================
 // GİRİŞ / KONTROLLER
 // ============================================================
-function lockPointer() { if (document.pointerLockElement !== canvas) canvas.requestPointerLock?.(); }
+// Fare kilidi bazı ortamlarda (gömülü önizleme, izin yok) alınamaz; o zaman serbest fareyle ve ok tuşlarıyla bakılır.
+function lockPointer() {
+  if (document.pointerLockElement === canvas || !canvas.requestPointerLock) return;
+  try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => { S.lockFailed = true; }); }
+  catch (e) { S.lockFailed = true; }
+}
+document.addEventListener("pointerlockerror", () => { S.lockFailed = true; });
 document.addEventListener("pointerlockchange", () => {
   const locked = document.pointerLockElement === canvas;
   if (!locked && S.mode === "play") { S.paused = true; show("pause"); }
   if (locked && S.mode === "play" && S.paused) { S.paused = false; hide("pause"); }
 });
 document.addEventListener("mousemove", (e) => {
-  if (document.pointerLockElement !== canvas || S.mode !== "play" || S.paused) return;
+  if (S.mode !== "play" || S.paused) return;
+  if (document.pointerLockElement !== canvas && !S.lockFailed) return;
   S.yaw -= e.movementX * 0.0022;
   S.pitch = clamp(S.pitch - e.movementY * 0.0022, -1.35, 1.35);
 });
@@ -1459,7 +1466,7 @@ function finishIntro(natural) {
 }
 function startPlay() {
   S.mode = "play"; S.playTime = 0; S.roll = 0;
-  S.paused = document.pointerLockElement !== canvas;
+  S.paused = document.pointerLockElement !== canvas && !S.lockFailed;
   S.paused ? show("pause") : hide("pause");
 }
 
@@ -1475,6 +1482,10 @@ function blocked(x, z) {
   return false;
 }
 function updatePlayer(dt) {
+  // ok tuşlarıyla bakış (fare yedeği)
+  const turn = (keys.ArrowLeft ? 1 : 0) - (keys.ArrowRight ? 1 : 0), tilt = (keys.ArrowUp ? 1 : 0) - (keys.ArrowDown ? 1 : 0);
+  S.yaw += turn * 2.2 * dt;
+  S.pitch = clamp(S.pitch + tilt * 1.6 * dt, -1.35, 1.35);
   const f = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
   const s = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
   const moving = f !== 0 || s !== 0;

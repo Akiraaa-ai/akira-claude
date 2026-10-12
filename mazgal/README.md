@@ -9,7 +9,7 @@ Açılmazsa PowerShell'de `serve.ps1` çalıştırın, http://localhost:8765 adr
 
 ## Kontroller
 
-WASD yürü · Shift koş · F fener · Fare bak · Boşluk sinematiği/kaseti atla · T son kaseti tekrar izle · I parazit testi · B Bekçi mesafesi (test)
+WASD yürü · Shift koş · F fener · Fare ya da ok tuşları bak · Boşluk sinematiği/kaseti atla · T son kaseti tekrar izle · I parazit testi · B Bekçi mesafesi (test)
 
 ## Dosyalar
 
