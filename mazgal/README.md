@@ -9,7 +9,7 @@ Açılmazsa PowerShell'de `serve.ps1` çalıştırın, http://localhost:8765 adr
 
 ## Kontroller
 
-WASD yürü · Shift koş · F fener · Fare bak · Boşluk sinematiği/kaseti atla · T son kaseti tekrar izle · I parazit testi · B Bekçi mesafesi (test)
+WASD yürü · Shift koş · F fener · Fare ya da ok tuşları bak · Boşluk sinematiği/kaseti atla · T son kaseti tekrar izle · I parazit testi · B Bekçi mesafesi (test)
 
 ## Dosyalar
 
@@ -21,7 +21,9 @@ WASD yürü · Shift koş · F fener · Fare bak · Boşluk sinematiği/kaseti a
 
 ## Ayarlar
 
-`index.html` başındaki `CFG` nesnesi: yürüme/koşma hızı, stamina, kafa sallanması, bodycam efekt şiddeti, labirent boyutu, pil, karanlık bölgeler, yaratık davranışı, açılış sinematiği (`intro`).
+Oyun içi menü (başlık ve duraklatma ekranı): grafik kalitesi (Düşük / Orta / Yüksek), parlaklık, bodycam efekti şiddeti, fare hassasiyeti. Seçimler tarayıcıda saklanır. Bilgisayar yavaşsa Düşük seçin.
+
+Kod tarafında `index.html` başındaki `CFG` nesnesi: yürüme/koşma hızı, stamina, kafa sallanması, bodycam efekt şiddeti, labirent boyutu, pil, karanlık bölgeler, yaratık davranışı, açılış sinematiği (`intro`).
 
 ## Sistemler (index.html içinde sırayla)
 
@@ -32,6 +34,7 @@ WASD yürü · Shift koş · F fener · Fare bak · Boşluk sinematiği/kaseti a
 - **Işık:** en yakın lambalara atanan ışık havuzu, ara sıra titreme, yaratık yakındayken güçlü titreme.
 - **Fener ve pil, karanlık bölgeler, yaratık, kasetler, ses:** ayrıntılar `GDD.md` içinde.
 - **Açılış sinematiği:** daktilo yazısı → kuyudan düşüş → karartma → yerde uyanma.
+- **Görsellik:** floresanlarda parlama (bloom, çeyrek çözünürlükte iki geçiş), duvar diplerinde ve tavan köşelerinde gölge (duvar maskesinden bulanıklaştırılmış doku, zemin ve tavana çarpılarak bindirilir), geniş alanlarda kolonlar, priz, havalandırma, eksik ve lekeli tavan karoları, halı lekeleri. Kalite ayarı çözünürlüğü, ışık sayısını, parlamayı ve detay yoğunluğunu değiştirir.
 - **Duvar yazıları:** canvas ile boyanmış yarı saydam paneller; ilki başlangıçta görüş alanına, diğerleri uzağa ve aralıklı yerleşir (`WALL_TEXTS`).
 
 Kasetler `TAPES` listesindedir; `src` alanına video dosyası yazılırsa (ör. `kasetler/mehmet.mp4`) altyazılı ses yerine o video oynar.
