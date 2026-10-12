@@ -19,6 +19,7 @@ WASD yürü (açılışta kamyoneti sürer: W gaz, S fren/geri, A D direksiyon) 
 | `GDD.md` | Oyun tasarım dokümanı: hikâye, yaratık, ipucu zinciri, final, sistem sırası |
 | `serve.ps1` | Yerel test sunucusu (PowerShell) |
 | `SESLENDIRME.md` | Seslendirme metni: karakterler, ses yönü, dosya adları |
+| `dokular.js`, `dokular/` | Flow ile üretilen doku görselleri (duvar, tavan, asfalt, kulübe duvarı, torpido, kapı paneli, cam damlaları). `dokular.js` aynı görsellerin gömülü hâli; çift tıklayınca (file://) da çalışsın diye. Dosya yoksa oyun kodla çizilen dokulara döner. |
 | `ses/` | Seslendirme ve efekt mp3'leri: `yagmur.mp3` hazır; `zil.mp3`, `kapi.mp3`, `yaklasma.mp3` isteğe bağlı (yoksa kodla üretilen ses çalar) |
 
 ## Ayarlar
@@ -30,7 +31,7 @@ Kod tarafında `index.html` başındaki `CFG` nesnesi: yürüme/koşma hızı, s
 ## Sistemler (index.html içinde sırayla)
 
 - **Bodycam shader:** sahne bir render target'a çizilir; balık gözü, chromatic aberration, gren, tarama çizgileri, vinyet ve renk kayması. `interference` (0..1) bant kayması, gürültü ve renk ayrışmasını artırır.
-- **Dokular:** sarı duvar, halı, tavan ve kuyu dokuları canvas ile kodla üretilir. Duvarlar InstancedMesh ile tek çizim.
+- **Dokular:** duvar, tavan, asfalt, kulübe, torpido ve kapı paneli `dokular.js` içindeki fotoğraflardan gelir (`photoTex`); halı, kuyu ve geri kalanlar canvas ile kodla üretilir. Duvarlar InstancedMesh ile tek çizim.
 - **Labirent:** DFS + rastgele duvar kaldırma (döngüler) + geniş alanlar. `grid[y][x]` (1 = duvar), her kare 4 m.
 - **Oyuncu:** ızgara tabanlı çarpışma, stamina, yürüme/koşma için ayrı kafa sallanması.
 - **Işık:** en yakın lambalara atanan ışık havuzu, ara sıra titreme, yaratık yakındayken güçlü titreme.

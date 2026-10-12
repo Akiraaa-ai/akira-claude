@@ -98,6 +98,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+<script src="dokular.js"></script>
 <script>
 "use strict";
 
@@ -333,6 +334,28 @@ function stain(g, x, y, r, col, a) {
   gr.addColorStop(0, `rgba(${col},${a})`); gr.addColorStop(1, `rgba(${col},0)`);
   g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2);
 }
+// Flow görselleri (dokular.js, data: adresi olarak gömülü) varsa canvas dokusunun yerine geçer.
+// Görsel yüklenince yeni canvas'a çizilir, üstüne isteğe bağlı ek çizim (gölge, süpürgelik, karo çizgisi) yapılır.
+function photoTex(tex, key, w, h, over) {
+  const src = window.DOKU && window.DOKU[key]; if (!src) return false;
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    const g = c.getContext("2d"); g.drawImage(img, 0, 0, w, h);
+    if (over) over(g, w, h, img);
+    tex.dispose(); tex.image = c; tex.needsUpdate = true;   // boyut değişti: GPU'daki eski doku bırakılıp yeniden yüklenir
+  };
+  img.src = src; return true;
+}
+function wallShade(g, w, h) {
+  const top = g.createLinearGradient(0, 0, 0, h * 0.22); top.addColorStop(0, "rgba(40,30,5,0.45)"); top.addColorStop(1, "rgba(40,30,5,0)");
+  g.fillStyle = top; g.fillRect(0, 0, w, h * 0.22);
+  const bot = g.createLinearGradient(0, h, 0, h * 0.8); bot.addColorStop(0, "rgba(40,30,5,0.4)"); bot.addColorStop(1, "rgba(40,30,5,0)");
+  g.fillStyle = bot; g.fillRect(0, h * 0.8, w, h * 0.2);
+  const k = h / 512;
+  g.fillStyle = "#5c4a22"; g.fillRect(0, h - 18 * k, w, 18 * k);
+  g.fillStyle = "rgba(0,0,0,0.25)"; g.fillRect(0, h - 20 * k, w, 2 * k);
+}
 const TEX = {
   wall: makeCanvas(512, 512, (g, w, h) => {
     g.fillStyle = "#c8b25a"; g.fillRect(0, 0, w, h);
@@ -342,13 +365,7 @@ const TEX = {
     speckle(g, w, h, 5000, "90,70,20", 0.03, 0.12, 1, 2);
     for (let i = 0; i < 7; i++) stain(g, rand(0, w), rand(h * 0.55, h), rand(40, 110), "95,75,25", rand(0.15, 0.3));
     for (let i = 0; i < 3; i++) stain(g, rand(0, w), rand(0, h * 0.4), rand(30, 80), "110,90,40", rand(0.08, 0.18));
-    // tavan ve zemin köşesinde biriken gölge
-    const top = g.createLinearGradient(0, 0, 0, h * 0.22); top.addColorStop(0, "rgba(40,30,5,0.45)"); top.addColorStop(1, "rgba(40,30,5,0)");
-    g.fillStyle = top; g.fillRect(0, 0, w, h * 0.22);
-    const bot = g.createLinearGradient(0, h, 0, h * 0.8); bot.addColorStop(0, "rgba(40,30,5,0.4)"); bot.addColorStop(1, "rgba(40,30,5,0)");
-    g.fillStyle = bot; g.fillRect(0, h * 0.8, w, h * 0.2);
-    g.fillStyle = "#5c4a22"; g.fillRect(0, h - 18, w, 18);
-    g.fillStyle = "rgba(0,0,0,0.25)"; g.fillRect(0, h - 20, w, 2);
+    wallShade(g, w, h);   // tavan ve zemin köşesinde biriken gölge, süpürgelik
   }),
   carpet: makeCanvas(256, 256, (g, w, h) => {
     g.fillStyle = "#86763f"; g.fillRect(0, 0, w, h);
@@ -460,6 +477,21 @@ flashlight.position.set(0.15, -0.12, 0);
 flashlight.target.position.set(0.1, -0.1, -1);
 camera.add(flashlight, flashlight.target);
 
+// Flow dokuları: duvar kağıdı sarıya çekilir, tavan görseli 2x2 karo olarak döşenir
+photoTex(TEX.wall, "duvar", 1024, 1024, (g, w, h) => {
+  g.globalCompositeOperation = "multiply"; g.fillStyle = "#e2c464"; g.fillRect(0, 0, w, h);
+  g.globalCompositeOperation = "source-over";
+  for (let i = 0; i < 5; i++) stain(g, rand(0, w), rand(h * 0.55, h), rand(80, 200), "95,75,25", rand(0.12, 0.25));
+  wallShade(g, w, h);
+});
+photoTex(TEX.ceiling, "tavan", 512, 512, (g, w, h, img) => {
+  for (let i = 0; i < 4; i++) {
+    g.save(); g.translate((i % 2 + 0.5) * w / 2, (Math.floor(i / 2) + 0.5) * h / 2); g.rotate(i * Math.PI / 2);
+    g.drawImage(img, -w / 4, -h / 4, w / 2, h / 2); g.restore();
+  }
+  g.globalCompositeOperation = "multiply"; g.fillStyle = "#e4dcc0"; g.fillRect(0, 0, w, h); g.globalCompositeOperation = "source-over";
+  g.fillStyle = "#8e866a"; for (let i = 0; i <= 2; i++) { g.fillRect(i * w / 2 - 5, 0, 10, h); g.fillRect(0, i * h / 2 - 5, w, 10); }
+});
 const MAT = {
   wall: new THREE.MeshLambertMaterial({ map: TEX.wall }),
   floor: new THREE.MeshLambertMaterial({ map: TEX.carpet }),
@@ -854,6 +886,30 @@ function streetAssets() {
       g.strokeStyle = "#d8dde6"; g.lineWidth = 3; g.strokeRect(4, 4, w - 8, h - 8);
       g.fillStyle = "#e8ecf2"; g.font = "bold 30px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("FEN İŞLERİ", w / 2, h / 2 + 1);
     }),
+    notebook: makeCanvas(256, 128, (g, w, h) => {
+      g.fillStyle = "#e4dcc4"; g.fillRect(0, 0, w, h);
+      g.strokeStyle = "rgba(60,80,140,0.35)"; g.lineWidth = 1;
+      for (let y = 14; y < h; y += 9) { g.beginPath(); g.moveTo(6, y); g.lineTo(w - 6, y); g.stroke(); }
+      g.fillStyle = "rgba(0,0,0,0.25)"; g.fillRect(w / 2 - 2, 0, 4, h);
+      g.fillStyle = "#2a2f4a"; g.font = "italic 9px sans-serif";
+      const rows = ["21:10  tur, sorun yok", "22:30  çay", "23:05  çay", "23:40  ...", "", "14.10  nöbet: Selim"];
+      rows.forEach((r, i) => g.fillText(r, 10, 22 + i * 9));
+      for (let i = 0; i < 8; i++) { g.fillRect(140, 20 + i * 9, rand(40, 100), 1.2); }
+      stain(g, 200, 90, 18, "120,80,30", 0.3);   // çay lekesi
+    }),
+    radio: makeCanvas(128, 64, (g, w, h) => {
+      g.fillStyle = "#3b2f25"; g.fillRect(0, 0, w, h);
+      g.fillStyle = "#1a1612"; for (let y = 8; y < 56; y += 5) for (let x = 8; x < 62; x += 5) g.fillRect(x, y, 3, 3);   // hoparlör
+      g.fillStyle = "#c9b98a"; g.fillRect(72, 10, 48, 18);
+      g.fillStyle = "#6a1a14"; g.fillRect(90, 10, 2, 18);
+      g.fillStyle = "#2a2a2a"; g.font = "7px monospace"; g.fillText("88  96  104", 74, 34);
+      g.fillStyle = "#151515"; g.beginPath(); g.arc(84, 48, 7, 0, 7); g.arc(108, 48, 7, 0, 7); g.fill();
+    }),
+    binders: makeCanvas(128, 64, (g, w, h) => {
+      const cols = ["#2d4f7a", "#7a2d2d", "#2f5a3a", "#2d4f7a", "#6a5a2a", "#4a4a4a"];
+      cols.forEach((c, i) => { g.fillStyle = c; g.fillRect(i * 21, 0, 20, h); g.fillStyle = "#e6e0cc"; g.fillRect(i * 21 + 4, 12, 12, 16); g.fillStyle = "#222"; g.beginPath(); g.arc(i * 21 + 10, 48, 3, 0, 7); g.fill(); });
+      speckle(g, w, h, 600, "0,0,0", 0.05, 0.2, 1, 2);
+    }),
     vest: makeCanvas(64, 96, (g, w, h) => {
       g.fillStyle = "#e5671f"; g.fillRect(0, 0, w, h);
       g.fillStyle = "#d9dbc8"; g.fillRect(0, 40, w, 8); g.fillRect(0, 62, w, 8);
@@ -874,6 +930,13 @@ function streetAssets() {
     }
   });
   T.drops.wrapS = T.drops.wrapT = THREE.ClampToEdgeWrapping;
+  // Flow dokuları
+  photoTex(T.asphalt, "asfalt", 1024, 1024);
+  photoTex(T.hut, "kulube_duvar", 1024, 1024);
+  T.photoDrops = photoTex(T.drops, "damla", 1024, 572);
+  const blank = () => { const t = new THREE.CanvasTexture(document.createElement("canvas")); t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; t.anisotropy = 4; return t; };
+  if (window.DOKU?.torpido) { T.torpido = blank(); photoTex(T.torpido, "torpido", 1536, 614); }
+  if (window.DOKU?.kapi_paneli) { T.kapi = blank(); photoTex(T.kapi, "kapi_paneli", 1024, 572); }
   T.asphalt.repeat.set(0.3, 0.3); T.paving.repeat.set(0.6, 0.6); T.lino.repeat.set(1.2, 1.2);
   for (const k of ["calendar", "clock", "sign", "vest"]) T[k].wrapS = T[k].wrapT = THREE.ClampToEdgeWrapping;
   // cephe: koyu pencereler, bazıları yanık (emissive ayrı doku)
@@ -915,11 +978,23 @@ function streetAssets() {
     dash: new THREE.MeshLambertMaterial({ color: 0x2a2a2c }),
     headlight: new THREE.MeshBasicMaterial({ color: 0xfff4d8 }),
     tail: new THREE.MeshBasicMaterial({ color: 0x8a0d08 }),
-    dropsTex: T.drops,
+    dropsTex: T.drops, photoDrops: T.photoDrops,
+    torpido: T.torpido && new THREE.MeshLambertMaterial({ map: T.torpido, emissive: 0x161616, emissiveMap: T.torpido }),
+    kapi: T.kapi && new THREE.MeshLambertMaterial({ map: T.kapi, emissive: 0x1a1a1a, emissiveMap: T.kapi }),
+    needle: new THREE.MeshBasicMaterial({ color: 0xe0a868 }),
     calendar: new THREE.MeshLambertMaterial({ map: T.calendar }),
     clock: new THREE.MeshLambertMaterial({ map: T.clock, transparent: true, alphaTest: 0.5 }),
     sign: new THREE.MeshLambertMaterial({ map: T.sign }),
     vest: new THREE.MeshLambertMaterial({ map: T.vest }),
+    notebook: new THREE.MeshLambertMaterial({ map: T.notebook }),
+    radio: new THREE.MeshLambertMaterial({ map: T.radio }),
+    binders: new THREE.MeshLambertMaterial({ map: T.binders }),
+    metal: new THREE.MeshPhongMaterial({ color: 0xa8aaa6, specular: 0x777777, shininess: 70 }),
+    teaGlass: new THREE.MeshPhongMaterial({ color: 0xd8e4e8, specular: 0xffffff, shininess: 120, transparent: true, opacity: 0.35, depthWrite: false }),
+    tea: new THREE.MeshLambertMaterial({ color: 0x6e1e08, emissive: 0x2a0800 }),
+    hardhat: new THREE.MeshPhongMaterial({ color: 0xe8e4d8, specular: 0x444444, shininess: 40 }),
+    heaterGlow: new THREE.MeshBasicMaterial({ color: 0xff6a22 }),
+    chair: new THREE.MeshLambertMaterial({ color: 0x3e4a52 }),
     facades: [0, 1, 2].map(() => { const [map, em] = facade(); return new THREE.MeshLambertMaterial({ map, emissive: 0xffffff, emissiveMap: em, emissiveIntensity: 0.55 }); }),
   };
   return (STREET_ASSETS = M);
@@ -1043,15 +1118,48 @@ function buildStreet() {
   // masa, telefon, termos, bardak
   box(0.6, 0.04, 1.4, M.wood, -14.85, 0.75, -4.4, hut);
   for (const [x, z] of [[-15.1, -5.05], [-14.6, -5.05], [-15.1, -3.75], [-14.6, -3.75]]) box(0.04, 0.73, 0.04, M.wood, x, 0.365, z, hut);
-  box(0.22, 0.08, 0.2, M.phone, -14.85, 0.81, -4.55, hut);
+  box(0.24, 0.07, 0.22, M.phone, -14.85, 0.805, -4.55, hut); box(0.17, 0.05, 0.2, M.phone, -14.92, 0.86, -4.55, hut);   // telefon gövdesi
   const dial = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.012, 14), M.dark); dial.rotation.z = Math.PI / 2 - 0.5; dial.position.set(-14.73, 0.83, -4.55); hut.add(dial);
   const handset = new THREE.Group();
   box(0.05, 0.045, 0.24, M.phone, 0, 0, 0, handset);
   box(0.07, 0.05, 0.06, M.phone, 0, -0.01, -0.1, handset); box(0.07, 0.05, 0.06, M.phone, 0, -0.01, 0.1, handset);
   const cradle = new THREE.Vector3(-14.87, 0.88, -4.55);
   handset.position.copy(cradle); hut.add(handset);
-  const th = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.3, 12), M.thermos); th.position.set(-14.95, 0.92, -3.95); hut.add(th);
-  const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.03, 0.08, 10), M.phone); cup.position.set(-14.75, 0.81, -4.0); hut.add(cup);
+  // termos: gövde, kapak bardağı, sap
+  const th = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.048, 0.28, 14), M.thermos); th.position.set(-15.0, 0.91, -3.9); hut.add(th);
+  const thCap = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.05, 0.07, 14), M.metal); thCap.position.set(-15.0, 1.085, -3.9); hut.add(thCap);
+  box(0.015, 0.16, 0.025, M.dark, -15.0, 0.93, -3.84, hut);
+  // ince belli çay bardağı, tabak, kaşık
+  const tg = new THREE.Mesh(new THREE.LatheGeometry([[0.02, 0], [0.026, 0.02], [0.019, 0.045], [0.026, 0.085], [0.028, 0.09]].map(([r, y]) => new THREE.Vector2(r, y)), 14), M.teaGlass);
+  tg.position.set(-14.72, 0.778, -3.95); hut.add(tg);
+  const tea = new THREE.Mesh(new THREE.LatheGeometry([[0.0, 0.002], [0.019, 0.004], [0.024, 0.02], [0.018, 0.045], [0.024, 0.072], [0.0, 0.072]].map(([r, y]) => new THREE.Vector2(r, y)), 12), M.tea);
+  tea.position.copy(tg.position); hut.add(tea);
+  const saucer = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.045, 0.008, 16), M.hardhat); saucer.position.set(-14.72, 0.774, -3.95); hut.add(saucer);
+  box(0.005, 0.004, 0.07, M.metal, -14.67, 0.781, -3.96, hut);
+  // nöbet defteri ve kalem
+  const nb = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.2), M.notebook); nb.rotation.set(-Math.PI / 2, 0, Math.PI / 2 + 0.12); nb.position.set(-14.76, 0.773, -4.2); hut.add(nb);
+  const pen = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.14, 6), M.dark); pen.rotation.set(Math.PI / 2, 0, 0.5); pen.position.set(-14.66, 0.778, -4.25); hut.add(pen);
+  // eski radyo (anteni duvara yaslı)
+  box(0.1, 0.13, 0.26, M.dark, -15.06, 0.835, -4.98, hut);
+  const rf = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.13), M.radio); rf.rotation.y = Math.PI / 2; rf.position.set(-15.005, 0.835, -4.98); hut.add(rf);
+  const ant = box(0.006, 0.4, 0.006, M.metal, -15.08, 1.07, -5.05, hut); ant.rotation.x = 0.35;
+  // kül tablası
+  const ash = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.045, 0.02, 12), M.metal); ash.position.set(-14.68, 0.78, -4.88); hut.add(ash);
+  for (const a of [0.3, 1.9, 4]) box(0.03, 0.008, 0.008, M.hardhat, -14.68 + Math.cos(a) * 0.02, 0.795, -4.88 + Math.sin(a) * 0.02, hut).rotation.y = a;
+  // sandalye (Selim'in oturduğu)
+  box(0.42, 0.04, 0.42, M.chair, -13.75, 0.45, -4.3, hut);
+  box(0.04, 0.45, 0.4, M.chair, -13.53, 0.72, -4.3, hut);
+  for (const [x, z] of [[-13.95, -4.1], [-13.95, -4.5], [-13.55, -4.1], [-13.55, -4.5]]) box(0.03, 0.45, 0.03, M.dark, x, 0.225, z, hut);
+  // arka duvarda raf: klasörler, baret
+  box(0.7, 0.025, 0.22, M.wood, -13.35, 1.75, HUT.z0 + 0.17, hut);
+  const bd = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.26), M.binders); bd.position.set(-13.5, 1.895, HUT.z0 + 0.25); hut.add(bd);
+  box(0.42, 0.26, 0.18, M.dark, -13.5, 1.895, HUT.z0 + 0.16, hut);
+  const hat = new THREE.Mesh(new THREE.SphereGeometry(0.12, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), M.hardhat); hat.position.set(-13.13, 1.765, HUT.z0 + 0.17); hut.add(hat);
+  box(0.28, 0.01, 0.28, M.hardhat, -13.13, 1.77, HUT.z0 + 0.17, hut).scale.set(1, 1, 0.85);
+  // elektrikli soba (kızgın teller)
+  box(0.36, 0.42, 0.12, M.dark, -13.15, 0.21, HUT.z0 + 0.15, hut);
+  for (let i = 0; i < 3; i++) box(0.28, 0.018, 0.01, M.heaterGlow, -13.15, 0.12 + i * 0.1, HUT.z0 + 0.215, hut);
+  const heatLight = new THREE.PointLight(0xff5a1e, 0.5, 2.2, 1.6); heatLight.position.set(-13.15, 0.3, HUT.z0 + 0.45); hut.add(heatLight);
   // duvarda takvim (14 Ekim işaretli), saat (23:52), yedek yelek
   const cal = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.55), M.calendar); cal.position.set(-14.25, 1.55, HUT.z0 + t + 0.005); hut.add(cal);
   const clk = new THREE.Mesh(new THREE.CircleGeometry(0.16, 20), M.clock); clk.rotation.y = Math.PI / 2; clk.position.set(HUT.x0 + t + 0.005, 1.9, -4.75); hut.add(clk);
@@ -1098,6 +1206,10 @@ function buildCar(st, M) {
   for (const sx of [-0.88, 0.88]) {
     const p = box(0.07, 0.86, 0.07, M.dash, sx, 1.42, -0.86); p.rotation.x = 0.5;           // ön direkler
     box(0.06, 0.62, 1.5, M.dash, sx * 1.04, 0.95, 0.1);                                     // kapı paneli
+    if (M.kapi) {   // Flow görseli, kabine bakan yüzde
+      const dp = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.62), M.kapi); dp.rotation.y = sx < 0 ? Math.PI / 2 : -Math.PI / 2;
+      dp.position.set(sx * 1.04 - Math.sign(sx) * 0.031, 0.95, 0.1); g.add(dp);
+    }
     box(0.05, 0.05, 1.3, M.dash, sx * 1.02, 1.72, 0.15);                                    // tavan kenarı
   }
   const roof = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.4), M.dash); roof.rotation.x = Math.PI / 2; roof.position.set(0, 1.74, 0.2); g.add(roof);
@@ -1113,10 +1225,20 @@ function buildCar(st, M) {
   const gaugeTex = new THREE.CanvasTexture(gc);
   const gauge = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.13), new THREE.MeshBasicMaterial({ map: gaugeTex }));
   gauge.position.set(CAR_SEAT.x, 1.13, -0.66); gauge.rotation.x = -0.35; g.add(gauge);
-  const dashLight = new THREE.PointLight(0xff9d3a, 0.35, 1.4, 1.5); dashLight.position.set(CAR_SEAT.x, 1.2, -0.6); g.add(dashLight);   // gösterge ışığı
+  // Flow torpido görseli: direksiyon mili sürücünün önüne gelecek şekilde; hız ibresi resimdeki saatin üstünde döner
+  let needle = null;
+  if (M.torpido) {
+    gauge.visible = false;
+    const DW = 1.66, DH = DW * 614 / 1536, DX = -0.78 + DW / 2;
+    const dp = new THREE.Mesh(new THREE.PlaneGeometry(DW, DH), M.torpido); dp.position.set(DX, 1.12 - DH / 2, -0.535); g.add(dp);
+    needle = new THREE.Group(); needle.position.set(-0.78 + 0.2289 * DW, 1.12 - 0.4455 * DH, -0.532); g.add(needle);
+    box(0.004, 0.085, 0.002, M.needle, 0, 0.034, 0, needle);
+  }
+  const dashLight = new THREE.PointLight(0xff9d3a, 0.35, 1.4, 1.5); dashLight.position.set(CAR_SEAT.x, 1.15, -0.25); g.add(dashLight);   // gösterge ışığı
   // ön cam: yağmur damlaları + silecek
   const shield = new THREE.Group(); shield.position.set(0, 1.42, -0.95); shield.rotation.x = 0.5; g.add(shield);
-  const dropsMat = new THREE.MeshBasicMaterial({ map: M.dropsTex, transparent: true, opacity: 0.6, depthWrite: false });
+  const dropsMat = new THREE.MeshBasicMaterial({ map: M.dropsTex, transparent: true, opacity: 0.6, depthWrite: false,
+    blending: M.photoDrops ? THREE.AdditiveBlending : THREE.NormalBlending });   // fotoğraf siyah zeminli: toplamalı karışım
   const glassMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.72, 0.86), dropsMat); glassMesh.rotation.y = Math.PI; shield.add(glassMesh);   // içeriden bakılır
   const wipers = [-0.62, 0.05].map((x) => {
     const pv = new THREE.Group(); pv.position.set(x, -0.4, 0.01); shield.add(pv);
@@ -1127,7 +1249,7 @@ function buildCar(st, M) {
     const L = new THREE.SpotLight(0xfff0d0, 0, 38, 0.42, 0.55, 1.2); L.position.set(sx, 0.85, -2.5);
     L.target.position.set(sx * 1.4, 0, -16); g.add(L, L.target); return L;
   });
-  return { group: g, wheels, steer, gauge: { canvas: gc, tex: gaugeTex, last: -1 }, dropsMat, wipers, heads,
+  return { group: g, wheels, steer, gauge: { canvas: gc, tex: gaugeTex, last: -1 }, needle, dropsMat, wipers, heads,
     x: CAR_START.x, z: CAR_START.z, yaw: CAR_START.yaw, v: 0, steerAng: 0, wipe: 0, wet: 0.6 };
 }
 function drawGauge(car) {
@@ -1268,7 +1390,8 @@ function updateCarFx(dt, inCar) {
   } else car.wipers.forEach((w) => { w.rotation.z = -Math.PI / 2; });
   car.wet = Math.min(0.75, car.wet + dt * 0.3);
   car.dropsMat.opacity = car.wet;
-  if (inCar) drawGauge(car);
+  if (car.needle) car.needle.rotation.z = -THREE.MathUtils.degToRad(-116.6 + Math.min(200, v * 3.6) / 200 * 236.6);   // 0..200 km/s
+  else if (inCar) drawGauge(car);
 }
 
 // ============================================================
