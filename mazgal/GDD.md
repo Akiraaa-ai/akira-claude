@@ -69,4 +69,4 @@ Davranış:
 
 ## Telif notu
 
-Kane Pixels içeriği, Backrooms wiki seviye/yaratık adları ve orijinal fotoğraf kullanılmaz. Tüm dokular kodla üretilir.
+Kane Pixels içeriği, Backrooms wiki seviye/yaratık adları ve orijinal fotoğraf kullanılmaz. Dokular ya kodla üretilir ya da Flow ile üretilmiş görsellerdir (`dokular/`).
