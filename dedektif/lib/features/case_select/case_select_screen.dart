@@ -5,6 +5,7 @@ import '../../core/theme.dart';
 import '../../services/app_services.dart';
 import '../../services/purchase_service.dart';
 import '../../widgets/case_image.dart';
+import '../../widgets/star_row.dart';
 import '../game/game_routes.dart';
 import 'case_select_controller.dart';
 
@@ -165,7 +166,13 @@ class _CaseCard extends StatelessWidget {
                     ),
                   ],
                   const SizedBox(height: 8),
-                  badge,
+                  Row(
+                    children: [
+                      Expanded(child: badge),
+                      if (entry.bestStars != null)
+                        StarRow(stars: entry.bestStars!, size: 20),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -188,7 +195,13 @@ class _Badge extends StatelessWidget {
     children: [
       Icon(icon, size: 16, color: color),
       const SizedBox(width: 6),
-      Text(text, style: TextStyle(color: color)),
+      Flexible(
+        child: Text(
+          text,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: color),
+        ),
+      ),
     ],
   );
 }

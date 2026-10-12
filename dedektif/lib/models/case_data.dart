@@ -56,6 +56,9 @@ class CaseData {
     required this.solution,
     required this.wrongAnswer,
     this.freeHints = 0,
+    this.connections = const [],
+    this.timeline,
+    this.stars = const StarRule(),
   });
 
   factory CaseData.fromJson(Map<String, dynamic> json) {
@@ -92,6 +95,16 @@ class CaseData {
       wrongAnswer: WrongAnswer.fromJson(
         _req<Map<String, dynamic>>(json, 'wrongAnswer', id),
       ),
+      connections: _list(
+        json,
+        'connections',
+      ).map(BoardConnection.fromJson).toList(),
+      timeline: json['timeline'] is Map<String, dynamic>
+          ? TimelineData.fromJson(json['timeline'] as Map<String, dynamic>)
+          : null,
+      stars: json['stars'] is Map<String, dynamic>
+          ? StarRule.fromJson(json['stars'] as Map<String, dynamic>)
+          : const StarRule(),
     );
   }
 
@@ -114,6 +127,25 @@ class CaseData {
 
   /// Reklamsız kullanılabilen ipucu hakkı. Bitince ipucu ödüllü reklamla alınır.
   final int freeHints;
+
+  /// Delil panosunda iple bağlanınca çıkarım açan ipucu çiftleri.
+  final List<BoardConnection> connections;
+
+  /// Oyuncunun kurduğu zaman çizelgesi (isteğe bağlı).
+  final TimelineData? timeline;
+
+  /// Yıldız eşikleri.
+  final StarRule stars;
+
+  /// Bağlantının panoda gösterilen çıkarım metni.
+  String connectionText(BoardConnection c) {
+    final step = c.deductionStep;
+    if (c.text != null) return c.text!;
+    if (step != null && step >= 1 && step <= solution.deductionChain.length) {
+      return solution.deductionChain[step - 1];
+    }
+    return '';
+  }
 
   Suspect suspect(String id) => suspects.firstWhere((s) => s.id == id);
   Clue clue(String id) => clues.firstWhere((c) => c.id == id);
@@ -224,6 +256,51 @@ class CaseData {
     for (final c in clues) {
       if (!reachable.contains(c.id)) {
         errors.add('İpucu ${c.id}: oyunda hiçbir yolla bulunamıyor');
+      }
+    }
+    dup('bağlantı', connections.map((c) => c.id));
+    for (final c in connections) {
+      if (c.clueIds.length != 2) {
+        errors.add('Bağlantı ${c.id}: tam iki ipucu olmalı');
+      }
+      for (final id in c.clueIds) {
+        if (!clueIds.contains(id)) {
+          errors.add('Bağlantı ${c.id}: bilinmeyen ipucu $id');
+        }
+      }
+      if (connectionText(c).isEmpty) {
+        errors.add('Bağlantı ${c.id}: metni ya da geçerli deductionStep yok');
+      }
+    }
+    final tl = timeline;
+    if (tl != null) {
+      dup('zaman çizelgesi olayı', tl.events.map((e) => e.id));
+      for (final e in tl.events) {
+        if (!tl.slots.contains(e.time)) {
+          errors.add('Zaman olayı ${e.id}: ${e.time} saati slotlarda yok');
+        }
+        final sid = e.suspectId;
+        if (sid != null && !suspectIds.contains(sid)) {
+          errors.add('Zaman olayı ${e.id}: bilinmeyen şüpheli $sid');
+        }
+        for (final r in e.requiresClueIds) {
+          if (!clueIds.contains(r)) {
+            errors.add('Zaman olayı ${e.id}: bilinmeyen ipucu $r');
+          }
+        }
+      }
+    }
+    final ev = solution.evidence;
+    if (ev != null) {
+      for (final id in ev.clueIds) {
+        if (!clueIds.contains(id)) {
+          errors.add('Çözüm kanıtı: bilinmeyen ipucu $id');
+        }
+      }
+      if (ev.pick < 1 || ev.pick > ev.clueIds.length) {
+        errors.add(
+          'Çözüm kanıtı: pick 1 ile ${ev.clueIds.length} arasında olmalı',
+        );
       }
     }
     if (!suspectIds.contains(solution.culpritId)) {
@@ -353,6 +430,7 @@ class Clue {
     this.suspectIds = const [],
     this.image,
     this.unlockedByClueIds = const [],
+    this.needsMagnifier = false,
   });
 
   factory Clue.fromJson(Map<String, dynamic> json) {
@@ -367,6 +445,7 @@ class Clue {
       suspectIds: _strList(json, 'suspectIds'),
       image: _optStr(json, 'image'),
       unlockedByClueIds: _strList(json, 'unlockedByClueIds'),
+      needsMagnifier: json['needsMagnifier'] as bool? ?? false,
     );
   }
 
@@ -384,6 +463,9 @@ class Clue {
 
   /// Bu ipuçlarının hepsi bulununca kendiliğinden deftere eklenir (ör. laboratuvar sonucu).
   final List<String> unlockedByClueIds;
+
+  /// true ise ipucu ancak büyüteç üzerindeyken alınabilir (küçük ayrıntı).
+  final bool needsMagnifier;
 }
 
 /// Şüpheliye sorulabilecek bir soru.
@@ -473,6 +555,7 @@ class Solution {
     required this.explanation,
     required this.deductionChain,
     required this.finale,
+    this.evidence,
   });
 
   factory Solution.fromJson(Map<String, dynamic> json) => Solution(
@@ -487,6 +570,9 @@ class Solution {
     finale: Finale.fromJson(
       (json['finale'] as Map<String, dynamic>?) ?? const {},
     ),
+    evidence: json['evidence'] is Map<String, dynamic>
+        ? EvidenceRule.fromJson(json['evidence'] as Map<String, dynamic>)
+        : null,
   );
 
   final String culpritId;
@@ -499,6 +585,123 @@ class Solution {
   /// Çıkarım zinciri adımları.
   final List<String> deductionChain;
   final Finale finale;
+
+  /// Suçlamada seçilmesi gereken kanıtlar (isteğe bağlı).
+  final EvidenceRule? evidence;
+}
+
+/// Suçlamanın kanıt adımı: oyuncu [pick] kanıt seçer, hepsi [clueIds] içinde olmalı.
+class EvidenceRule {
+  const EvidenceRule({required this.clueIds, required this.pick});
+
+  factory EvidenceRule.fromJson(Map<String, dynamic> json) {
+    final ids = _strList(json, 'clueIds');
+    return EvidenceRule(
+      clueIds: ids,
+      pick: (json['pick'] as num?)?.toInt() ?? ids.length,
+    );
+  }
+
+  final List<String> clueIds;
+  final int pick;
+}
+
+/// Delil panosunda iki ipucu arasındaki doğru bağlantı.
+class BoardConnection {
+  const BoardConnection({
+    required this.id,
+    required this.clueIds,
+    this.text,
+    this.deductionStep,
+  });
+
+  factory BoardConnection.fromJson(Map<String, dynamic> json) {
+    final id = _req<String>(json, 'id', 'bağlantı');
+    return BoardConnection(
+      id: id,
+      clueIds: _strList(json, 'clueIds'),
+      text: _optStr(json, 'text'),
+      deductionStep: (json['deductionStep'] as num?)?.toInt(),
+    );
+  }
+
+  final String id;
+  final List<String> clueIds;
+
+  /// Bağlantı kurulunca açılan çıkarım; yoksa [deductionStep] kullanılır.
+  final String? text;
+
+  /// Çıkarım zincirindeki adım numarası (1'den başlar).
+  final int? deductionStep;
+
+  bool matches(String a, String b) =>
+      clueIds.length == 2 &&
+      clueIds.contains(a) &&
+      clueIds.contains(b) &&
+      a != b;
+}
+
+/// Oyuncunun olay kartlarını saatlere yerleştirdiği zaman çizelgesi.
+class TimelineData {
+  const TimelineData({required this.slots, required this.events});
+
+  factory TimelineData.fromJson(Map<String, dynamic> json) => TimelineData(
+    slots: _strList(json, 'slots'),
+    events: _list(json, 'events').map(TimelineEvent.fromJson).toList(),
+  );
+
+  /// Saatler, sırasıyla (ör. "21:05").
+  final List<String> slots;
+  final List<TimelineEvent> events;
+}
+
+class TimelineEvent {
+  const TimelineEvent({
+    required this.id,
+    required this.text,
+    required this.time,
+    this.suspectId,
+    this.place,
+    this.requiresClueIds = const [],
+  });
+
+  factory TimelineEvent.fromJson(Map<String, dynamic> json) {
+    final id = _req<String>(json, 'id', 'zaman olayı');
+    return TimelineEvent(
+      id: id,
+      text: _req<String>(json, 'text', 'zaman olayı $id'),
+      time: _req<String>(json, 'time', 'zaman olayı $id'),
+      suspectId: _optStr(json, 'suspectId'),
+      place: _optStr(json, 'place'),
+      requiresClueIds: _strList(json, 'requiresClueIds'),
+    );
+  }
+
+  final String id;
+  final String text;
+
+  /// Doğru saat; [TimelineData.slots] içinden biri.
+  final String time;
+  final String? suspectId;
+  final String? place;
+
+  /// Kart ancak bu ipuçları bulununca çizelgeye gelir.
+  final List<String> requiresClueIds;
+}
+
+/// Yıldız eşikleri: ceza (ipucu yardımı + yanlış suçlama puanı) bu sınırları aşmazsa o kadar yıldız.
+class StarRule {
+  const StarRule({this.three = 0, this.two = 2});
+
+  factory StarRule.fromJson(Map<String, dynamic> json) => StarRule(
+    three: (json['three'] as num?)?.toInt() ?? 0,
+    two: (json['two'] as num?)?.toInt() ?? 2,
+  );
+
+  final int three;
+  final int two;
+
+  int starsFor(int penalty) => penalty <= three ? 3 : (penalty <= two ? 2 : 1);
 }
 
 class Finale {
@@ -522,6 +725,8 @@ class WrongAnswer {
     this.wrongReasonText,
     this.image,
     this.hintPenalty = 0,
+    this.penaltyPoints = 1,
+    this.wrongEvidenceText,
   });
 
   factory WrongAnswer.fromJson(Map<String, dynamic> json) => WrongAnswer(
@@ -530,10 +735,18 @@ class WrongAnswer {
     wrongReasonText: _optStr(json, 'wrongReasonText'),
     image: _optStr(json, 'image'),
     hintPenalty: (json['hintPenalty'] as num?)?.toInt() ?? 0,
+    penaltyPoints: (json['penaltyPoints'] as num?)?.toInt() ?? 1,
+    wrongEvidenceText: _optStr(json, 'wrongEvidenceText'),
   );
 
   /// Her yanlış suçlamada eksilen ipucu hakkı.
   final int hintPenalty;
+
+  /// Her yanlış suçlamada eklenen ceza puanı (yıldızı düşürür).
+  final int penaltyPoints;
+
+  /// Kişi ve gerekçe doğru ama kanıtlar yanlışsa gösterilen metin (isteğe bağlı).
+  final String? wrongEvidenceText;
 
   final String title;
 

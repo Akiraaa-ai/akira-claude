@@ -99,33 +99,15 @@ class _InterrogationScreenState extends State<InterrogationScreen> {
     final unlocked = con.unlocksClueId == null
         ? null
         : game.data.clue(con.unlocksClueId!);
-    return showDialog(
+    return showGeneralDialog(
       context: context,
-      builder: (c) => AlertDialog(
-        title: const Text(
-          'ÇELİŞKİ!',
-          style: TextStyle(color: AppTheme.blood, letterSpacing: 3),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TypewriterText(con.text, style: const TextStyle(height: 1.4)),
-            if (unlocked != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                'Deftere eklendi: ${unlocked.title}',
-                style: const TextStyle(color: AppTheme.brass),
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c),
-            child: const Text('Devam'),
-          ),
-        ],
+      barrierDismissible: false,
+      barrierColor: const Color(0xCC2A0000),
+      transitionDuration: const Duration(milliseconds: 250),
+      pageBuilder: (c, _, _) => _LieMoment(
+        suspect: game.data.suspect(q.suspectId),
+        reaction: con.text,
+        unlockedTitle: unlocked?.title,
       ),
     );
   }
@@ -303,6 +285,125 @@ class _QuestionCard extends StatelessWidget {
                 ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "Yalan söylüyorsun!" anı: kırmızı ekran, çarpan başlık, şüphelinin tepkisi.
+class _LieMoment extends StatefulWidget {
+  const _LieMoment({
+    required this.suspect,
+    required this.reaction,
+    this.unlockedTitle,
+  });
+
+  final Suspect suspect;
+  final String reaction;
+  final String? unlockedTitle;
+
+  @override
+  State<_LieMoment> createState() => _LieMomentState();
+}
+
+class _LieMomentState extends State<_LieMoment>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 520),
+  )..forward();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Material(
+        type: MaterialType.transparency,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Başlık büyükten küçüğe çarparak yerine oturur.
+              AnimatedBuilder(
+                animation: _c,
+                builder: (context, child) {
+                  final t = Curves.easeOutBack.transform(_c.value);
+                  return Opacity(
+                    opacity: _c.value.clamp(0.0, 1.0),
+                    child: Transform.scale(scale: 2.2 - 1.2 * t, child: child),
+                  );
+                },
+                child: const FittedBox(
+                  child: Text(
+                    'YALAN SÖYLÜYORSUN!',
+                    style: TextStyle(
+                      color: Color(0xFFFF5A4E),
+                      fontSize: 34,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2,
+                      shadows: [Shadow(color: Colors.black, blurRadius: 12)],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  SizedBox(
+                    width: 64,
+                    height: 84,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: CaseImage(
+                        name: widget.suspect.portrait,
+                        label: widget.suspect.name,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      widget.suspect.name,
+                      style: const TextStyle(
+                        color: AppTheme.brass,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TypewriterText(
+                widget.reaction,
+                style: const TextStyle(
+                  fontSize: 18,
+                  height: 1.45,
+                  color: AppTheme.paper,
+                ),
+              ),
+              if (widget.unlockedTitle != null) ...[
+                const SizedBox(height: 16),
+                Text(
+                  'Deftere eklendi: ${widget.unlockedTitle}',
+                  style: const TextStyle(color: AppTheme.brass),
+                ),
+              ],
+              const SizedBox(height: 28),
+              FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Devam'),
+              ),
+            ],
+          ),
         ),
       ),
     );

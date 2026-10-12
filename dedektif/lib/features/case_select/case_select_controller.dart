@@ -8,11 +8,12 @@ enum CaseStatus { locked, fresh, inProgress, solved }
 
 /// Vaka listesindeki bir satırın ekran için hazır hali.
 class CaseEntry {
-  const CaseEntry(this.data, this.status, this.bestClueCount);
+  const CaseEntry(this.data, this.status, this.bestClueCount, [this.bestStars]);
 
   final CaseData data;
   final CaseStatus status;
   final int? bestClueCount;
+  final int? bestStars;
 }
 
 /// Vaka listesini yükler, kilit/ilerleme durumunu hesaplar, satın almayı başlatır.
@@ -46,7 +47,7 @@ class CaseSelectController extends ChangeNotifier {
     } else {
       status = CaseStatus.fresh;
     }
-    return CaseEntry(c, status, p.bestClueCount);
+    return CaseEntry(c, status, p.bestClueCount, p.bestStars);
   }).toList();
 
   bool shouldPlayIntro(CaseData c) =>
