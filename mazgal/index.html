@@ -1,0 +1,1181 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MAZGAL</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: "Consolas", "Courier New", monospace; color: #e8e2c8; user-select: none; }
+  canvas#view { display: block; width: 100vw; height: 100vh; }
+  .layer { position: fixed; inset: 0; pointer-events: none; }
+  .hidden { display: none !important; }
+
+  /* Bodycam HUD */
+  #hud { font-size: 15px; letter-spacing: 1px; text-shadow: 0 0 4px rgba(0,0,0,.9); }
+  #hud .tl { position: absolute; top: 22px; left: 28px; }
+  #hud .tr { position: absolute; top: 22px; right: 28px; text-align: right; line-height: 1.5; }
+  #hud .bl { position: absolute; bottom: 24px; left: 28px; }
+  #hud .br { position: absolute; bottom: 24px; right: 28px; text-align: right; }
+  #rec { color: #ff2b2b; }
+  #rec.off { visibility: hidden; }
+  .bar { width: 120px; height: 7px; border: 1px solid rgba(232,226,200,.7); margin-top: 4px; }
+  .bar > div { height: 100%; background: #e8e2c8; }
+  #batBar > div.low { background: #ff4a3a; }
+  #stamWrap { transition: opacity .4s; }
+  #dbg { color: #7dff9a; font-size: 13px; margin-top: 6px; }
+  #toast { position: absolute; bottom: 90px; width: 100%; text-align: center; font-size: 16px; letter-spacing: 2px; opacity: 0; transition: opacity .5s; }
+  #toast.show { opacity: 1; }
+  #sub { position: absolute; bottom: 120px; width: 100%; text-align: center; font-size: 19px; }
+  #sub span { background: rgba(0,0,0,.65); padding: 4px 12px; }
+
+  /* Tam ekran paneller */
+  .screen { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: #000; }
+  #title h1 { font-size: 64px; letter-spacing: 18px; margin: 0 0 18px; color: #d9cf9a; font-weight: normal; }
+  #title p { margin: 6px; color: #9a9378; font-size: 14px; letter-spacing: 1px; }
+  #title .go { margin-top: 34px; color: #e8e2c8; font-size: 17px; animation: blink 1.6s infinite; }
+  @keyframes blink { 50% { opacity: .25; } }
+  #typer { align-items: flex-start; padding-left: 12vw; font-size: 22px; line-height: 2; white-space: pre-wrap; }
+  #typer .cursor { animation: blink .9s steps(1) infinite; }
+  #skip { position: fixed; bottom: 22px; right: 28px; font-size: 12px; color: #6f6a55; letter-spacing: 1px; }
+  #pause { background: rgba(0,0,0,.72); font-size: 18px; letter-spacing: 2px; }
+  #dead { background: transparent; }
+  #dead h2 { font-size: 46px; letter-spacing: 10px; margin: 0; color: #f2f2f2; font-weight: normal; }
+  #dead p { color: #aaa; letter-spacing: 2px; margin-top: 18px; }
+
+  /* Kaset oynatıcı */
+  #tape { background: #050505; }
+  #tapeNoise { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; opacity: .55; }
+  #tapeVideo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  #tape .tl, #tape .tr { position: absolute; top: 22px; font-size: 15px; letter-spacing: 1px; }
+  #tape .tl { left: 28px; } #tape .tr { right: 28px; text-align: right; }
+  #tapeSub { position: absolute; bottom: 90px; width: 100%; text-align: center; font-size: 21px; }
+  #tapeSub span { background: rgba(0,0,0,.7); padding: 5px 14px; }
+  #tape .hint { position: absolute; bottom: 24px; width: 100%; text-align: center; font-size: 12px; color: #77705a; letter-spacing: 1px; }
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+
+<div id="hud" class="layer hidden">
+  <div class="tl"><span id="rec">● REC</span></div>
+  <div class="tr"><div id="date">14.10.2026</div><div>00:00:00</div><div id="dbg" class="hidden"></div></div>
+  <div class="bl">
+    <div id="batLabel">FENER · PİL %100</div>
+    <div class="bar" id="batBar"><div style="width:100%"></div></div>
+  </div>
+  <div class="br" id="stamWrap">
+    <div>NEFES</div>
+    <div class="bar" id="stamBar"><div style="width:100%"></div></div>
+  </div>
+  <div id="toast"></div>
+  <div id="sub"></div>
+</div>
+
+<div id="title" class="screen">
+  <h1>MAZGAL</h1>
+  <p>Kulaklık önerilir.</p>
+  <p>WASD yürü · Shift koş · F fener · Fare bak</p>
+  <div class="go">[ başlamak için tıkla ]</div>
+</div>
+
+<div id="typer" class="screen hidden"></div>
+<div id="skip" class="hidden">BOŞLUK · geç</div>
+<div id="pause" class="screen hidden">[ devam etmek için tıkla ]</div>
+<div id="dead" class="screen hidden"><h2>KAYIT KESİLDİ</h2><p>[ tıkla ]</p></div>
+
+<div id="tape" class="screen hidden">
+  <canvas id="tapeNoise" width="160" height="90"></canvas>
+  <video id="tapeVideo" class="hidden" playsinline></video>
+  <div class="tl"><span style="color:#ff2b2b">● PLAY</span> &nbsp;<span id="tapeName"></span></div>
+  <div class="tr"><div id="tapeDate"></div><div id="tapeClock">00:00:00</div></div>
+  <div id="tapeSub"></div>
+  <div class="hint">BOŞLUK · kaydı atla</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+<script>
+"use strict";
+
+// ============================================================
+// AYARLAR
+// ============================================================
+const CFG = {
+  walkSpeed: 2.9,           // m/sn
+  runSpeed: 5.4,
+  staminaMax: 100,
+  staminaDrain: 24,         // koşarken saniyede
+  staminaRegen: 13,
+  staminaMinToRun: 20,      // tükendikten sonra tekrar koşmak için gereken
+  bobWalk: { freq: 7.2, amp: 0.045, sway: 0.025 },
+  bobRun:  { freq: 10.5, amp: 0.085, sway: 0.05 },
+  eye: 1.65,
+  fx: { fisheye: 0.24, chroma: 0.0022, grain: 0.085, scan: 0.07, vignette: 0.62, tint: 0.07 },
+  maze: { cellsX: 12, cellsY: 12, loopChance: 0.14, rooms: 4 },   // ızgara = 2*cells+1
+  cell: 4,                  // metre
+  wallH: 3.2,
+  battery: { seconds: 240, pickup: 50, count: 6, lowAt: 20 },
+  darkZones: { count: 3, radius: 2, minDistFromStart: 12 },
+  creature: {
+    grace: 20,              // ilk saniyelerde yaklaşmaz
+    blackoutMin: 7, blackoutMax: 14, blackoutDur: 1.7,
+    stepsMin: 1, stepsMax: 2,
+    runHeardFor: 1.6,       // koşma sesi bu kadar sn duyulur
+    runExtraSteps: 1,
+    hideWanderChance: 0.75, // fener kapalı + hareketsizken rastgele dolaşma olasılığı
+    catchDist: 1.4,
+    startMinDist: 14,       // başlangıçta oyuncuya en az yol mesafesi (kare)
+  },
+  tapes: 3,
+  intro: true,
+};
+
+// Kasetler: src'ye video dosyası yazılırsa (ör. "kasetler/mehmet.mp4") gerçek video oynar.
+const TAPES = [
+  { who: "MEHMET", date: "03.02.2019", src: "", rate: 0.92, pitch: 0.8, lines: [
+    "Kayıt... çalışıyor mu? Tamam. Çalışıyor.",
+    "Kaç gündür buradayım bilmiyorum. Saat hep sıfırda.",
+    "Işıklar bazen sönüyor. Söndüğünde... olduğunuz yerde kalın.",
+    "Işığı takip etmeyin. Işık bir yere götürmüyor. Ben denedim.",
+  ]},
+  { who: "AYŞE", date: "17.08.2021", src: "", rate: 1.0, pitch: 1.25, lines: [
+    "Bunu bulan biri varsa... beni dinle.",
+    "Koşunca ayak seslerim çoğalıyor. Hepsi benim değil.",
+    "Feneri kapatıp kıpırdamadan durunca daha az... fark ediliyorum sanki.",
+    "Ses kesilen yerde durun. Vızıltı kesilirse orada bir şey var demektir.",
+  ]},
+  { who: "KENAN", date: "29.11.2023", src: "", rate: 0.88, pitch: 0.95, lines: [
+    "Duvarlar hep aynı. Ama halı... halı hep ıslak.",
+    "Kamerada bir şey görmüyorum. Ama görüntü bozuluyor. Hep yaklaşınca.",
+    "Biri buradan çıkmış. Eminim. Bir pano gördüm, kilitliydi.",
+    "Şifreyi... şifre kasetteydi. Diğer kasette. Ben onu—",
+  ]},
+];
+
+const INTRO_LINES = [
+  "14 Ekim, 23:52.",
+  "Gece vardiyasının son turu.",
+  "Sokak lambası söndü. Mazgalın altından bir vızıltı geliyordu.",
+  "Eğildim. Izgara yerinden oynadı.",
+];
+
+// ============================================================
+// YARDIMCILAR
+// ============================================================
+const rand = (a, b) => a + Math.random() * (b - a);
+const randi = (a, b) => Math.floor(rand(a, b + 1));
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = (t) => t * t * (3 - 2 * t);
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const $ = (id) => document.getElementById(id);
+const C = CFG.cell;
+// Anahtar kareler [[t, değer], ...] arasında doğrusal ara değer
+function keyframes(k, t) {
+  if (t <= k[0][0]) return k[0][1];
+  for (let i = 1; i < k.length; i++) if (t <= k[i][0]) {
+    const [t0, v0] = k[i - 1], [t1, v1] = k[i];
+    return lerp(v0, v1, (t - t0) / (t1 - t0));
+  }
+  return k[k.length - 1][1];
+}
+
+// ============================================================
+// RENDERER, SAHNE, BODYCAM SHADER
+// ============================================================
+const canvas = $("view");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+renderer.setSize(innerWidth, innerHeight, false);
+
+const scene = new THREE.Scene();
+const FOG_COLOR = new THREE.Color(0x3d3820);
+scene.background = FOG_COLOR.clone();
+scene.fog = new THREE.FogExp2(FOG_COLOR.clone(), 0.045);
+
+const camera = new THREE.PerspectiveCamera(78, innerWidth / innerHeight, 0.05, 120);
+camera.rotation.order = "YXZ";
+scene.add(camera);
+
+const rt = new THREE.WebGLRenderTarget(1, 1, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
+const postScene = new THREE.Scene();
+const postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const postMat = new THREE.ShaderMaterial({
+  uniforms: {
+    tDiffuse: { value: rt.texture }, uTime: { value: 0 }, uInter: { value: 0 }, uBlack: { value: 0 },
+    uFish: { value: CFG.fx.fisheye }, uChroma: { value: CFG.fx.chroma }, uGrain: { value: CFG.fx.grain },
+    uScan: { value: CFG.fx.scan }, uVig: { value: CFG.fx.vignette }, uTint: { value: CFG.fx.tint },
+    uRes: { value: new THREE.Vector2(1, 1) },
+  },
+  vertexShader: "varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }",
+  fragmentShader: `
+    precision highp float;
+    uniform sampler2D tDiffuse; uniform float uTime, uInter, uBlack, uFish, uChroma, uGrain, uScan, uVig, uTint; uniform vec2 uRes;
+    varying vec2 vUv;
+    float rnd(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+    vec2 barrel(vec2 uv){ vec2 c = uv - 0.5; float r2 = dot(c, c); return 0.5 + c * (1.0 - uFish * 0.5 + uFish * r2 * 1.6) / (1.0 - uFish * 0.18); }
+    void main(){
+      vec2 uv = barrel(vUv);
+      float t = uTime;
+      // yatay bant kayması (parazit)
+      float row = floor(uv.y * 38.0);
+      float bandOn = step(1.0 - uInter * 0.55, rnd(vec2(row, floor(t * 14.0))));
+      uv.x += (rnd(vec2(row, t)) - 0.5) * 0.09 * uInter * bandOn;
+      uv.x += sin(uv.y * 180.0 + t * 40.0) * 0.0025 * uInter;
+      // büyük dikey sıçrama
+      uv.y += step(0.985, rnd(vec2(floor(t * 9.0), 3.1))) * uInter * 0.04;
+      vec2 c = uv - 0.5;
+      float ca = uChroma + uInter * 0.014;
+      vec3 col;
+      col.r = texture2D(tDiffuse, uv + c * ca + vec2(ca * 0.6 * uInter, 0.0)).r;
+      col.g = texture2D(tDiffuse, uv).g;
+      col.b = texture2D(tDiffuse, uv - c * ca).b;
+      if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) col = vec3(0.0);
+      // renk kayması: hafif yeşil-sarı bodycam tonu, doygunluk düşük
+      float l = dot(col, vec3(0.299, 0.587, 0.114));
+      col = mix(col, vec3(l), 0.22 + uInter * 0.35);
+      col += vec3(0.02, 0.035, -0.01) * (uTint / 0.07);
+      col = (col - 0.5) * 1.08 + 0.5;
+      // gren + parazit gürültüsü
+      float g = rnd(vUv * uRes + fract(t * 61.0) * 100.0);
+      col += (g - 0.5) * (uGrain + uInter * 0.3);
+      float snow = step(1.0 - uInter * uInter * 0.2, rnd(vec2(floor(vUv.y * uRes.y * 0.5), floor(t * 30.0))));
+      col = mix(col, vec3(rnd(vUv + t)), snow * 0.6);
+      // tarama çizgileri
+      col *= 1.0 - uScan * (0.5 + 0.5 * sin(vUv.y * uRes.y * 1.6));
+      col *= 1.0 - 0.04 * sin(vUv.y * 6.0 - t * 2.0);
+      // vinyet
+      float v = smoothstep(0.85, 0.2, length((vUv - 0.5) * vec2(1.15, 1.0)));
+      col *= mix(1.0 - uVig, 1.0, v);
+      col *= 1.0 - uBlack;
+      gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+    }`,
+  depthTest: false, depthWrite: false,
+});
+postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMat));
+
+function onResize() {
+  renderer.setSize(innerWidth, innerHeight, false);
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  const s = renderer.getDrawingBufferSize(new THREE.Vector2());
+  rt.setSize(s.x, s.y);
+  postMat.uniforms.uRes.value.copy(s);
+}
+addEventListener("resize", onResize);
+onResize();
+
+// ============================================================
+// DOKULAR (canvas ile üretilir)
+// ============================================================
+function makeCanvas(w, h, draw) {
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  draw(c.getContext("2d"), w, h);
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 4;
+  return tex;
+}
+function speckle(g, w, h, n, col, a0, a1, s0, s1) {
+  for (let i = 0; i < n; i++) { g.fillStyle = `rgba(${col},${rand(a0, a1)})`; const s = rand(s0, s1); g.fillRect(rand(0, w), rand(0, h), s, s); }
+}
+function stain(g, x, y, r, col, a) {
+  const gr = g.createRadialGradient(x, y, 0, x, y, r);
+  gr.addColorStop(0, `rgba(${col},${a})`); gr.addColorStop(1, `rgba(${col},0)`);
+  g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2);
+}
+const TEX = {
+  wall: makeCanvas(512, 512, (g, w, h) => {
+    g.fillStyle = "#c8b25a"; g.fillRect(0, 0, w, h);
+    for (let x = 0; x < w; x += 32) { g.fillStyle = "rgba(120,98,30,0.16)"; g.fillRect(x, 0, 3, h); g.fillStyle = "rgba(255,240,170,0.08)"; g.fillRect(x + 14, 0, 2, h); }
+    g.strokeStyle = "rgba(110,90,30,0.13)"; g.lineWidth = 2;
+    for (let y = 16; y < h; y += 32) for (let x = 0; x < w; x += 32) { g.beginPath(); g.moveTo(x + 8, y); g.lineTo(x + 16, y - 7); g.lineTo(x + 24, y); g.lineTo(x + 16, y + 7); g.closePath(); g.stroke(); }
+    speckle(g, w, h, 5000, "90,70,20", 0.03, 0.12, 1, 2);
+    for (let i = 0; i < 7; i++) stain(g, rand(0, w), rand(h * 0.55, h), rand(40, 110), "95,75,25", rand(0.15, 0.3));
+    for (let i = 0; i < 3; i++) stain(g, rand(0, w), rand(0, h * 0.4), rand(30, 80), "110,90,40", rand(0.08, 0.18));
+    g.fillStyle = "#5c4a22"; g.fillRect(0, h - 18, w, 18);
+    g.fillStyle = "rgba(0,0,0,0.25)"; g.fillRect(0, h - 20, w, 2);
+  }),
+  carpet: makeCanvas(256, 256, (g, w, h) => {
+    g.fillStyle = "#86763f"; g.fillRect(0, 0, w, h);
+    speckle(g, w, h, 14000, "60,50,20", 0.05, 0.25, 1, 2);
+    speckle(g, w, h, 5000, "170,150,90", 0.04, 0.15, 1, 1);
+    for (let i = 0; i < 5; i++) stain(g, rand(0, w), rand(0, h), rand(25, 70), "50,42,18", rand(0.25, 0.45));
+  }),
+  ceiling: makeCanvas(256, 256, (g, w, h) => {
+    g.fillStyle = "#d4cdb0"; g.fillRect(0, 0, w, h);
+    speckle(g, w, h, 2500, "90,85,60", 0.15, 0.4, 1, 2);
+    g.fillStyle = "#8e866a";
+    for (let i = 0; i <= 2; i++) { g.fillRect(i * 128 - 3, 0, 6, h); g.fillRect(0, i * 128 - 3, w, 6); }
+    stain(g, rand(30, 220), rand(30, 220), 50, "140,120,60", 0.3);
+  }),
+  shaft: makeCanvas(256, 256, (g, w, h) => {
+    g.fillStyle = "#3a3a36"; g.fillRect(0, 0, w, h);
+    speckle(g, w, h, 9000, "10,10,10", 0.1, 0.4, 1, 3);
+    for (let y = 0; y < h; y += 42) { g.fillStyle = "rgba(0,0,0,0.35)"; g.fillRect(0, y, w, 3); }
+    for (let i = 0; i < 4; i++) stain(g, rand(0, w), rand(0, h), rand(20, 60), "40,50,30", 0.4);
+  }),
+  grate: (() => {
+    const t = makeCanvas(128, 128, (g, w, h) => {
+      g.clearRect(0, 0, w, h); g.fillStyle = "#1b1b1b";
+      for (let x = 0; x < w; x += 16) g.fillRect(x, 0, 7, h);
+      g.fillRect(0, 0, w, 10); g.fillRect(0, h - 10, w, 10); g.fillRect(0, 0, 10, h); g.fillRect(w - 10, 0, 10, h);
+    });
+    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; return t;
+  })(),
+};
+TEX.carpet.repeat.set(0.5, 0.5);   // 2 m'de bir tekrar (dünya koordinatlı UV)
+TEX.ceiling.repeat.set(0.5, 0.5);
+TEX.shaft.repeat.set(1, 6);
+
+// ============================================================
+// LABİRENT
+// ============================================================
+function generateMaze() {
+  const nx = CFG.maze.cellsX, ny = CFG.maze.cellsY;
+  const W = nx * 2 + 1, H = ny * 2 + 1;
+  const grid = Array.from({ length: H }, () => new Array(W).fill(1));
+  // DFS
+  const stack = [[1, 1]]; grid[1][1] = 0;
+  while (stack.length) {
+    const [x, y] = stack[stack.length - 1];
+    const dirs = [[2, 0], [-2, 0], [0, 2], [0, -2]].filter(([dx, dy]) => {
+      const X = x + dx, Y = y + dy;
+      return X > 0 && Y > 0 && X < W - 1 && Y < H - 1 && grid[Y][X] === 1;
+    });
+    if (!dirs.length) { stack.pop(); continue; }
+    const [dx, dy] = pick(dirs);
+    grid[y + dy / 2][x + dx / 2] = 0; grid[y + dy][x + dx] = 0;
+    stack.push([x + dx, y + dy]);
+  }
+  // döngüler: rastgele iç duvarları kaldır
+  for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+    if (grid[y][x] !== 1) continue;
+    const horiz = grid[y][x - 1] === 0 && grid[y][x + 1] === 0;
+    const vert = grid[y - 1][x] === 0 && grid[y + 1][x] === 0;
+    if ((horiz || vert) && Math.random() < CFG.maze.loopChance) grid[y][x] = 0;
+  }
+  // geniş alanlar
+  for (let i = 0; i < CFG.maze.rooms; i++) {
+    const rw = randi(2, 4), rh = randi(2, 4);
+    const rx = randi(1, W - 1 - rw), ry = randi(1, H - 1 - rh);
+    for (let y = ry; y < ry + rh; y++) for (let x = rx; x < rx + rw; x++) grid[y][x] = 0;
+  }
+  return { grid, W, H };
+}
+
+function isWall(gx, gy) {
+  const g = G.grid;
+  return gy < 0 || gx < 0 || gy >= G.H || gx >= G.W || g[gy][gx] === 1;
+}
+function neighbors(x, y) {
+  const out = [];
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (!isWall(x + dx, y + dy)) out.push([x + dx, y + dy]);
+  return out;
+}
+function bfs(sx, sy) {
+  const dist = Array.from({ length: G.H }, () => new Array(G.W).fill(Infinity));
+  dist[sy][sx] = 0;
+  const q = [[sx, sy]];
+  for (let i = 0; i < q.length; i++) {
+    const [x, y] = q[i];
+    for (const [nx, ny] of neighbors(x, y)) if (dist[ny][nx] === Infinity) { dist[ny][nx] = dist[y][x] + 1; q.push([nx, ny]); }
+  }
+  return dist;
+}
+const cellCenter = (gx, gy) => new THREE.Vector3(gx * C + C / 2, 0, gy * C + C / 2);
+const worldToCell = (x, z) => [Math.floor(x / C), Math.floor(z / C)];
+function openCells(filter) {
+  const out = [];
+  for (let y = 0; y < G.H; y++) for (let x = 0; x < G.W; x++) if (!G.grid[y][x] && (!filter || filter(x, y))) out.push([x, y]);
+  return out;
+}
+
+// ============================================================
+// DÜNYA KURULUMU
+// ============================================================
+let G = null;          // { grid, W, H, start, dark[][], world(Group), lamps, pickups }
+const ambient = new THREE.AmbientLight(0xfff2c0, 0.35);
+const hemi = new THREE.HemisphereLight(0xfff4c8, 0x4a3f1a, 0.25);
+scene.add(ambient, hemi);
+const LIGHT_POOL = [];
+for (let i = 0; i < 8; i++) { const l = new THREE.PointLight(0xfff0c0, 0, 11, 1.6); scene.add(l); LIGHT_POOL.push(l); }
+
+const flashlight = new THREE.SpotLight(0xfff1d6, 0, 24, 0.55, 0.75, 1.4);
+flashlight.position.set(0.15, -0.12, 0);
+flashlight.target.position.set(0.1, -0.1, -1);
+camera.add(flashlight, flashlight.target);
+
+const MAT = {
+  wall: new THREE.MeshLambertMaterial({ map: TEX.wall }),
+  floor: new THREE.MeshLambertMaterial({ map: TEX.carpet }),
+  ceiling: new THREE.MeshLambertMaterial({ map: TEX.ceiling }),
+  panelOn: new THREE.MeshBasicMaterial({ color: 0xfffbe8 }),
+  panelOff: new THREE.MeshLambertMaterial({ color: 0x5a574a }),
+  battery: new THREE.MeshBasicMaterial({ color: 0x39ff6a }),
+  batteryCap: new THREE.MeshBasicMaterial({ color: 0x1a7a30 }),
+  tape: new THREE.MeshLambertMaterial({ color: 0x1c1c1c }),
+  tapeLabel: new THREE.MeshLambertMaterial({ color: 0xe8e0c0, emissive: 0x2a2818 }),
+  shaft: new THREE.MeshLambertMaterial({ map: TEX.shaft, side: THREE.BackSide }),
+  grate: new THREE.MeshBasicMaterial({ map: TEX.grate, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, fog: false }),
+  sky: new THREE.MeshBasicMaterial({ color: 0x2c3442, fog: false }),
+};
+
+function disposeWorld() {
+  if (!G || !G.world) return;
+  scene.remove(G.world);
+  G.world.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+}
+
+function buildWorld() {
+  disposeWorld();
+  const m = generateMaze();
+  G = { ...m, world: new THREE.Group() };
+  scene.add(G.world);
+  const Wm = G.W * C, Hm = G.H * C;
+
+  // başlangıç: rastgele bir oda karesi
+  const rooms = openCells((x, y) => x % 2 === 1 && y % 2 === 1);
+  G.start = pick(rooms);
+  const distStart = bfs(G.start[0], G.start[1]);
+
+  // karanlık bölgeler
+  G.dark = Array.from({ length: G.H }, () => new Array(G.W).fill(false));
+  G.darkCenters = [];
+  const far = rooms.filter(([x, y]) => distStart[y][x] >= CFG.darkZones.minDistFromStart && distStart[y][x] < Infinity);
+  for (let tries = 0; tries < 200 && G.darkCenters.length < CFG.darkZones.count && far.length; tries++) {
+    const c = pick(far);
+    if (G.darkCenters.every(([x, y]) => Math.abs(x - c[0]) + Math.abs(y - c[1]) >= 8)) G.darkCenters.push(c);
+  }
+  const R = CFG.darkZones.radius;
+  for (const [cx, cy] of G.darkCenters) for (let y = cy - R; y <= cy + R; y++) for (let x = cx - R; x <= cx + R; x++)
+    if (y >= 0 && x >= 0 && y < G.H && x < G.W) G.dark[y][x] = true;
+
+  // duvarlar: tek InstancedMesh
+  const wallCells = [];
+  for (let y = 0; y < G.H; y++) for (let x = 0; x < G.W; x++) if (G.grid[y][x]) {
+    // yalnızca açık kareye komşu duvarlar çizilir
+    if (!isWall(x + 1, y) || !isWall(x - 1, y) || !isWall(x, y + 1) || !isWall(x, y - 1)) wallCells.push([x, y]);
+  }
+  const wallMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(C, CFG.wallH, C), MAT.wall, wallCells.length);
+  const mtx = new THREE.Matrix4();
+  wallCells.forEach(([x, y], i) => { mtx.makeTranslation(x * C + C / 2, CFG.wallH / 2, y * C + C / 2); wallMesh.setMatrixAt(i, mtx); });
+  wallMesh.frustumCulled = false;
+  G.world.add(wallMesh);
+
+  // zemin (dünya koordinatlı UV)
+  const floorGeo = new THREE.PlaneGeometry(Wm, Hm, 1, 1);
+  floorGeo.rotateX(-Math.PI / 2); floorGeo.translate(Wm / 2, 0, Hm / 2);
+  worldUV(floorGeo);
+  G.world.add(new THREE.Mesh(floorGeo, MAT.floor));
+
+  // tavan: başlangıç karesinde düşülen delik var
+  const sc = cellCenter(G.start[0], G.start[1]);
+  const hole = 0.8;
+  const shape = new THREE.Shape([new THREE.Vector2(0, 0), new THREE.Vector2(Wm, 0), new THREE.Vector2(Wm, Hm), new THREE.Vector2(0, Hm)]);
+  shape.holes.push(new THREE.Path([
+    new THREE.Vector2(sc.x - hole, sc.z - hole), new THREE.Vector2(sc.x - hole, sc.z + hole),
+    new THREE.Vector2(sc.x + hole, sc.z + hole), new THREE.Vector2(sc.x + hole, sc.z - hole),
+  ]));
+  const ceilGeo = new THREE.ShapeGeometry(shape);
+  ceilGeo.rotateX(Math.PI / 2); ceilGeo.translate(0, CFG.wallH, 0);
+  worldUV(ceilGeo);
+  G.world.add(new THREE.Mesh(ceilGeo, MAT.ceiling));
+
+  // düşülen kuyu + mazgal
+  const shaftH = 13;
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(hole * Math.SQRT2, hole * Math.SQRT2, shaftH, 4, 1, true), MAT.shaft);
+  shaft.rotation.y = Math.PI / 4;
+  shaft.position.set(sc.x, CFG.wallH + shaftH / 2, sc.z);
+  G.world.add(shaft);
+  const grate = new THREE.Mesh(new THREE.PlaneGeometry(hole * 2, hole * 2), MAT.grate);
+  grate.rotation.x = Math.PI / 2; grate.position.set(sc.x, CFG.wallH + shaftH - 0.05, sc.z);
+  const sky = new THREE.Mesh(new THREE.PlaneGeometry(hole * 2, hole * 2), MAT.sky);
+  sky.rotation.x = Math.PI / 2; sky.position.set(sc.x, CFG.wallH + shaftH + 0.3, sc.z);
+  const shaftLight = new THREE.PointLight(0x8a9ab0, 1.3, 12, 1.2);
+  shaftLight.position.set(sc.x, CFG.wallH + shaftH - 1, sc.z);
+  G.world.add(grate, sky, shaftLight);
+
+  // lambalar: oda karelerinde floresan panel
+  G.lamps = [];
+  const darkPanels = [];
+  for (const [x, y] of rooms) {
+    if (x === G.start[0] && y === G.start[1]) continue;
+    if (G.dark[y][x]) darkPanels.push([x, y]); else G.lamps.push({ x, y, pos: cellCenter(x, y).setY(CFG.wallH - 0.25) });
+  }
+  // koridor kareleri de ara sıra
+  for (const [x, y] of openCells((x, y) => (x + y) % 2 === 1 && Math.random() < 0.25)) {
+    if (G.dark[y][x]) continue;
+    G.lamps.push({ x, y, pos: cellCenter(x, y).setY(CFG.wallH - 0.25) });
+  }
+  const panelGeo = new THREE.PlaneGeometry(1.4, 0.55); panelGeo.rotateX(Math.PI / 2);
+  const on = new THREE.InstancedMesh(panelGeo, MAT.panelOn, G.lamps.length);
+  G.lamps.forEach((l, i) => { mtx.makeTranslation(l.pos.x, CFG.wallH - 0.01, l.pos.z); on.setMatrixAt(i, mtx); });
+  const off = new THREE.InstancedMesh(panelGeo, MAT.panelOff, Math.max(1, darkPanels.length));
+  darkPanels.forEach(([x, y], i) => { const p = cellCenter(x, y); mtx.makeTranslation(p.x, CFG.wallH - 0.01, p.z); off.setMatrixAt(i, mtx); });
+  off.count = darkPanels.length;
+  on.frustumCulled = off.frustumCulled = false;
+  G.world.add(on, off);
+
+  // toplanabilirler
+  G.pickups = [];
+  const used = new Set([G.start.join()]);
+  const freeCell = (pred) => {
+    const cand = openCells((x, y) => !used.has(x + "," + y) && pred(x, y));
+    if (!cand.length) return null;
+    const c = pick(cand); used.add(c.join()); return c;
+  };
+  const addBattery = (c) => {
+    if (!c) return;
+    const grp = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.2, 10), MAT.battery);
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.04, 8), MAT.batteryCap); cap.position.y = 0.12;
+    grp.add(body, cap);
+    const p = cellCenter(c[0], c[1]).add(new THREE.Vector3(rand(-1, 1), 0.15, rand(-1, 1)));
+    grp.position.copy(p); grp.rotation.z = Math.PI / 2; grp.rotation.y = rand(0, 6);
+    G.world.add(grp);
+    G.pickups.push({ type: "battery", mesh: grp, base: p.y });
+  };
+  for (let i = 0; i < CFG.battery.count; i++) addBattery(freeCell((x, y) => distStart[y][x] > 4 && !G.dark[y][x]));
+  for (const [cx, cy] of G.darkCenters) addBattery(freeCell((x, y) => G.dark[y][x] && Math.abs(x - cx) <= 1 && Math.abs(y - cy) <= 1));
+
+  const tapeOrder = [0, 1, 2].slice(0, CFG.tapes);
+  tapeOrder.forEach((tapeIdx, k) => {
+    const minD = 8 + k * 6;
+    const c = freeCell((x, y) => distStart[y][x] >= minD && distStart[y][x] < Infinity) || freeCell(() => true);
+    const grp = new THREE.Group();
+    grp.add(new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.035, 0.14), MAT.tape));
+    const label = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.037, 0.06), MAT.tapeLabel); label.position.z = -0.02;
+    grp.add(label);
+    const p = cellCenter(c[0], c[1]).add(new THREE.Vector3(rand(-0.8, 0.8), 0.02, rand(-0.8, 0.8)));
+    grp.position.copy(p); grp.rotation.y = rand(0, 6);
+    G.world.add(grp);
+    G.pickups.push({ type: "tape", tape: tapeIdx, mesh: grp, base: p.y });
+  });
+
+  // yaratık başlangıcı: oyuncudan yol olarak uzak
+  const farCells = openCells((x, y) => distStart[y][x] >= CFG.creature.startMinDist && distStart[y][x] < Infinity);
+  G.creatureStart = farCells.length ? pick(farCells) : openCells().reduce((a, b) => (distStart[b[1]][b[0]] > distStart[a[1]][a[0]] ? b : a));
+}
+
+// PlaneGeometry/ShapeGeometry için UV'yi dünya x/z'den üret (doku tekrarı metre cinsinden)
+function worldUV(geo) {
+  const pos = geo.attributes.position, uv = geo.attributes.uv;
+  for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i), pos.getZ(i));
+  uv.needsUpdate = true;
+}
+
+// ============================================================
+// SES (WebAudio)
+// ============================================================
+const AU = { ctx: null };
+function noiseBuffer(ctx, sec) {
+  const b = ctx.createBuffer(1, ctx.sampleRate * sec, ctx.sampleRate);
+  const d = b.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  return b;
+}
+function initAudio() {
+  if (AU.ctx) { AU.ctx.resume(); return; }
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  AU.ctx = ctx;
+  AU.master = ctx.createGain(); AU.master.gain.value = 0.9; AU.master.connect(ctx.destination);
+  AU.noise = noiseBuffer(ctx, 2);
+
+  // floresan vızıltısı
+  AU.hum = ctx.createGain(); AU.hum.gain.value = 0;
+  const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1100;
+  for (const [f, type, g] of [[60, "sawtooth", 0.05], [120, "sine", 0.05], [180, "square", 0.008], [240.5, "sine", 0.012]]) {
+    const o = ctx.createOscillator(); o.type = type; o.frequency.value = f;
+    const og = ctx.createGain(); og.gain.value = g;
+    o.connect(og).connect(lp); o.start();
+  }
+  lp.connect(AU.hum).connect(AU.master);
+
+  // nefes: 3D konumlu
+  AU.panner = ctx.createPanner();
+  AU.panner.panningModel = "HRTF"; AU.panner.distanceModel = "inverse";
+  AU.panner.refDistance = 3; AU.panner.rolloffFactor = 0.35;
+  AU.panner.connect(AU.master);
+  const bsrc = ctx.createBufferSource(); bsrc.buffer = AU.noise; bsrc.loop = true;
+  const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 420; bp.Q.value = 0.9;
+  const bp2 = ctx.createBiquadFilter(); bp2.type = "lowpass"; bp2.frequency.value = 900;
+  AU.breath = ctx.createGain(); AU.breath.gain.value = 0;
+  bsrc.connect(bp).connect(bp2).connect(AU.breath).connect(AU.panner); bsrc.start();
+
+  // bodycam cızırtısı
+  const ssrc = ctx.createBufferSource(); ssrc.buffer = AU.noise; ssrc.loop = true;
+  const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 2500;
+  AU.static = ctx.createGain(); AU.static.gain.value = 0;
+  ssrc.connect(hp).connect(AU.static).connect(AU.master); ssrc.start();
+
+  // düşüş rüzgârı
+  const wsrc = ctx.createBufferSource(); wsrc.buffer = AU.noise; wsrc.loop = true;
+  AU.windFilter = ctx.createBiquadFilter(); AU.windFilter.type = "lowpass"; AU.windFilter.frequency.value = 400;
+  AU.wind = ctx.createGain(); AU.wind.gain.value = 0;
+  wsrc.connect(AU.windFilter).connect(AU.wind).connect(AU.master); wsrc.start();
+
+  // kulak çınlaması
+  const ring = ctx.createOscillator(); ring.frequency.value = 3900;
+  AU.ring = ctx.createGain(); AU.ring.gain.value = 0;
+  ring.connect(AU.ring).connect(AU.master); ring.start();
+}
+function setGain(node, v, tc = 0.08) { if (AU.ctx) node.gain.setTargetAtTime(v, AU.ctx.currentTime, tc); }
+function setPannerPos(p, x, y, z) {
+  if (p.positionX) { p.positionX.value = x; p.positionY.value = y; p.positionZ.value = z; } else p.setPosition(x, y, z);
+}
+function updateListener() {
+  if (!AU.ctx) return;
+  const L = AU.ctx.listener, p = camera.position;
+  const f = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+  const u = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+  if (L.positionX) {
+    L.positionX.value = p.x; L.positionY.value = p.y; L.positionZ.value = p.z;
+    L.forwardX.value = f.x; L.forwardY.value = f.y; L.forwardZ.value = f.z;
+    L.upX.value = u.x; L.upY.value = u.y; L.upZ.value = u.z;
+  } else { L.setPosition(p.x, p.y, p.z); L.setOrientation(f.x, f.y, f.z, u.x, u.y, u.z); }
+}
+// ağır "tok" adım (yaratık); pos verilirse 3D
+function sfxThud(pos, vol = 0.9) {
+  if (!AU.ctx) return;
+  const ctx = AU.ctx, t = ctx.currentTime;
+  const o = ctx.createOscillator(); o.type = "sine";
+  o.frequency.setValueAtTime(95, t); o.frequency.exponentialRampToValueAtTime(32, t + 0.4);
+  const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+  const n = ctx.createBufferSource(); n.buffer = AU.noise;
+  const nf = ctx.createBiquadFilter(); nf.type = "lowpass"; nf.frequency.value = 300;
+  const ng = ctx.createGain(); ng.gain.setValueAtTime(vol * 0.5, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+  let out = AU.master;
+  if (pos) {
+    const p = ctx.createPanner(); p.panningModel = "HRTF"; p.refDistance = 4; p.rolloffFactor = 0.5;
+    setPannerPos(p, pos.x, 0.3, pos.z); p.connect(AU.master); out = p;
+  }
+  o.connect(g).connect(out); n.connect(nf).connect(ng).connect(out);
+  o.start(t); o.stop(t + 0.6); n.start(t); n.stop(t + 0.2);
+}
+function sfxClick(freq = 3200, vol = 0.12, dur = 0.025) {
+  if (!AU.ctx) return;
+  const ctx = AU.ctx, t = ctx.currentTime;
+  const n = ctx.createBufferSource(); n.buffer = AU.noise; n.playbackRate.value = rand(0.8, 1.2);
+  const f = ctx.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = freq; f.Q.value = 2;
+  const g = ctx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  n.connect(f).connect(g).connect(AU.master); n.start(t, rand(0, 1.5)); n.stop(t + dur + 0.02);
+}
+function sfxBeep(freq = 1000, dur = 0.08, vol = 0.06) {
+  if (!AU.ctx) return;
+  const ctx = AU.ctx, t = ctx.currentTime;
+  const o = ctx.createOscillator(); o.type = "square"; o.frequency.value = freq;
+  const g = ctx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.setValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(AU.master); o.start(t); o.stop(t + dur + 0.02);
+}
+function sfxStep(run) { sfxClick(run ? 260 : 200, run ? 0.16 : 0.08, 0.09); }
+function sfxStaticBurst(vol = 0.5, dur = 0.8) {
+  if (!AU.ctx) return;
+  const ctx = AU.ctx, t = ctx.currentTime;
+  const n = ctx.createBufferSource(); n.buffer = AU.noise;
+  const g = ctx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  n.connect(g).connect(AU.master); n.start(t); n.stop(t + dur);
+}
+
+// ============================================================
+// DURUM
+// ============================================================
+const S = {
+  mode: "title",      // title | intro | play | tape | dead
+  paused: false,
+  time: 0, playTime: 0,
+  yaw: 0, pitch: 0, roll: 0,
+  pos: new THREE.Vector3(),
+  stamina: CFG.staminaMax, exhausted: false,
+  bobPhase: 0, bobAmp: 0, lastRun: -99, stillFor: 0,
+  battery: 100, lightOn: false,
+  lamp: 1, lampTarget: 1, flicker: 0,
+  darkness: 0,
+  interference: 0, interTest: false, showDbg: false,
+  black: 0,
+  lastTape: -1, tapesFound: 0,
+  intro: null,
+};
+const CR = { x: 0, y: 0, prev: null, pathDist: 99, nextBlackout: 0, bo: null, caught: false, distTimer: 0 };
+const keys = {};
+
+function resetRun() {
+  buildWorld();
+  const sc = cellCenter(G.start[0], G.start[1]);
+  S.pos.set(sc.x, CFG.eye, sc.z);
+  // açık bir yöne bak
+  const n = neighbors(G.start[0], G.start[1]);
+  const [nx, ny] = n.length ? pick(n) : [G.start[0], G.start[1] - 1];
+  S.yaw = Math.atan2(-(nx - G.start[0]), -(ny - G.start[1]));
+  S.pitch = 0; S.roll = 0;
+  S.stamina = CFG.staminaMax; S.exhausted = false;
+  S.battery = 100; S.lightOn = false;
+  S.lamp = 1; S.lampTarget = 1; S.interference = 0; S.black = 0;
+  S.playTime = 0; S.lastRun = -99; S.stillFor = 0;
+  S.lastTape = -1; S.tapesFound = 0;
+  [CR.x, CR.y] = G.creatureStart; CR.prev = null; CR.caught = false; CR.bo = null;
+  CR.nextBlackout = CFG.creature.grace + rand(CFG.creature.blackoutMin, CFG.creature.blackoutMax) * 0.5;
+  CR.pathDist = 99; CR.distTimer = 0;
+}
+
+// ============================================================
+// GİRİŞ / KONTROLLER
+// ============================================================
+function lockPointer() { if (document.pointerLockElement !== canvas) canvas.requestPointerLock?.(); }
+document.addEventListener("pointerlockchange", () => {
+  const locked = document.pointerLockElement === canvas;
+  if (!locked && S.mode === "play") { S.paused = true; show("pause"); }
+  if (locked && S.mode === "play" && S.paused) { S.paused = false; hide("pause"); }
+});
+document.addEventListener("mousemove", (e) => {
+  if (document.pointerLockElement !== canvas || S.mode !== "play" || S.paused) return;
+  S.yaw -= e.movementX * 0.0022;
+  S.pitch = clamp(S.pitch - e.movementY * 0.0022, -1.35, 1.35);
+});
+document.addEventListener("click", () => {
+  if (S.mode === "title") { initAudio(); lockPointer(); startIntro(); return; }
+  if (S.mode === "dead") { hide("dead"); resetRun(); startPlay(); lockPointer(); return; }
+  if (S.paused) { S.paused = false; hide("pause"); lockPointer(); AU.ctx?.resume(); return; }
+  if (S.mode === "play") lockPointer();
+});
+addEventListener("keydown", (e) => {
+  keys[e.code] = true;
+  if (e.code === "Space") {
+    e.preventDefault();
+    if (S.mode === "intro") finishIntro();
+    else if (S.mode === "tape") endTape();
+    return;
+  }
+  if (S.mode !== "play" || S.paused) return;
+  if (e.code === "KeyF") toggleLight();
+  if (e.code === "KeyT" && S.lastTape >= 0) playTape(S.lastTape);
+  if (e.code === "KeyI") { S.interTest = !S.interTest; toast(S.interTest ? "PARAZİT TESTİ: AÇIK" : "PARAZİT TESTİ: KAPALI"); }
+  if (e.code === "KeyB") { S.showDbg = !S.showDbg; $("dbg").classList.toggle("hidden", !S.showDbg); }
+});
+addEventListener("keyup", (e) => { keys[e.code] = false; });
+addEventListener("blur", () => { for (const k in keys) keys[k] = false; });
+
+function toggleLight() {
+  if (S.battery <= 0) { sfxClick(900, 0.1, 0.04); toast("PİL BİTTİ"); return; }
+  S.lightOn = !S.lightOn;
+  sfxClick(1400, 0.18, 0.03);
+}
+
+// ============================================================
+// ARAYÜZ
+// ============================================================
+function show(id) { $(id).classList.remove("hidden"); }
+function hide(id) { $(id).classList.add("hidden"); }
+let toastTimer = 0;
+function toast(text) { const t = $("toast"); t.textContent = text; t.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 2200); }
+let subTimer = 0;
+function subtitle(text, ms = 3000) {
+  const s = $("sub"); s.innerHTML = ""; const sp = document.createElement("span"); sp.textContent = text; s.appendChild(sp);
+  clearTimeout(subTimer); subTimer = setTimeout(() => { s.innerHTML = ""; }, ms);
+}
+function updateHud() {
+  $("rec").classList.toggle("off", Math.floor(S.time * 1.2) % 2 === 1);
+  const b = Math.ceil(S.battery);
+  $("batLabel").textContent = `FENER ${S.lightOn ? "AÇIK" : "KAPALI"} · PİL %${b}`;
+  const bb = $("batBar").firstElementChild; bb.style.width = b + "%"; bb.classList.toggle("low", b <= CFG.battery.lowAt);
+  $("stamBar").firstElementChild.style.width = (S.stamina / CFG.staminaMax * 100) + "%";
+  $("stamWrap").style.opacity = S.stamina < CFG.staminaMax - 0.5 ? 1 : 0;
+  if (S.showDbg) $("dbg").textContent = `BEKÇİ: yol ${CR.pathDist * C} m · düz ${creatureEuclid().toFixed(1)} m${S.playTime < CFG.creature.grace ? " · bekliyor" : ""}`;
+}
+
+// ============================================================
+// AÇILIŞ SİNEMATİĞİ
+// ============================================================
+// 1) siyah ekranda daktilo yazısı  2) kuyudan düşüş  3) karartma  4) yerde uyanma
+const TYPE_CPS = 22, LINE_PAUSE = 0.75, TYPE_HOLD = 1.4;
+function startIntro() {
+  resetRun();
+  hide("title"); show("hud"); show("skip");
+  if (!CFG.intro) { finishIntro(); return; }
+  S.mode = "intro";
+  // daktilo zaman çizelgesi
+  let t = 0.6; const sched = [];
+  for (const line of INTRO_LINES) { sched.push({ line, start: t }); t += line.length / TYPE_CPS + LINE_PAUSE; }
+  S.intro = { phase: "type", t: 0, sched, typeEnd: t + TYPE_HOLD, shown: -1 };
+  show("typer"); $("typer").innerHTML = "";
+  hide("hud");
+}
+function introUpdate(dt) {
+  const I = S.intro; I.t += dt;
+  const sc = cellCenter(G.start[0], G.start[1]);
+  if (I.phase === "type") {
+    // kamera kuyunun üstünde bekler
+    S.pos.set(sc.x, CFG.wallH + 12.4, sc.z); S.pitch = -1.45; S.roll = 0;
+    let text = "", chars = 0;
+    for (const s of I.sched) {
+      if (I.t < s.start) break;
+      const n = Math.min(s.line.length, Math.floor((I.t - s.start) * TYPE_CPS));
+      text += s.line.slice(0, n) + (n === s.line.length ? "\n" : ""); chars += n;
+    }
+    if (chars !== I.shown) {
+      if (chars > I.shown && I.shown >= 0) sfxClick(2600 + rand(-400, 400), 0.1, 0.03);
+      I.shown = chars;
+      $("typer").innerHTML = ""; $("typer").append(text); const cur = document.createElement("span"); cur.className = "cursor"; cur.textContent = "▌"; $("typer").append(cur);
+    }
+    if (I.t >= I.typeEnd) {
+      hide("typer"); show("hud");
+      I.phase = "fall"; I.t = 0;
+      sfxClick(500, 0.4, 0.15); sfxStaticBurst(0.25, 0.5);  // ızgara kayıyor
+    }
+    return;
+  }
+  if (I.phase === "fall") {
+    const FALL = 1.65, top = CFG.wallH + 12.4, g = 2 * (top - 0.5) / (FALL * FALL);
+    const t = Math.min(I.t, FALL);
+    S.pos.set(sc.x + Math.sin(t * 7) * 0.05, top - 0.5 * g * t * t, sc.z);
+    S.pitch = -1.45 + t * 1.1 + Math.sin(t * 13) * 0.1;
+    S.roll = t * 1.4;
+    S.yaw += dt * 0.9;
+    S.interference = 0.15 + t / FALL * 0.4;
+    S.lamp = clamp(t / FALL, 0, 1);
+    setGain(AU.wind, 0.05 + t / FALL * 0.35, 0.05); AU.windFilter?.frequency.setTargetAtTime(300 + t * 900, AU.ctx.currentTime, 0.05);
+    setGain(AU.hum, 0.4 * t / FALL);
+    if (I.t >= FALL) {
+      sfxThud(null, 1.0); sfxStaticBurst(0.6, 0.6);
+      setGain(AU.wind, 0, 0.02); setGain(AU.hum, 0, 0.02); setGain(AU.ring, 0.03, 0.05);
+      I.phase = "black"; I.t = 0; S.black = 1; S.interference = 1;
+      hide("hud");
+    }
+    return;
+  }
+  if (I.phase === "black") {
+    S.black = 1;
+    setGain(AU.ring, 0.03 * (1 - I.t / 2.2), 0.2);
+    if (I.t >= 2.2) { I.phase = "wake"; I.t = 0; S.yaw += 1.2; show("hud"); }
+    return;
+  }
+  if (I.phase === "wake") {
+    const t = I.t, D = 6.5;
+    // göz kırpma: karartma açılıp kapanır
+    S.black = keyframes([[0, 1], [0.5, 0.55], [0.9, 0.95], [1.6, 0.3], [2.0, 0.75], [2.9, 0.05], [3.4, 0]], t);
+    const rise = smooth(clamp((t - 2.6) / 3.2, 0, 1));
+    S.pos.set(sc.x + 0.6 * (1 - rise), lerp(0.28, CFG.eye, rise), sc.z);
+    S.roll = lerp(1.35, 0, smooth(clamp((t - 1.8) / 3.0, 0, 1))) + Math.sin(t * 1.3) * 0.03 * (1 - rise);
+    S.pitch = lerp(0.35, 0, rise) + Math.sin(t * 0.9) * 0.04;
+    S.interference = lerp(0.8, 0, clamp(t / 4.5, 0, 1));
+    S.lamp = 1;
+    setGain(AU.hum, lerp(0, 1, clamp(t / 4, 0, 1)) * 0.9, 0.2);
+    setGain(AU.ring, 0);
+    if (t > 3.4 && !I.said) { I.said = true; subtitle("...neredeyim?", 2800); }
+    if (t >= D) finishIntro(true);
+  }
+}
+function finishIntro(natural) {
+  hide("typer"); hide("skip"); show("hud");
+  if (!natural) {
+    const sc = cellCenter(G.start[0], G.start[1]);
+    S.pos.set(sc.x, CFG.eye, sc.z); S.roll = 0; S.pitch = 0;
+  }
+  if (AU.ctx) { setGain(AU.wind, 0, 0.05); setGain(AU.ring, 0, 0.05); }
+  S.black = 0; S.interference = 0;
+  startPlay();
+}
+function startPlay() {
+  S.mode = "play"; S.playTime = 0; S.roll = 0;
+  S.paused = document.pointerLockElement !== canvas;
+  S.paused ? show("pause") : hide("pause");
+}
+
+// ============================================================
+// OYUNCU
+// ============================================================
+const PR = 0.32;
+function blocked(x, z) {
+  for (const [dx, dz] of [[-PR, -PR], [PR, -PR], [-PR, PR], [PR, PR]]) {
+    const [gx, gy] = worldToCell(x + dx, z + dz);
+    if (isWall(gx, gy)) return true;
+  }
+  return false;
+}
+function updatePlayer(dt) {
+  const f = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
+  const s = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
+  const moving = f !== 0 || s !== 0;
+  const wantRun = (keys.ShiftLeft || keys.ShiftRight) && moving && f >= 0;
+  if (S.exhausted && S.stamina >= CFG.staminaMinToRun) S.exhausted = false;
+  const running = wantRun && !S.exhausted && S.stamina > 0;
+  if (running) { S.stamina -= CFG.staminaDrain * dt; S.lastRun = S.playTime; if (S.stamina <= 0) { S.stamina = 0; S.exhausted = true; } }
+  else S.stamina = Math.min(CFG.staminaMax, S.stamina + CFG.staminaRegen * dt * (moving ? 0.6 : 1));
+
+  const speed = running ? CFG.runSpeed : CFG.walkSpeed;
+  let vx = 0, vz = 0;
+  if (moving) {
+    const sy = Math.sin(S.yaw), cy = Math.cos(S.yaw);
+    vx = -sy * f + cy * s; vz = -cy * f - sy * s;
+    const len = Math.hypot(vx, vz); vx = vx / len * speed * dt; vz = vz / len * speed * dt;
+    if (!blocked(S.pos.x + vx, S.pos.z)) S.pos.x += vx;
+    if (!blocked(S.pos.x, S.pos.z + vz)) S.pos.z += vz;
+  }
+  S.stillFor = moving ? 0 : S.stillFor + dt;
+
+  // kafa sallanması
+  const bob = running ? CFG.bobRun : CFG.bobWalk;
+  S.bobAmp = lerp(S.bobAmp, moving ? 1 : 0, Math.min(1, dt * 8));
+  const prevSin = Math.sin(S.bobPhase);
+  if (moving) S.bobPhase += dt * bob.freq;
+  if (moving && prevSin > 0 && Math.sin(S.bobPhase) <= 0) sfxStep(running);
+  if (moving && prevSin < 0 && Math.sin(S.bobPhase) >= 0) sfxStep(running);
+  S.bobOffY = Math.abs(Math.sin(S.bobPhase)) * bob.amp * S.bobAmp - bob.amp * 0.5 * S.bobAmp;
+  S.bobOffX = Math.cos(S.bobPhase) * bob.sway * S.bobAmp;
+
+  // fener / pil
+  if (S.lightOn) {
+    S.battery = Math.max(0, S.battery - 100 / CFG.battery.seconds * dt);
+    if (S.battery <= 0) { S.lightOn = false; toast("PİL BİTTİ"); sfxBeep(500, 0.25, 0.05); }
+    else if (Math.ceil(S.battery) === CFG.battery.lowAt && !S.lowWarned) { S.lowWarned = true; sfxBeep(1200, 0.06); setTimeout(() => sfxBeep(1200, 0.06), 140); }
+  }
+  if (S.battery > CFG.battery.lowAt) S.lowWarned = false;
+
+  // toplanabilirler
+  for (let i = G.pickups.length - 1; i >= 0; i--) {
+    const p = G.pickups[i];
+    p.mesh.position.y = p.base + Math.sin(S.time * 2 + i) * 0.02;
+    if (p.type === "battery") p.mesh.rotation.y += dt * 0.8;
+    const d = Math.hypot(p.mesh.position.x - S.pos.x, p.mesh.position.z - S.pos.z);
+    if (d < 1.1) {
+      G.world.remove(p.mesh); G.pickups.splice(i, 1);
+      if (p.type === "battery") {
+        S.battery = Math.min(100, S.battery + CFG.battery.pickup);
+        sfxBeep(880, 0.07); setTimeout(() => sfxBeep(1320, 0.09), 90);
+        toast(`PİL +%${CFG.battery.pickup}`);
+      } else {
+        S.tapesFound++; S.lastTape = p.tape;
+        sfxClick(800, 0.3, 0.08);
+        playTape(p.tape);
+        return;
+      }
+    }
+  }
+}
+
+// ============================================================
+// IŞIK: lamba havuzu, titreme, karanlık bölge
+// ============================================================
+let lampPickTimer = 0;
+function updateLights(dt) {
+  // en yakın yanan lambalara ışık havuzunu ata
+  lampPickTimer -= dt;
+  if (lampPickTimer <= 0) {
+    lampPickTimer = 0.2;
+    const px = S.pos.x, pz = S.pos.z;
+    const near = G.lamps.map((l) => ({ l, d: (l.pos.x - px) ** 2 + (l.pos.z - pz) ** 2 })).sort((a, b) => a.d - b.d).slice(0, LIGHT_POOL.length);
+    LIGHT_POOL.forEach((L, i) => { L.userData.lamp = near[i]?.l || null; if (near[i]) L.position.copy(near[i].l.pos); });
+  }
+  // titreme
+  if (S.mode === "play") {
+    if (!CR.bo) {
+      if (CR.pathDist <= 3 && Math.random() < dt * 6) S.flicker = rand(0.08, 0.3);   // yaratık geçiyor: güçlü
+      else if (Math.random() < dt * 0.12) S.flicker = rand(0.05, 0.15);                // ara sıra hafif
+    }
+    if (S.flicker > 0) { S.flicker -= dt; S.lamp = CR.pathDist <= 3 ? rand(0, 0.7) : rand(0.55, 1); }
+    else S.lamp = lerp(S.lamp, S.lampTarget, Math.min(1, dt * 18));
+  }
+
+  const [cx, cy] = worldToCell(S.pos.x, S.pos.z);
+  const inDark = G.dark[cy]?.[cx] ? 1 : 0;
+  S.darkness = lerp(S.darkness, inDark, Math.min(1, dt * 1.5));
+  const L = S.lamp, dk = S.darkness;
+  LIGHT_POOL.forEach((l) => { l.intensity = l.userData.lamp ? 1.15 * L : 0; });
+  MAT.panelOn.color.setScalar(0.15 + 0.85 * L);
+  ambient.intensity = (0.32 * L + 0.02) * (1 - dk * 0.95);
+  hemi.intensity = 0.22 * L * (1 - dk);
+  scene.fog.density = lerp(0.045, 0.13, dk) + (1 - L) * 0.03;
+  const fogC = FOG_COLOR.clone().multiplyScalar((0.25 + 0.75 * L) * (1 - dk * 0.9));
+  scene.fog.color.copy(fogC); scene.background.copy(fogC);
+
+  // fener
+  let fl = S.lightOn ? 1.7 : 0;
+  if (S.lightOn && S.battery < CFG.battery.lowAt && Math.random() < 0.25) fl *= rand(0, 0.8);
+  flashlight.intensity = fl;
+
+  if (S.mode === "play") setGain(AU.hum, 0.9 * L * (1 - dk), 0.05);
+}
+
+// ============================================================
+// YARATIK ("Bekçi" — oyunda görünmez, adı geçmez)
+// ============================================================
+function creatureEuclid() { const p = cellCenter(CR.x, CR.y); return Math.hypot(p.x - S.pos.x, p.z - S.pos.z); }
+function playerCell() { return worldToCell(S.pos.x, S.pos.z); }
+function creatureStep(mode) {
+  const [px, py] = playerCell();
+  const nb = neighbors(CR.x, CR.y);
+  if (!nb.length) return;
+  let next;
+  if (mode === "approach") {
+    const dist = bfs(px, py);
+    const best = Math.min(...nb.map(([x, y]) => dist[y][x]));
+    next = pick(nb.filter(([x, y]) => dist[y][x] === best));
+  } else {
+    const opts = nb.filter(([x, y]) => !CR.prev || x !== CR.prev[0] || y !== CR.prev[1]);
+    next = pick(opts.length ? opts : nb);
+  }
+  CR.prev = [CR.x, CR.y];
+  [CR.x, CR.y] = next;
+  const p = cellCenter(CR.x, CR.y);
+  sfxThud(p, 0.55 + 0.45 * clamp(1 - CR.pathDist / 8, 0, 1));
+  if (CR.x === px && CR.y === py) CR.caught = true;
+}
+function updateCreature(dt) {
+  const cc = CFG.creature;
+  // yol mesafesi
+  CR.distTimer -= dt;
+  if (CR.distTimer <= 0) {
+    CR.distTimer = 0.25;
+    const [px, py] = playerCell();
+    CR.pathDist = bfs(px, py)[CR.y][CR.x];
+  }
+  // karartma döngüsü
+  if (S.playTime >= cc.grace) CR.nextBlackout -= dt;
+  if (!CR.bo && CR.nextBlackout <= 0) {
+    const heard = S.playTime - S.lastRun < cc.runHeardFor;
+    const hidden = !S.lightOn && S.stillFor > 1.0;
+    const mode = hidden && Math.random() < cc.hideWanderChance ? "wander" : "approach";
+    let steps = randi(cc.stepsMin, cc.stepsMax) + (heard ? cc.runExtraSteps : 0);
+    CR.bo = { t: 0, dur: cc.blackoutDur, steps, mode, stepAt: cc.blackoutDur * 0.35 };
+    S.lampTarget = 0; S.flicker = 0;
+    sfxClick(120, 0.25, 0.12); // röle sesi
+  }
+  if (CR.bo) {
+    const bo = CR.bo; bo.t += dt;
+    if (bo.steps > 0 && bo.t >= bo.stepAt) { creatureStep(bo.mode); bo.steps--; bo.stepAt += 0.33; }
+    if (bo.t >= bo.dur) {
+      CR.bo = null; S.lampTarget = 1; S.flicker = 0.25;
+      CR.nextBlackout = rand(cc.blackoutMin, cc.blackoutMax);
+      if (CR.caught) { die(); return; }
+    }
+  }
+  if (creatureEuclid() < cc.catchDist && !CR.bo) { die(); return; }
+
+  // yakınlık: parazit + nefes
+  const prox = clamp(1 - CR.pathDist / 10, 0, 1);
+  const inter = Math.pow(clamp(1 - (CR.pathDist - 1) / 6, 0, 1), 1.3) * 0.9;
+  S.interference = lerp(S.interference, Math.max(inter, CR.bo ? 0.25 : 0, S.interTest ? 1 : 0), Math.min(1, dt * 3));
+  const cp = cellCenter(CR.x, CR.y);
+  if (AU.ctx) {
+    setPannerPos(AU.panner, cp.x, 1.4, cp.z);
+    const cycle = 0.5 + 0.5 * Math.sin(S.time * Math.PI * 2 * 0.32);
+    setGain(AU.breath, (0.015 + Math.pow(prox, 1.6) * 0.75) * (0.25 + 0.75 * cycle * cycle), 0.1);
+    setGain(AU.static, S.interference * 0.12, 0.1);
+  }
+}
+function die() {
+  S.mode = "dead";
+  S.paused = false; hide("pause"); hide("tape");
+  S.interference = 1;
+  sfxStaticBurst(0.8, 1.2);
+  setGain(AU.breath, 0, 0.05); setGain(AU.hum, 0, 0.3);
+  setTimeout(() => { if (S.mode === "dead") { S.black = 1; show("dead"); setGain(AU.static, 0, 0.3); } }, 900);
+  document.exitPointerLock?.();
+}
+
+// ============================================================
+// KASETLER
+// ============================================================
+let tapeRun = null;
+function playTape(idx) {
+  const tape = TAPES[idx]; if (!tape || S.mode === "dead") return;
+  S.mode = "tape";
+  document.exitPointerLock?.();
+  setGain(AU.breath, 0); setGain(AU.static, 0.03); setGain(AU.hum, 0.1);
+  $("tapeName").textContent = `KASET ${idx + 1} · ${tape.who}`;
+  $("tapeDate").textContent = tape.date;
+  $("tapeSub").innerHTML = "";
+  show("tape");
+  const run = { idx, i: -1, t0: performance.now(), timer: 0, done: false };
+  tapeRun = run;
+  const vid = $("tapeVideo");
+  if (tape.src) {
+    vid.src = tape.src; show("tapeVideo"); vid.currentTime = 0; vid.play().catch(() => {});
+    vid.onended = () => { if (tapeRun === run) endTape(); };
+  } else hide("tapeVideo");
+  nextTapeLine(run);
+}
+function nextTapeLine(run) {
+  if (tapeRun !== run) return;
+  const tape = TAPES[run.idx];
+  run.i++;
+  if (run.i >= tape.lines.length) { if (!tape.src) run.timer = setTimeout(() => endTape(), 900); return; }
+  const text = tape.lines[run.i];
+  const sub = $("tapeSub"); sub.innerHTML = ""; const sp = document.createElement("span"); sp.textContent = text; sub.appendChild(sp);
+  let advanced = false;
+  const advance = () => { if (advanced) return; advanced = true; clearTimeout(run.timer); run.timer = setTimeout(() => nextTapeLine(run), 450); };
+  run.timer = setTimeout(advance, Math.max(2600, text.length * 85));   // ses yoksa yedek süre
+  if (!tape.src && "speechSynthesis" in window) {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "tr-TR"; u.rate = tape.rate; u.pitch = tape.pitch;
+    const v = speechSynthesis.getVoices().find((v) => v.lang?.toLowerCase().startsWith("tr"));
+    if (v) u.voice = v;
+    u.onend = advance;
+    speechSynthesis.speak(u);
+  }
+}
+function endTape() {
+  if (!tapeRun) return;
+  clearTimeout(tapeRun.timer); tapeRun = null;
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  const vid = $("tapeVideo"); vid.pause(); vid.removeAttribute("src");
+  hide("tape");
+  S.mode = "play"; S.paused = true; show("pause");
+  setGain(AU.static, 0);
+  toast(`KASET ${S.tapesFound}/${CFG.tapes} · T: tekrar izle`);
+}
+// kaset ekranı gürültüsü
+const tn = $("tapeNoise"), tng = tn.getContext("2d"), tnImg = tng.createImageData(tn.width, tn.height);
+function drawTapeNoise() {
+  const d = tnImg.data;
+  for (let i = 0; i < d.length; i += 4) { const v = Math.random() * 60; d[i] = v; d[i + 1] = v * 1.05; d[i + 2] = v * 0.85; d[i + 3] = 255; }
+  tng.putImageData(tnImg, 0, 0);
+  if (tapeRun) $("tapeClock").textContent = "00:00:" + String(Math.floor((performance.now() - tapeRun.t0) / 1000) % 60).padStart(2, "0");
+}
+
+// ============================================================
+// ANA DÖNGÜ
+// ============================================================
+let last = performance.now();
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  S.time += dt;
+
+  if (S.mode === "intro") introUpdate(dt);
+  else if (S.mode === "play" && !S.paused) {
+    S.playTime += dt;
+    updatePlayer(dt);
+    if (S.mode === "play") updateCreature(dt);
+  } else if (S.mode === "tape") drawTapeNoise();
+
+  if (G) {
+    if (S.mode !== "title") updateLights(dt);
+    camera.position.copy(S.pos);
+    if (S.mode === "play") {
+      const sy = Math.sin(S.yaw), cy = Math.cos(S.yaw);
+      camera.position.y += S.bobOffY || 0;
+      camera.position.x += cy * (S.bobOffX || 0); camera.position.z -= sy * (S.bobOffX || 0);
+    }
+    camera.rotation.set(S.pitch, S.yaw, S.roll + (S.mode === "play" ? (S.bobOffX || 0) * 0.4 : 0));
+    updateListener();
+  }
+  if (S.mode !== "intro" && S.mode !== "dead") S.black = Math.max(0, S.black - dt * 2);
+  if (S.mode === "dead") S.interference = 1;
+
+  const u = postMat.uniforms;
+  u.uTime.value = S.time; u.uInter.value = clamp(S.interference, 0, 1); u.uBlack.value = clamp(S.black, 0, 1);
+  renderer.setRenderTarget(rt); renderer.render(scene, camera);
+  renderer.setRenderTarget(null); renderer.render(postScene, postCam);
+  if (S.mode !== "title") updateHud();
+}
+requestAnimationFrame(frame);
+
+// Başlık arka planında labirent görünsün
+resetRun();
+S.mode = "title";
+
+// TEST: yayından önce kaldırılacak
+window.__mazgal = { S, CR, CFG, get G() { return G; }, die, playTape, creatureStep };
+</script>
+</body>
+</html>
