@@ -20,7 +20,7 @@ WASD yürü (açılışta kamyoneti sürer: W gaz, S fren/geri, A D direksiyon) 
 | `serve.ps1` | Yerel test sunucusu (PowerShell) |
 | `SESLENDIRME.md` | Seslendirme metni: karakterler, ses yönü, dosya adları |
 | `dokular.js`, `dokular/` | Flow ile üretilen doku görselleri (duvar, tavan, asfalt, kulübe duvarı, torpido, kapı paneli, cam damlaları). `dokular.js` aynı görsellerin gömülü hâli; çift tıklayınca (file://) da çalışsın diye. Dosya yoksa oyun kodla çizilen dokulara döner. |
-| `modeller.js` | Sketchfab'dan alınan 3B modellerin gömülü hâli (şimdilik bekçi kulübesi). Dosya yoksa oyun kodla kurulan kulübeye döner. |
+| `modeller.js` | Sketchfab'dan alınan 3B modellerin gömülü hâli: bekçi kulübesi, masa telefonu, tüplü TV, sürücünün kolları, apartman blokları. Dosya yoksa oyun kodla kurulan eski hâllere döner. |
 | `ses/` | Seslendirme ve efekt mp3'leri: `yagmur.mp3` hazır; `zil.mp3`, `kapi.mp3`, `yaklasma.mp3` isteğe bağlı (yoksa kodla üretilen ses çalar) |
 
 ## Ayarlar
@@ -57,3 +57,7 @@ Kasetler `TAPES` listesindedir; `src` alanına video dosyası yazılırsa (ör. 
 ## Model kaynakları
 
 - Bekçi kulübesi: "Guard Booth with interior", castleonsandYT, CC BY 4.0. https://sketchfab.com/3d-models/guard-booth-with-interior-181cd7b921c14f70ba5b64d3f4fdd8db (oyun için küçültülmüş dokular, kapı ayrı parça).
+- Masa telefonu: "Office Phone", R3indeer, CC BY-NC 4.0. https://sketchfab.com/3d-models/office-phone-7b12706d32264bca8698a81bdfe5300a (ahize ayrı parça). **Ticari olmayan lisans:** oyun satılacaksa bu model değiştirilmeli.
+- Tüplü TV: "CRT TV", Timothy Ahene, Sketchfab Standart Lisansı. https://sketchfab.com/3d-models/crt-tv-9ba4baa106e64319a0b540cf0af5aa9e (ekrandaki karlı yayın kodla çizilir).
+- Sürücünün kolları: "Arms", RomeGD, Sketchfab Standart Lisansı. https://sketchfab.com/3d-models/arms-845beebb5fe043df90e210d93a9f4fc3 (direksiyona göre döndürüldü, ceket kolu köşe rengiyle boyandı).
+- Apartman blokları: "street city (7) for games FREE", dasy444, Sketchfab Standart Lisansı. https://sketchfab.com/3d-models/street-city-7-for-games-free-493a69b451284ff88346c7b3e4e1b5a7 (yalnız iki blok tipi alındı; yabancı tabelalı dükkânlar alınmadı).

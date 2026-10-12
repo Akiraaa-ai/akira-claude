@@ -22,6 +22,7 @@ try {
     $res = $ctx.Response
     if ($file.StartsWith($root) -and (Test-Path $file -PathType Leaf)) {
       $ext = [IO.Path]::GetExtension($file).ToLower()
+      $res.Headers.Add('Cache-Control', 'no-cache')   # oyun güncellenince tarayıcı eski dosyayı tutmasın
       $res.ContentType = if ($types.ContainsKey($ext)) { $types[$ext] } else { 'application/octet-stream' }
       $bytes = [IO.File]::ReadAllBytes($file)
       $res.ContentLength64 = $bytes.Length

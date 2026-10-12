@@ -69,4 +69,4 @@ Davranış:
 
 ## Telif notu
 
-Kane Pixels içeriği, Backrooms wiki seviye/yaratık adları ve orijinal fotoğraf kullanılmaz. Dokular ya kodla üretilir ya da Flow ile üretilmiş görsellerdir (`dokular/`).
+Kane Pixels içeriği, Backrooms wiki seviye/yaratık adları ve orijinal fotoğraf kullanılmaz. Dokular ya kodla üretilir ya da Flow ile üretilmiş görsellerdir (`dokular/`). 3B modeller Sketchfab'dan, lisansları README "Model kaynakları" bölümünde.
