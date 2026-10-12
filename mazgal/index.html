@@ -99,7 +99,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
 <script src="dokular.js"></script>
-<script src="modeller.js"></script>
+<script src="modeller.js?v=2"></script>
 <script>
 "use strict";
 
@@ -1041,29 +1041,38 @@ const CAR_START = { x: -57.7, z: -38, yaw: Math.PI };   // kulübenin önünde, 
 const CAR_SEAT = new THREE.Vector3(-0.38, 1.22, 0.2);   // sürücü (araç yerel; ileri = -z)
 
 // modeller.js paketinden mesh grubu kurar. Kapı parçaları ayrı bir menteşe grubunda döner.
-const MODEL_MATS = {};
-function buildModel(key, { doorPivot = null, tweak = {} } = {}) {
+const MODEL_MATS = {}, MODEL_GEOS = {};
+// only: yalnız o parçayı kur (paketteki "part" adı). glow: dokuyu karanlıkta hafif parlatır.
+function buildModel(key, { doorPivot = null, tweak = {}, only = null } = {}) {
   const P = window.MODELLER && window.MODELLER[key]; if (!P) return null;
   const dec = (b64, T) => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new T(u.buffer); };
   const texOf = (src) => { if (!src) return null; const img = new Image(); const t = new THREE.Texture(img); img.onload = () => { t.needsUpdate = true; }; img.src = src; t.flipY = false; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; return t; };
   const mats = MODEL_MATS[key] || (MODEL_MATS[key] = P.mats.map((m) => {
     const o = { map: texOf(m.map), normalMap: texOf(m.normalMap), shininess: 8, specular: 0x111111 };
+    if (m.color && !m.map) o.color = new THREE.Color(m.color[0], m.color[1], m.color[2]);
     if (m.transparent) Object.assign(o, { transparent: true, depthWrite: false, opacity: 1 });
-    Object.assign(o, tweak[m.name] || {});
+    const tw = Object.assign({}, tweak[m.name] || {}, tweak["*"] || {});
+    if (tw.glow) { Object.assign(o, { emissive: 0xffffff, emissiveMap: o.map, emissiveIntensity: tw.glow }); delete tw.glow; }
+    Object.assign(o, tw);
     return new THREE.MeshPhongMaterial(o);
   }));
-  const g = new THREE.Group(), door = new THREE.Group();
+  const g = new THREE.Group(), door = new THREE.Group(), parts = {};
   if (doorPivot) { door.position.copy(doorPivot); g.add(door); }
-  for (const m of P.meshes) {
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.BufferAttribute(dec(m.pos, Float32Array), 3));
-    geo.setAttribute("normal", new THREE.BufferAttribute(dec(m.nor, Float32Array), 3));
-    geo.setAttribute("uv", new THREE.BufferAttribute(dec(m.uv, Float32Array), 2));
-    geo.setIndex(new THREE.BufferAttribute(dec(m.idx, m.i32 ? Uint32Array : Uint16Array), 1));
-    const mesh = new THREE.Mesh(geo, mats[m.mat]);
+  P.meshes.forEach((m, i) => {
+    if (only && m.part !== only) return;
+    const geo = MODEL_GEOS[key + i] || (MODEL_GEOS[key + i] = (() => {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.BufferAttribute(dec(m.pos, Float32Array), 3));
+      geo.setAttribute("normal", new THREE.BufferAttribute(dec(m.nor, Float32Array), 3));
+      geo.setAttribute("uv", new THREE.BufferAttribute(dec(m.uv, Float32Array), 2));
+      geo.setIndex(new THREE.BufferAttribute(dec(m.idx, m.i32 ? Uint32Array : Uint16Array), 1));
+      return geo;
+    })());
+    const mesh = new THREE.Mesh(geo, mats[m.mat]); mesh.userData.part = m.part;
+    if (m.part) (parts[m.part] = parts[m.part] || []).push(mesh);
     if (m.door && doorPivot) { mesh.position.copy(doorPivot).negate(); door.add(mesh); } else g.add(mesh);
-  }
-  return { group: g, door };
+  });
+  return { group: g, door, parts, pack: P };
 }
 
 function buildStreet() {
@@ -1107,8 +1116,31 @@ function buildStreet() {
       a += w;
     }
   };
-  row(-51.5, X1, 0, -8.5, true); row(X0, -68.5, 0, -8.5, true); row(X0, X1, 0, 8.5, true);
-  row(Z0, -8.5, 0, -51.5, false); row(Z0, -8.5, 0, -68.5, false);
+  if (window.MODELLER && window.MODELLER.sokak) {
+    // Sketchfab apartman blokları (dasy444): kaldırım çizgisine dizilir, aralarda dar boşluk.
+    // Ana caddede yalnız alçak blok yan yatırılır (derinlik 18), ara sokak sıraları köşeden sonra başlar.
+    const tw = (part, x, z, ry) => { const b = buildModel("sokak", { only: part, tweak: { "*": { glow: 0.09 } } }); b.group.position.set(x, 0, z); b.group.rotation.y = ry; st.add(b.group); };
+    const BL = window.MODELLER.sokak.parts.blok, KU = window.MODELLER.sokak.parts.kule;
+    const along = (a0, a1, front, dir, horizontal, shallow) => {
+      let a = a0;
+      while (a < a1 - 8) {
+        const tall = !shallow && rand(0, 1) < 0.45;
+        const P = tall ? KU : BL, wide = P[1][0] - P[0][0], deep = P[1][2] - P[0][2];
+        // sığ sıra: bloğun uzun yüzü caddeye (genişlik 30, derinlik 18); diğerlerinde dar yüz caddeye
+        const w = shallow ? deep : wide, d = shallow ? wide : deep;
+        if (a + w > a1 + 2) break;
+        const c = a + w / 2, off = front + dir * d / 2;
+        if (horizontal) tw(tall ? "kule" : "blok", c, off, shallow ? Math.PI / 2 : 0);
+        else tw(tall ? "kule" : "blok", off, c, shallow ? 0 : Math.PI / 2);
+        a += w + rand(2, 5);
+      }
+    };
+    along(-51.5, X1, -8.5, -1, true, true); along(X0, -68.5, -8.5, -1, true, true); along(X0, X1, 8.5, 1, true, false);
+    along(Z0, -28, -51.5, 1, false, false); along(Z0, -28, -68.5, -1, false, false);
+  } else {
+    row(-51.5, X1, 0, -8.5, true); row(X0, -68.5, 0, -8.5, true); row(X0, X1, 0, 8.5, true);
+    row(Z0, -8.5, 0, -51.5, false); row(Z0, -8.5, 0, -68.5, false);
+  }
   // ara sokağın kuzey ucu: kapalı (duvar)
   box(18, 10, 2, pick(M.facades), -60, 5, Z0 - 1);
 
@@ -1179,12 +1211,21 @@ function buildStreet() {
   // masa, telefon, termos, bardak
   box(0.6, 0.04, 1.4, M.wood, -14.85, 0.75, -4.4, hut);
   for (const [x, z] of [[-15.1, -5.05], [-14.6, -5.05], [-15.1, -3.75], [-14.6, -3.75]]) box(0.04, 0.73, 0.04, M.wood, x, 0.365, z, hut);
-  box(0.24, 0.07, 0.22, M.phone, -14.85, 0.805, -4.55, hut); box(0.17, 0.05, 0.2, M.phone, -14.92, 0.86, -4.55, hut);   // telefon gövdesi
-  const dial = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.012, 14), M.dark); dial.rotation.z = Math.PI / 2 - 0.5; dial.position.set(-14.73, 0.83, -4.55); hut.add(dial);
+  // telefon: Sketchfab modeli varsa o (ahize ayrı parça), yoksa kutulardan
+  const TEL = buildModel("telefon", { only: "govde" });
   const handset = new THREE.Group();
-  box(0.05, 0.045, 0.24, M.phone, 0, 0, 0, handset);
-  box(0.07, 0.05, 0.06, M.phone, 0, -0.01, -0.1, handset); box(0.07, 0.05, 0.06, M.phone, 0, -0.01, 0.1, handset);
-  const cradle = new THREE.Vector3(-14.87, 0.88, -4.55);
+  let cradle;
+  if (TEL) {
+    TEL.group.position.set(-14.85, 0.77, -4.36); hut.add(TEL.group);
+    handset.add(buildModel("telefon", { only: "ahize" }).group);
+    cradle = new THREE.Vector3(...TEL.pack.ahize).add(TEL.group.position);
+  } else {
+    box(0.24, 0.07, 0.22, M.phone, -14.85, 0.805, -4.55, hut); box(0.17, 0.05, 0.2, M.phone, -14.92, 0.86, -4.55, hut);   // telefon gövdesi
+    const dial = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.012, 14), M.dark); dial.rotation.z = Math.PI / 2 - 0.5; dial.position.set(-14.73, 0.83, -4.55); hut.add(dial);
+    box(0.05, 0.045, 0.24, M.phone, 0, 0, 0, handset);
+    box(0.07, 0.05, 0.06, M.phone, 0, -0.01, -0.1, handset); box(0.07, 0.05, 0.06, M.phone, 0, -0.01, 0.1, handset);
+    cradle = new THREE.Vector3(-14.87, 0.88, -4.55);
+  }
   handset.position.copy(cradle); hut.add(handset);
   // termos: gövde, kapak bardağı, sap
   const th = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.048, 0.28, 14), M.thermos); th.position.set(-15.0, 0.91, -3.9); hut.add(th);
@@ -1192,21 +1233,36 @@ function buildStreet() {
   box(0.015, 0.16, 0.025, M.dark, -15.0, 0.93, -3.84, hut);
   // ince belli çay bardağı, tabak, kaşık
   const tg = new THREE.Mesh(new THREE.LatheGeometry([[0.02, 0], [0.026, 0.02], [0.019, 0.045], [0.026, 0.085], [0.028, 0.09]].map(([r, y]) => new THREE.Vector2(r, y)), 14), M.teaGlass);
-  tg.position.set(-14.72, 0.778, -3.95); hut.add(tg);
+  tg.position.set(TEL ? -14.64 : -14.72, 0.778, TEL ? -3.79 : -3.95); hut.add(tg);
   const tea = new THREE.Mesh(new THREE.LatheGeometry([[0.0, 0.002], [0.019, 0.004], [0.024, 0.02], [0.018, 0.045], [0.024, 0.072], [0.0, 0.072]].map(([r, y]) => new THREE.Vector2(r, y)), 12), M.tea);
   tea.position.copy(tg.position); hut.add(tea);
-  const saucer = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.045, 0.008, 16), M.hardhat); saucer.position.set(-14.72, 0.774, -3.95); hut.add(saucer);
-  box(0.005, 0.004, 0.07, M.metal, -14.67, 0.781, -3.96, hut);
+  const saucer = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.045, 0.008, 16), M.hardhat); saucer.position.set(tg.position.x, 0.774, tg.position.z); hut.add(saucer);
+  box(0.005, 0.004, 0.07, M.metal, tg.position.x + 0.05, 0.781, tg.position.z - 0.01, hut);
   // nöbet defteri ve kalem
-  const nb = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.2), M.notebook); nb.rotation.set(-Math.PI / 2, 0, Math.PI / 2 + 0.12); nb.position.set(-14.76, 0.773, -4.2); hut.add(nb);
-  const pen = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.14, 6), M.dark); pen.rotation.set(Math.PI / 2, 0, 0.5); pen.position.set(-14.66, 0.778, -4.25); hut.add(pen);
-  // eski radyo (anteni duvara yaslı)
-  box(0.1, 0.13, 0.26, M.dark, -15.06, 0.835, -4.98, hut);
-  const rf = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.13), M.radio); rf.rotation.y = Math.PI / 2; rf.position.set(-15.005, 0.835, -4.98); hut.add(rf);
-  const ant = box(0.006, 0.4, 0.006, M.metal, -15.08, 1.07, -5.05, hut); ant.rotation.x = 0.35;
+  const nb = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.2), M.notebook); nb.rotation.set(-Math.PI / 2, 0, Math.PI / 2 + 0.12); nb.position.set(-14.78, 0.773, TEL ? -4.0 : -4.2); hut.add(nb);
+  const pen = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.14, 6), M.dark); pen.rotation.set(Math.PI / 2, 0, 0.5); pen.position.set(-14.68, 0.778, TEL ? -4.05 : -4.25); hut.add(pen);
+  // masanın ucunda tüplü televizyon (Sketchfab modeli, ekranda karlı yayın); model yoksa eski radyo
+  const TVM = buildModel("tv", { only: "kasa" });
+  let tv = null;
+  if (TVM) {
+    TVM.group.rotation.y = -Math.PI / 2; TVM.group.position.set(-14.9, 0.77, -4.86); hut.add(TVM.group);
+    const c = document.createElement("canvas"); c.width = 96; c.height = 72;
+    const tex = new THREE.CanvasTexture(c); tex.magFilter = THREE.NearestFilter;
+    const scr = buildModel("tv", { only: "ekran" });
+    const scrMat = new THREE.MeshPhongMaterial({ map: tex, color: 0x333333, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.55, shininess: 60, specular: 0x333333 });
+    scr.group.traverse((o) => { if (o.isMesh) o.material = scrMat; });
+    scr.group.rotation.y = -Math.PI / 2; scr.group.position.copy(TVM.group.position); hut.add(scr.group);
+    const glow = new THREE.PointLight(0x9fb2d8, 0.25, 2.4, 1.8); glow.position.set(-14.45, 1.0, -4.86); hut.add(glow);
+    tv = { canvas: c, ctx: c.getContext("2d"), tex, glow, acc: 0 };
+  } else {
+    box(0.1, 0.13, 0.26, M.dark, -15.06, 0.835, -4.98, hut);
+    const rf = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.13), M.radio); rf.rotation.y = Math.PI / 2; rf.position.set(-15.005, 0.835, -4.98); hut.add(rf);
+    const ant = box(0.006, 0.4, 0.006, M.metal, -15.08, 1.07, -5.05, hut); ant.rotation.x = 0.35;
+  }
   // kül tablası
-  const ash = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.045, 0.02, 12), M.metal); ash.position.set(-14.68, 0.78, -4.88); hut.add(ash);
-  for (const a of [0.3, 1.9, 4]) box(0.03, 0.008, 0.008, M.hardhat, -14.68 + Math.cos(a) * 0.02, 0.795, -4.88 + Math.sin(a) * 0.02, hut).rotation.y = a;
+  const AX = TVM ? -14.62 : -14.68, AZ = TVM ? -4.62 : -4.88;
+  const ash = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.045, 0.02, 12), M.metal); ash.position.set(AX, 0.78, AZ); hut.add(ash);
+  for (const a of [0.3, 1.9, 4]) box(0.03, 0.008, 0.008, M.hardhat, AX + Math.cos(a) * 0.02, 0.795, AZ + Math.sin(a) * 0.02, hut).rotation.y = a;
   // sandalye (Selim'in oturduğu)
   box(0.42, 0.04, 0.42, M.chair, -13.75, 0.45, -4.3, hut);
   box(0.04, 0.45, 0.4, M.chair, -13.53, 0.72, -4.3, hut);
@@ -1250,7 +1306,7 @@ function buildStreet() {
   const drops = Array.from({ length: N }, () => ({ x: rand(-12, 12), y: rand(0, 9), z: rand(-12, 12), v: rand(8.5, 11) }));
 
   scene.add(st);
-  G.street = { group: st, hut, door, handset, cradle, mainLamp, lamps, bulbLight, rain, rpos, drops, car };
+  G.street = { group: st, hut, door, handset, cradle, tv, mainLamp, lamps, bulbLight, rain, rpos, drops, car };
 }
 
 // Belediye kamyoneti: dışı basit kutular, içi (torpido, direksiyon, silecek, ön cam damlaları) sürüş için
@@ -1292,6 +1348,31 @@ function buildCar(st, M) {
   const steer = new THREE.Group(); wheelMount.add(steer);
   const rim = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.022, 8, 28), M.dark); steer.add(rim);
   box(0.36, 0.03, 0.02, M.dark, 0, 0, 0, steer); box(0.03, 0.18, 0.02, M.dark, 0, -0.09, 0, steer);
+  // sürücünün kolları (Sketchfab "Arms", RomeGD): eller direksiyonda, ceket kolu bileğe kadar
+  let arms = null;
+  if (window.MODELLER && window.MODELLER.kollar) {
+    arms = new THREE.Group(); wheelMount.add(arms);
+    const skin = new THREE.MeshPhongMaterial({ vertexColors: true, shininess: 6, specular: 0x111111 });
+    for (const [part, sx] of [["sol", -1], ["sag", 1]]) {
+      const src = buildModel("kollar", { only: part }).group.children[0], geo = src.geometry.clone();
+      // avuç ortası orijine; kol -x (sağ) / +x (sol) yönünde uzanır
+      geo.translate(-sx * 0.75, 0.066, 0);
+      const pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
+      for (let i = 0; i < pos.count; i++) {
+        const d = -sx * pos.getX(i);   // avuçtan dirseğe uzaklık
+        const c = d > 0.17 ? [0.07, 0.075, 0.085] : [0.62, 0.45, 0.36];
+        col.set(c, i * 3);
+      }
+      geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+      const arm = new THREE.Mesh(geo, skin);
+      // eli direksiyonun 3/9 konumuna koy, kolu omuza doğru (aşağı ve sürücüye) çevir
+      const hand = new THREE.Vector3(sx * 0.185, 0.02, 0.03), elbow = new THREE.Vector3(sx * 0.26, -0.48, 0.26);
+      const dir = hand.clone().sub(elbow).normalize();
+      arm.quaternion.setFromUnitVectors(new THREE.Vector3(sx, 0, 0), dir);
+      arm.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(dir, sx * -1.1));
+      arm.position.copy(hand); arms.add(arm);
+    }
+  }
   // gösterge: hız yazısı her karede çizilir
   const gc = document.createElement("canvas"); gc.width = 128; gc.height = 64;
   const gaugeTex = new THREE.CanvasTexture(gc);
@@ -1321,7 +1402,7 @@ function buildCar(st, M) {
     const L = new THREE.SpotLight(0xfff0d0, 0, 38, 0.42, 0.55, 1.2); L.position.set(sx, 0.85, -2.5);
     L.target.position.set(sx * 1.4, 0, -16); g.add(L, L.target); return L;
   });
-  return { group: g, wheels, steer, gauge: { canvas: gc, tex: gaugeTex, last: -1 }, needle, dropsMat, wipers, heads,
+  return { group: g, wheels, steer, arms, gauge: { canvas: gc, tex: gaugeTex, last: -1 }, needle, dropsMat, wipers, heads,
     x: CAR_START.x, z: CAR_START.z, yaw: CAR_START.yaw, v: 0, steerAng: 0, wipe: 0, wet: 0.6 };
 }
 function drawGauge(car) {
@@ -1340,6 +1421,19 @@ function disposeStreet() {
   scene.remove(G.street.group);
   G.street.group.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
   G.street = null;
+}
+// televizyon: karlı yayın, ışığı titrer
+function updateTv(dt) {
+  const tv = G.street && G.street.tv; if (!tv) return;
+  tv.acc += dt; if (tv.acc < 1 / 24) return; tv.acc = 0;
+  const { ctx, canvas: c } = tv, im = ctx.createImageData(c.width, c.height), d = im.data;
+  const roll = (S.time * 30) % c.height;
+  for (let y = 0; y < c.height; y++) {
+    const band = Math.abs(y - roll) < 4 ? 40 : 0;
+    for (let x = 0; x < c.width; x++) { const v = Math.random() * 150 + band, i = (y * c.width + x) * 4; d[i] = v * 0.92; d[i + 1] = v * 0.96; d[i + 2] = v; d[i + 3] = 255; }
+  }
+  ctx.putImageData(im, 0, 0); tv.tex.needsUpdate = true;
+  tv.glow.intensity = 0.18 + Math.random() * 0.12;
 }
 function updateRain(dt) {
   const R = G.street; if (!R) return;
@@ -1382,8 +1476,14 @@ function driveCar(car, dt, thr, brk, st) {
   car.steerAng = lerp(car.steerAng, st * 0.6 / (1 + Math.abs(car.v) * 0.04), Math.min(1, dt * 5));
   const nyaw = car.yaw + car.v / 2.9 * Math.tan(car.steerAng) * dt;
   const nx = car.x - Math.sin(nyaw) * car.v * dt, nz = car.z - Math.cos(nyaw) * car.v * dt;
-  if (carFits(nx, nz, nyaw)) { car.x = nx; car.z = nz; car.yaw = nyaw; }
-  else {
+  if (carFits(nx, nz, nyaw)) { car.x = nx; car.z = nz; car.yaw = nyaw; car.scrape = 0; }
+  else if (carFits(nx, car.z, nyaw) || carFits(car.x, nz, nyaw) || carFits(car.x, car.z, nyaw)) {
+    // bordüre sürterek kayar: araç takılıp kalmaz, yavaşlar
+    if (carFits(nx, car.z, nyaw)) car.x = nx; else if (carFits(car.x, nz, nyaw)) car.z = nz;
+    car.yaw = nyaw; car.v *= Math.pow(0.35, dt);
+    if (!car.scrape && Math.abs(car.v) > 2) { sfxThud(null, 0.25); S.interference = 0.2; }
+    car.scrape = 1;
+  } else {
     if (Math.abs(car.v) > 2.5) { sfxThud(null, clamp(Math.abs(car.v) / 12, 0.25, 0.8)); S.interference = 0.45; }
     car.v *= -0.25;
   }
@@ -1409,9 +1509,15 @@ function carCam(I, O) {
 }
 document.addEventListener("mousemove", (e) => {
   const I = S.intro;
-  if (S.mode !== "intro" || !I || I.phase !== "drive") return;
+  if (S.mode !== "intro" || !I) return;
   if (document.pointerLockElement !== canvas && !S.lockFailed) return;
   const k = 0.0022 * (typeof GFX !== "undefined" ? GFX.sens : 1);
+  if (I.phase === "hut" || I.phase === "call" || I.phase === "exit") {   // kulübede başını çevirebilir
+    I.fy = clamp((I.fy || 0) - e.movementX * k, -1.3, 1.3);
+    I.fp = clamp((I.fp || 0) - e.movementY * k, -0.55, 0.45);
+    return;
+  }
+  if (I.phase !== "drive") return;
   I.lookYaw = clamp((I.lookYaw || 0) - e.movementX * k, -1.4, 1.4);
   I.lookPitch = clamp((I.lookPitch || 0) - e.movementY * k, -0.6, 0.45);
 });
@@ -1446,6 +1552,7 @@ function updateCarFx(dt, inCar) {
   const car = R.car, v = Math.abs(car.v), I = S.intro;
   car.wheels.forEach((w) => { w.rotation.x -= car.v * dt / 0.38; });
   car.steer.rotation.z = car.steerAng * 4;
+  if (car.arms) car.arms.rotation.z = clamp(car.steerAng * 4, -0.55, 0.55);
   if (CARAU.gain && AU.ctx) {
     const t = AU.ctx.currentTime;
     CARAU.o1.frequency.setTargetAtTime(36 + v * 5.5 + (I.thr ? 9 : 0), t, 0.15);
@@ -1909,6 +2016,11 @@ function lookFrom(pos, tgt) {
   const dx = tgt.x - pos.x, dy = tgt.y - pos.y, dz = tgt.z - pos.z;
   S.yaw = Math.atan2(-dx, -dz); S.pitch = Math.atan2(dy, Math.hypot(dx, dz));
 }
+// sinematik kameranın üstüne farenin verdiği baş çevirme payı (decay>0 ise yavaşça sıfırlanır)
+function freeLook(I, dt, decay) {
+  if (decay) { const f = Math.exp(-dt * decay); I.fy = (I.fy || 0) * f; I.fp = (I.fp || 0) * f; }
+  S.yaw += I.fy || 0; S.pitch = clamp(S.pitch + (I.fp || 0), -1.2, 1.2);
+}
 function setClock(sec) {
   const s = Math.floor(sec) % 86400, p = (n) => String(n).padStart(2, "0");
   $("clock").textContent = `${p(Math.floor(s / 3600))}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}`;
@@ -1938,7 +2050,7 @@ function introUpdate(dt) {
   const R = G.street;
   if (S.surface) {
     I.total += dt; setClock(23 * 3600 + 52 * 60 + 4 + I.total);
-    updateRain(dt);
+    updateRain(dt); updateTv(dt);
     const inHut = I.phase === "hut" || I.phase === "call" || (I.phase === "exit" && I.t < 5.2);
     const inCar = I.phase === "drive" || I.phase === "park" || (I.phase === "getin" && I.t > 0.7);
     setRain(inHut ? 0.4 : inCar ? 0.6 : 0.85, inHut || inCar, dt);
@@ -1952,7 +2064,7 @@ function introUpdate(dt) {
   if (I.phase === "hut") {
     const t = I.t;
     S.black = keyframes([[0, 1], [0.4, 1], [1.8, 0]], t);
-    placeHut(CAM_HUT, t);
+    placeHut(CAM_HUT, t); freeLook(I, dt, 0);
     S.pitch += Math.sin(S.time * 1.1) * 0.012; S.roll = Math.sin(S.time * 0.7) * 0.01;
     if (!I.ring1 && t >= 1.6) { I.ring1 = true; I.ringer = phoneRing(hutW(new THREE.Vector3(-14.85, 0.85 + HUT.floor, -4.55)), 1.6); }
     if (!I.ring2 && t >= 4.4) { I.ring2 = true; I.ringer = phoneRing(hutW(new THREE.Vector3(-14.85, 0.85 + HUT.floor, -4.55)), 1.6); }
@@ -1971,7 +2083,7 @@ function introUpdate(dt) {
     S.pos.set(base.x, base.y + Math.sin(S.time * 1.3) * 0.006, base.z);
     const tgt = I.line >= 0 ? hutW(new THREE.Vector3(...CALL_LOOK[Math.min(I.line, CALL_LOOK.length - 1)])) : I.look;
     I.look.lerp(tgt, 1 - Math.exp(-dt * 2.2));
-    lookFrom(S.pos, I.look); S.roll = Math.sin(S.time * 0.6) * 0.012;
+    lookFrom(S.pos, I.look); freeLook(I, dt, 0); S.roll = Math.sin(S.time * 0.6) * 0.012;
     if (I.next !== null) {
       I.next -= dt;
       if (I.next <= 0) {
@@ -1988,7 +2100,7 @@ function introUpdate(dt) {
   }
   if (I.phase === "exit") {
     const t = I.t, prev = S.pos.clone();
-    placeHut(CAM_EXIT, t);
+    placeHut(CAM_EXIT, t); freeLook(I, dt, t > 2.4 ? 1.2 : 0);   // yürürken bakış yavaşça yola döner
     // ahize yerine
     const u = smooth(clamp((t - 0.6) / 0.6, 0, 1));
     R.handset.position.lerpVectors(I.from, R.cradle, u); R.handset.rotation.set(0, lerp(R.handset.rotation.y, 0, u), lerp(1.2, 0, u));
