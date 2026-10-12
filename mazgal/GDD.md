@@ -48,13 +48,13 @@ Davranış:
 ## İpuçları ve hikâye
 
 - **Kasetler:** Önceki girenlerin bodycam kayıtları (Mehmet, Ayşe, Kenan). Altyazılı ve sesli oynar, yaratıktan açıkça bahsetmez, sadece belirsiz uyarılar verir: "ışığı takip etmeyin", "ses kesilen yerde durun", "koşunca ayak seslerim çoğalıyor". Kayıt oynarken oyun durur.
-- **Duvar yazıları:** "IŞIĞI TAKİP ETME" gibi (henüz eklenmedi).
+- **Duvar yazıları:** Sürülmüş, akmış koyu boya. Uyanınca karşıdaki duvarda hep "IŞIĞI TAKİP ETME" yazar; Selim doğrulurken başını ona çevirir. Labirentte aralıklı 6 yazı daha: "KOŞMA", "SES KESİLİRSE DUR", "KARANLIKTA KIPIRDAMA", "KASETLERİ DİNLE", "SAYMAYI BIRAKTIM", "BURASI AYNI YER", çentik sayımı. Liste `WALL_TEXTS`, adet `CFG.wallTexts`.
 - **Planlanan ipucu zinciri:** duvar yazısı → kaset (çıkışın nerede olduğu ve şifre) → elektrik panosu → bulunan bodycam → harita parçası → çıkış.
 
 ## Yapılacaklar (sırayla)
 
 - [x] Açılış sinematiği (daktilo yazısı, düşme)
-- [ ] Duvar yazıları
+- [x] Duvar yazıları
 - [ ] Elektrik panosu ve şifre
 - [ ] Harita parçası
 - [ ] Çıkış ve final

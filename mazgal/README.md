@@ -32,6 +32,7 @@ WASD yürü · Shift koş · F fener · Fare bak · Boşluk sinematiği/kaseti a
 - **Işık:** en yakın lambalara atanan ışık havuzu, ara sıra titreme, yaratık yakındayken güçlü titreme.
 - **Fener ve pil, karanlık bölgeler, yaratık, kasetler, ses:** ayrıntılar `GDD.md` içinde.
 - **Açılış sinematiği:** daktilo yazısı → kuyudan düşüş → karartma → yerde uyanma.
+- **Duvar yazıları:** canvas ile boyanmış yarı saydam paneller; ilki başlangıçta görüş alanına, diğerleri uzağa ve aralıklı yerleşir (`WALL_TEXTS`).
 
 Kasetler `TAPES` listesindedir; `src` alanına video dosyası yazılırsa (ör. `kasetler/mehmet.mp4`) altyazılı ses yerine o video oynar.
 
