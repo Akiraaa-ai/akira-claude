@@ -34,8 +34,7 @@
   #title p { margin: 6px; color: #9a9378; font-size: 14px; letter-spacing: 1px; }
   #title .go { margin-top: 34px; color: #e8e2c8; font-size: 17px; animation: blink 1.6s infinite; }
   @keyframes blink { 50% { opacity: .25; } }
-  #typer { align-items: flex-start; padding-left: 12vw; font-size: 22px; line-height: 2; white-space: pre-wrap; }
-  #typer .cursor { animation: blink .9s steps(1) infinite; }
+  #hud.cine .bl, #hud.cine .br { display: none; }
   #skip { position: fixed; bottom: 22px; right: 28px; font-size: 12px; color: #6f6a55; letter-spacing: 1px; }
   #pause { background: rgba(0,0,0,.72); font-size: 18px; letter-spacing: 2px; }
   #dead { background: transparent; }
@@ -58,7 +57,7 @@
 
 <div id="hud" class="layer hidden">
   <div class="tl"><span id="rec">● REC</span></div>
-  <div class="tr"><div id="date">14.10.2026</div><div>00:00:00</div><div id="dbg" class="hidden"></div></div>
+  <div class="tr"><div id="date">14.10.2026</div><div id="clock">00:00:00</div><div id="dbg" class="hidden"></div></div>
   <div class="bl">
     <div id="batLabel">FENER · PİL %100</div>
     <div class="bar" id="batBar"><div style="width:100%"></div></div>
@@ -74,11 +73,10 @@
 <div id="title" class="screen">
   <h1>MAZGAL</h1>
   <p>Kulaklık önerilir.</p>
-  <p>WASD yürü · Shift koş · F fener · Fare bak</p>
+  <p>WASD yürü · Shift koş · F fener · Fare ya da ok tuşları bak</p>
   <div class="go">[ başlamak için tıkla ]</div>
 </div>
 
-<div id="typer" class="screen hidden"></div>
 <div id="skip" class="hidden">BOŞLUK · geç</div>
 <div id="pause" class="screen hidden">[ devam etmek için tıkla ]</div>
 <div id="dead" class="screen hidden"><h2>KAYIT KESİLDİ</h2><p>[ tıkla ]</p></div>
@@ -163,13 +161,6 @@ const WALL_TEXTS = [
   "SAYMAYI\nBIRAKTIM",
   "BURASI\nAYNI YER",
   "|||| |||| |||",
-];
-
-const INTRO_LINES = [
-  "14 Ekim, 23:52.",
-  "Gece vardiyasının son turu.",
-  "Sokak lambası söndü. Mazgalın altından bir vızıltı geliyordu.",
-  "Eğildim. Izgara yerinden oynadı.",
 ];
 
 // ============================================================
@@ -495,19 +486,17 @@ function buildWorld() {
   worldUV(ceilGeo);
   G.world.add(new THREE.Mesh(ceilGeo, MAT.ceiling));
 
-  // düşülen kuyu + mazgal
-  const shaftH = 13;
+  // düşülen kuyu (ağzı sokakta, kapağı açık)
+  const shaftH = STREET_Y - CFG.wallH;
   const shaft = new THREE.Mesh(new THREE.CylinderGeometry(hole * Math.SQRT2, hole * Math.SQRT2, shaftH, 4, 1, true), MAT.shaft);
   shaft.rotation.y = Math.PI / 4;
   shaft.position.set(sc.x, CFG.wallH + shaftH / 2, sc.z);
   G.world.add(shaft);
-  const grate = new THREE.Mesh(new THREE.PlaneGeometry(hole * 2, hole * 2), MAT.grate);
-  grate.rotation.x = Math.PI / 2; grate.position.set(sc.x, CFG.wallH + shaftH - 0.05, sc.z);
   const sky = new THREE.Mesh(new THREE.PlaneGeometry(hole * 2, hole * 2), MAT.sky);
   sky.rotation.x = Math.PI / 2; sky.position.set(sc.x, CFG.wallH + shaftH + 0.3, sc.z);
   const shaftLight = new THREE.PointLight(0x8a9ab0, 1.3, 12, 1.2);
   shaftLight.position.set(sc.x, CFG.wallH + shaftH - 1, sc.z);
-  G.world.add(grate, sky, shaftLight);
+  G.world.add(sky, shaftLight);
 
   // lambalar: oda karelerinde floresan panel
   G.lamps = [];
@@ -649,6 +638,242 @@ function worldUV(geo) {
 }
 
 // ============================================================
+// SOKAK (açılış sahnesi): Fen İşleri kulübesi, yağmurlu sokak, kapağı açık mazgal
+// Kuyunun ağzı sokak zemini; sahne yalnızca açılışta kurulur, düşüşten sonra silinir.
+// ============================================================
+const STREET_Y = CFG.wallH + 13;
+const HUT = { x0: -15.2, x1: -12.8, z0: -5.3, z1: -3.1, h: 2.5, floor: 0.15 };   // mazgala göre yerel koordinat
+let STREET_ASSETS = null;
+function streetAssets() {
+  if (STREET_ASSETS) return STREET_ASSETS;
+  const T = {
+    asphalt: makeCanvas(256, 256, (g, w, h) => {
+      g.fillStyle = "#2b2b2c"; g.fillRect(0, 0, w, h);
+      speckle(g, w, h, 16000, "10,10,10", 0.1, 0.4, 1, 2);
+      speckle(g, w, h, 6000, "120,120,120", 0.05, 0.2, 1, 1);
+      for (let i = 0; i < 6; i++) stain(g, rand(0, w), rand(0, h), rand(25, 70), "8,8,10", rand(0.3, 0.5));
+      g.strokeStyle = "rgba(0,0,0,0.5)"; g.lineWidth = 1.5;
+      for (let i = 0; i < 4; i++) { g.beginPath(); let x = rand(0, w), y = rand(0, h); g.moveTo(x, y); for (let k = 0; k < 6; k++) { x += rand(-25, 25); y += rand(-25, 25); g.lineTo(x, y); } g.stroke(); }
+    }),
+    paving: makeCanvas(256, 256, (g, w, h) => {
+      g.fillStyle = "#4a4946"; g.fillRect(0, 0, w, h);
+      for (let y = 0; y < h; y += 32) for (let x = 0; x < w; x += 64) {
+        const ox = (y / 32) % 2 ? 32 : 0;
+        g.fillStyle = `rgb(${randi(78, 96)},${randi(76, 92)},${randi(72, 86)})`; g.fillRect(x + ox + 2, y + 2, 60, 28);
+        if (ox) { g.fillRect(2 - 32 + ox, y + 2, 28, 28); }
+      }
+      speckle(g, w, h, 5000, "20,20,20", 0.1, 0.3, 1, 2);
+    }),
+    hut: makeCanvas(256, 256, (g, w, h) => {
+      g.fillStyle = "#9fb0b6"; g.fillRect(0, 0, w, h);
+      for (let x = 0; x < w; x += 16) { g.fillStyle = "rgba(0,0,0,0.13)"; g.fillRect(x, 0, 3, h); g.fillStyle = "rgba(255,255,255,0.08)"; g.fillRect(x + 6, 0, 2, h); }
+      for (let i = 0; i < 9; i++) stain(g, rand(0, w), rand(h * 0.5, h), rand(15, 45), "90,60,30", rand(0.2, 0.45));   // pas
+      speckle(g, w, h, 3000, "40,40,40", 0.05, 0.2, 1, 2);
+    }),
+    lino: makeCanvas(128, 128, (g, w, h) => {
+      g.fillStyle = "#5d5648"; g.fillRect(0, 0, w, h);
+      g.fillStyle = "#4a4438"; for (let y = 0; y < h; y += 32) for (let x = (y / 32) % 2 * 32; x < w; x += 64) g.fillRect(x, y, 32, 32);
+      speckle(g, w, h, 2500, "20,20,20", 0.05, 0.25, 1, 2);
+    }),
+    calendar: makeCanvas(128, 176, (g, w, h) => {
+      g.fillStyle = "#e9e2cf"; g.fillRect(0, 0, w, h);
+      g.fillStyle = "#7a1f1a"; g.fillRect(0, 0, w, 34);
+      g.fillStyle = "#f1e8d0"; g.font = "bold 18px sans-serif"; g.textAlign = "center"; g.fillText("EKİM 2026", w / 2, 23);
+      g.fillStyle = "#333"; g.font = "11px sans-serif";
+      for (let d = 1; d <= 31; d++) { const c = (d + 2) % 7, r = Math.floor((d + 2) / 7); g.fillText(d, 12 + c * 17, 56 + r * 22); }
+      g.strokeStyle = "#b8231b"; g.lineWidth = 2; g.beginPath(); g.arc(12 + 2 * 17, 52 + 2 * 22, 9, 0, 7); g.stroke();   // 14 Ekim
+      stain(g, 90, 150, 30, "120,100,60", 0.25);
+    }),
+    clock: makeCanvas(128, 128, (g, w, h) => {
+      g.fillStyle = "#e6e0cc"; g.beginPath(); g.arc(64, 64, 60, 0, 7); g.fill();
+      g.strokeStyle = "#222"; g.lineWidth = 5; g.stroke();
+      g.fillStyle = "#222"; for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; g.fillRect(64 + Math.sin(a) * 48 - 2, 64 - Math.cos(a) * 48 - 2, 4, 4); }
+      const hand = (a, len, wd) => { g.lineWidth = wd; g.beginPath(); g.moveTo(64, 64); g.lineTo(64 + Math.sin(a) * len, 64 - Math.cos(a) * len); g.stroke(); };
+      hand((11 + 52 / 60) / 12 * Math.PI * 2, 30, 5); hand(52 / 60 * Math.PI * 2, 46, 3);   // 23:52
+    }),
+    sign: makeCanvas(256, 64, (g, w, h) => {
+      g.fillStyle = "#1d3f73"; g.fillRect(0, 0, w, h);
+      g.strokeStyle = "#d8dde6"; g.lineWidth = 3; g.strokeRect(4, 4, w - 8, h - 8);
+      g.fillStyle = "#e8ecf2"; g.font = "bold 30px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("FEN İŞLERİ", w / 2, h / 2 + 1);
+    }),
+    vest: makeCanvas(64, 96, (g, w, h) => {
+      g.fillStyle = "#e5671f"; g.fillRect(0, 0, w, h);
+      g.fillStyle = "#d9dbc8"; g.fillRect(0, 40, w, 8); g.fillRect(0, 62, w, 8);
+      g.fillStyle = "#3a2a1a"; g.fillRect(28, 0, 8, h);
+    }),
+  };
+  T.asphalt.repeat.set(0.3, 0.3); T.paving.repeat.set(0.6, 0.6); T.lino.repeat.set(1.2, 1.2);
+  for (const k of ["calendar", "clock", "sign", "vest"]) T[k].wrapS = T[k].wrapT = THREE.ClampToEdgeWrapping;
+  // cephe: koyu pencereler, bazıları yanık (emissive ayrı doku)
+  const facade = (lit) => {
+    const L = new Set(); for (let i = 0; i < 64; i++) if (Math.random() < 0.09) L.add(i);
+    const draw = (onlyLit) => (g, w, h) => {
+      g.fillStyle = onlyLit ? "#000" : `rgb(${randi(70, 95)},${randi(64, 82)},${randi(55, 70)})`; g.fillRect(0, 0, w, h);
+      if (!onlyLit) speckle(g, w, h, 4000, "20,20,20", 0.05, 0.25, 1, 3);
+      for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+        const i = r * 8 + c, x = 10 + c * 31, y = 12 + r * 31;
+        if (onlyLit) { if (L.has(i)) { g.fillStyle = Math.random() < 0.5 ? "#c9a46a" : "#8fa6c0"; g.fillRect(x, y, 16, 20); } }
+        else { g.fillStyle = L.has(i) ? "#c9a46a" : "#141619"; g.fillRect(x, y, 16, 20); g.fillStyle = "rgba(0,0,0,0.4)"; g.fillRect(x - 1, y + 20, 18, 3); }
+      }
+    };
+    return [makeCanvas(256, 256, draw(false)), makeCanvas(256, 256, draw(true))];
+  };
+  const M = {
+    asphalt: new THREE.MeshPhongMaterial({ map: T.asphalt, color: 0x9a9a9a, specular: 0x3a3a3a, shininess: 45 }),   // ıslak
+    puddle: new THREE.MeshPhongMaterial({ color: 0x0c0d10, specular: 0x9a9a9a, shininess: 140, transparent: true, opacity: 0.85, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }),
+    paving: new THREE.MeshPhongMaterial({ map: T.paving, specular: 0x2a2a2a, shininess: 35 }),
+    curb: new THREE.MeshLambertMaterial({ color: 0x6d6b66 }),
+    concrete: new THREE.MeshLambertMaterial({ color: 0x55534e }),
+    hut: new THREE.MeshLambertMaterial({ map: T.hut }),
+    door: new THREE.MeshLambertMaterial({ map: T.hut, color: 0x7d8f99 }),
+    lino: new THREE.MeshLambertMaterial({ map: T.lino }),
+    wood: new THREE.MeshLambertMaterial({ color: 0x6b4a2c }),
+    phone: new THREE.MeshLambertMaterial({ color: 0xb4a684 }),
+    dark: new THREE.MeshLambertMaterial({ color: 0x1c1c1c }),
+    thermos: new THREE.MeshLambertMaterial({ color: 0x2f4a33 }),
+    pole: new THREE.MeshLambertMaterial({ color: 0x3a3d40 }),
+    lampOn: new THREE.MeshBasicMaterial({ color: 0xffb46a }),
+    bulb: new THREE.MeshBasicMaterial({ color: 0xfff0c8 }),
+    glass: new THREE.MeshBasicMaterial({ color: 0x1b2433, transparent: true, opacity: 0.35, depthWrite: false }),
+    cone: new THREE.MeshLambertMaterial({ color: 0xd8541c }),
+    rain: new THREE.LineBasicMaterial({ color: 0x9aa6b8, transparent: true, opacity: 0.32 }),
+    calendar: new THREE.MeshLambertMaterial({ map: T.calendar }),
+    clock: new THREE.MeshLambertMaterial({ map: T.clock, transparent: true, alphaTest: 0.5 }),
+    sign: new THREE.MeshLambertMaterial({ map: T.sign }),
+    vest: new THREE.MeshLambertMaterial({ map: T.vest }),
+    facades: [0, 1, 2].map(() => { const [map, em] = facade(); return new THREE.MeshLambertMaterial({ map, emissive: 0xffffff, emissiveMap: em, emissiveIntensity: 0.55 }); }),
+  };
+  return (STREET_ASSETS = M);
+}
+
+function buildStreet() {
+  disposeStreet();
+  const M = streetAssets();
+  const sc = cellCenter(G.start[0], G.start[1]);
+  const st = new THREE.Group(); st.position.set(sc.x, STREET_Y, sc.z);
+  const box = (w, h, d, mat, x, y, z, parent = st) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); parent.add(m); return m; };
+  const R = 42, hole = 0.8;
+
+  // yol: ortasında mazgal deliği olan ıslak asfalt
+  const shape = new THREE.Shape([new THREE.Vector2(-R, -R), new THREE.Vector2(R, -R), new THREE.Vector2(R, R), new THREE.Vector2(-R, R)]);
+  shape.holes.push(new THREE.Path([new THREE.Vector2(-hole, -hole), new THREE.Vector2(-hole, hole), new THREE.Vector2(hole, hole), new THREE.Vector2(hole, -hole)]));
+  const road = new THREE.ShapeGeometry(shape); road.rotateX(-Math.PI / 2); worldUV(road);
+  st.add(new THREE.Mesh(road, M.asphalt));
+  // su birikintileri
+  for (const [x, z, r] of [[-6, 0.6, 1.4], [3.2, 1.3, 1.1], [-3.2, 1.6, 0.8], [9, -0.6, 1.6], [-19, 1.0, 1.8]]) {
+    const p = new THREE.Mesh(new THREE.CircleGeometry(r, 18), M.puddle);
+    p.rotation.x = -Math.PI / 2; p.scale.set(1, rand(0.45, 0.8), 1); p.position.set(x, 0.005, z); st.add(p);
+  }
+  // kaldırımlar + bordür
+  box(2 * R, 0.15, 5, M.paving, 0, 0.075, -4.5); box(2 * R, 0.16, 0.18, M.curb, 0, 0.08, -2.0);
+  box(2 * R, 0.15, 4, M.paving, 0, 0.075, 4.6); box(2 * R, 0.16, 0.18, M.curb, 0, 0.08, 2.6);
+  // binalar
+  for (const side of [-1, 1]) {
+    let x = -R;
+    while (x < R) {
+      const w = rand(6, 11), h = rand(7, 14), d = 8;
+      box(w - 0.2, h, d, pick(M.facades), x + w / 2, h / 2, side < 0 ? -7 - d / 2 : 6.6 + d / 2);
+      x += w;
+    }
+  }
+  // mazgal: beton çerçeve, kenara çekilmiş ızgara, devrilmiş koni
+  for (const [w, d, x, z] of [[1.9, 0.15, 0, -0.875], [1.9, 0.15, 0, 0.875], [0.15, 1.6, -0.875, 0], [0.15, 1.6, 0.875, 0]]) box(w, 0.03, d, M.concrete, x, 0.015, z);
+  const cover = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), MAT.grate);
+  cover.rotation.set(-Math.PI / 2, 0, 0.35); cover.position.set(1.55, 0.03, 0.55); st.add(cover);
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.5, 10), M.cone);
+  cone.rotation.set(0.3, 0, Math.PI / 2); cone.position.set(-1.4, 0.15, 1.1); st.add(cone);
+
+  // sokak lambaları: mazgalın yanındaki titreyip sönecek; kulübe tarafındaki yanık; uzaktaki ölü
+  const lamps = [];
+  const addLamp = (x, z, armDir, on, intensity = 1.5) => {
+    box(0.14, 6, 0.14, M.pole, x, 3, z);
+    box(0.08, 0.08, 1.3, M.pole, x, 5.95, z + armDir * 0.65);
+    const head = box(0.5, 0.12, 0.28, on ? M.lampOn.clone() : M.dark, x, 5.88, z + armDir * 1.25);
+    const light = new THREE.PointLight(0xff9f52, on ? intensity : 0, 24, 1.2);
+    light.position.set(x, 5.6, z + armDir * 1.25); st.add(light);
+    const l = { head, light, base: on ? intensity : 0 }; lamps.push(l); return l;
+  };
+  const mainLamp = addLamp(2.6, -2.3, 1, true, 2.4);
+  addLamp(-11.5, 2.9, -1, true, 1.3);
+  addLamp(17, -2.3, 1, false);
+
+  // ay ışığı (soğuk, zayıf)
+  const moon = new THREE.DirectionalLight(0x6b7ea6, 0.22); moon.position.set(-10, 20, 8); st.add(moon, moon.target);
+
+  // Fen İşleri kulübesi
+  const hut = new THREE.Group(); hut.position.y = HUT.floor; st.add(hut);
+  const cx = (HUT.x0 + HUT.x1) / 2, cz = (HUT.z0 + HUT.z1) / 2, W = HUT.x1 - HUT.x0, D = HUT.z1 - HUT.z0, H = HUT.h, t = 0.06;
+  box(W, H, t, M.hut, cx, H / 2, HUT.z0 + t / 2, hut);                     // arka
+  box(t, H, D, M.hut, HUT.x0 + t / 2, H / 2, cz, hut);                     // sol
+  box(t, H, D, M.hut, HUT.x1 - t / 2, H / 2, cz, hut);                     // sağ
+  // ön duvar: pencere (-14.9..-14.1, y 1.0..1.9) ve kapı (-13.7..-12.9, y 0..2.0)
+  const fz = HUT.z1 - t / 2;
+  box(0.3, H, t, M.hut, -15.05, H / 2, fz, hut);
+  box(0.8, 1.0, t, M.hut, -14.5, 0.5, fz, hut); box(0.8, 0.6, t, M.hut, -14.5, 2.2, fz, hut);
+  box(0.4, H, t, M.hut, -13.9, H / 2, fz, hut);
+  box(0.9, 0.5, t, M.hut, -13.25, 2.25, fz, hut);
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.9), M.glass); glass.position.set(-14.5, 1.45, fz); hut.add(glass);
+  box(W + 0.3, 0.08, D + 0.4, M.hut, cx, H + 0.04, cz + 0.1, hut);          // çatı
+  box(W - 0.1, 0.03, D - 0.1, M.lino, cx, 0.015, cz, hut);                  // zemin
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 0.35), M.sign); sign.position.set(-14.1, 2.32, HUT.z1 + 0.01); hut.add(sign);
+  // kapı: menteşe sağda, dışarı açılır
+  const door = new THREE.Group(); door.position.set(-12.9, 0, HUT.z1 - 0.03); hut.add(door);
+  box(0.78, 1.98, 0.04, M.door, -0.4, 0.99, 0, door);
+  box(0.04, 0.03, 0.14, M.dark, -0.7, 1.0, 0, door);   // kol
+  // masa, telefon, termos, bardak
+  box(0.6, 0.04, 1.4, M.wood, -14.85, 0.75, -4.4, hut);
+  for (const [x, z] of [[-15.1, -5.05], [-14.6, -5.05], [-15.1, -3.75], [-14.6, -3.75]]) box(0.04, 0.73, 0.04, M.wood, x, 0.365, z, hut);
+  box(0.22, 0.08, 0.2, M.phone, -14.85, 0.81, -4.55, hut);
+  const dial = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.012, 14), M.dark); dial.rotation.z = Math.PI / 2 - 0.5; dial.position.set(-14.73, 0.83, -4.55); hut.add(dial);
+  const handset = new THREE.Group();
+  box(0.05, 0.045, 0.24, M.phone, 0, 0, 0, handset);
+  box(0.07, 0.05, 0.06, M.phone, 0, -0.01, -0.1, handset); box(0.07, 0.05, 0.06, M.phone, 0, -0.01, 0.1, handset);
+  const cradle = new THREE.Vector3(-14.87, 0.88 + HUT.floor, -4.55);
+  handset.position.copy(cradle); st.add(handset);
+  const th = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.3, 12), M.thermos); th.position.set(-14.95, 0.92, -3.95); hut.add(th);
+  const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.03, 0.08, 10), M.phone); cup.position.set(-14.75, 0.81, -4.0); hut.add(cup);
+  // duvarda takvim (14 Ekim işaretli), saat (23:52), yedek yelek
+  const cal = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.55), M.calendar); cal.position.set(-14.25, 1.55, HUT.z0 + t + 0.005); hut.add(cal);
+  const clk = new THREE.Mesh(new THREE.CircleGeometry(0.16, 20), M.clock); clk.rotation.y = Math.PI / 2; clk.position.set(HUT.x0 + t + 0.005, 1.9, -4.75);
+  clk.material.map.repeat.set(1, 1); hut.add(clk);
+  const vest = new THREE.Mesh(new THREE.PlaneGeometry(0.45, 0.65), M.vest); vest.rotation.y = -Math.PI / 2; vest.position.set(HUT.x1 - t - 0.01, 1.35, -4.8); hut.add(vest);
+  // tavan ampulü
+  box(0.01, 0.2, 0.01, M.dark, -14.1, H - 0.1, -4.25, hut);
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), M.bulb); bulb.position.set(-14.1, H - 0.24, -4.25); hut.add(bulb);
+  const bulbLight = new THREE.PointLight(0xffcf8a, 1.25, 7, 1.5); bulbLight.position.set(-14.1, H - 0.32, -4.25); hut.add(bulbLight);
+
+  // yağmur: kameranın çevresinde düşen çizgiler
+  const N = 1500, rpos = new Float32Array(N * 6);
+  const rgeo = new THREE.BufferGeometry(); rgeo.setAttribute("position", new THREE.BufferAttribute(rpos, 3));
+  const rain = new THREE.LineSegments(rgeo, M.rain); rain.frustumCulled = false; st.add(rain);
+  const drops = Array.from({ length: N }, () => ({ x: rand(-12, 12), y: rand(0, 9), z: rand(-12, 12), v: rand(8.5, 11) }));
+
+  scene.add(st);
+  G.street = { group: st, door, handset, cradle, mainLamp, lamps, bulbLight, rain, rpos, drops };
+}
+function disposeStreet() {
+  if (!G || !G.street) return;
+  scene.remove(G.street.group);
+  G.street.group.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+  G.street = null;
+}
+function updateRain(dt) {
+  const R = G.street; if (!R) return;
+  const cam = S.pos.clone().sub(R.group.position);
+  const p = R.rpos, wind = 0.9;
+  R.drops.forEach((d, i) => {
+    d.y -= d.v * dt; d.x += wind * dt;
+    if (d.y < 0) { d.x = cam.x + rand(-12, 12); d.z = cam.z + rand(-12, 12); d.y = cam.y + rand(3, 8); }
+    // kulübenin içine yağmasın
+    const inside = d.x > HUT.x0 - 0.1 && d.x < HUT.x1 + 0.1 && d.z > HUT.z0 - 0.1 && d.z < HUT.z1 + 0.25 && d.y < HUT.h + 0.3;
+    const y = inside ? -50 : d.y, o = i * 6;
+    p[o] = d.x; p[o + 1] = y; p[o + 2] = d.z;
+    p[o + 3] = d.x - wind * 0.035; p[o + 4] = y + 0.38; p[o + 5] = d.z;
+  });
+  R.rain.geometry.attributes.position.needsUpdate = true;
+}
+
+// ============================================================
 // SES (WebAudio)
 // ============================================================
 const AU = { ctx: null };
@@ -760,6 +985,110 @@ function sfxStaticBurst(vol = 0.5, dur = 0.8) {
   n.connect(g).connect(AU.master); n.start(t); n.stop(t + dur);
 }
 
+// ------------------------------------------------------------
+// Ses dosyaları (isteğe bağlı): ses/zil.mp3, ses/kapi.mp3, ses/yaklasma.mp3, ses/yagmur.mp3
+// Dosya yoksa kodla üretilen ses çalar.
+// ------------------------------------------------------------
+const SFX_FILES = {};
+function probeSfxFiles() {
+  for (const name of ["zil", "kapi", "yaklasma"]) {
+    const a = new Audio(); a.preload = "auto";
+    a.oncanplaythrough = () => { SFX_FILES[name] = true; a.oncanplaythrough = null; };
+    a.onerror = () => { SFX_FILES[name] = false; };
+    a.src = `ses/${name}.mp3`;
+  }
+}
+probeSfxFiles();
+// pos verilirse ve sayfa sunucudan açıldıysa 3D konumlu çalar
+function playSfxFile(name, vol = 1, { pos = null, loop = false } = {}) {
+  if (!SFX_FILES[name]) return null;
+  const a = new Audio(`ses/${name}.mp3`); a.loop = loop; a.volume = clamp(vol, 0, 1);
+  if (pos && AU.ctx && location.protocol !== "file:") {
+    try {
+      const p = AU.ctx.createPanner(); p.panningModel = "HRTF"; p.refDistance = 2; p.rolloffFactor = 0.6;
+      setPannerPos(p, pos.x, pos.y, pos.z);
+      AU.ctx.createMediaElementSource(a).connect(p).connect(AU.master);
+    } catch (e) { /* düz çal */ }
+  }
+  a.play().catch(() => {});
+  return a;
+}
+function fadeOutEl(a, sec = 0.4) {
+  if (!a) return;
+  const v0 = a.volume, t0 = performance.now();
+  const step = () => { const u = (performance.now() - t0) / (sec * 1000); if (u >= 1) { a.pause(); return; } a.volume = v0 * (1 - u); requestAnimationFrame(step); };
+  step();
+}
+// eski tip telefon zili: iki metalik ton, çekiç titreşimi
+function phoneRing(pos, dur = 1.6) {
+  const f = playSfxFile("zil", 0.9, { pos, loop: true });
+  if (f) { const tm = setTimeout(() => fadeOutEl(f, 0.15), dur * 1000); return { stop() { clearTimeout(tm); fadeOutEl(f, 0.08); } }; }
+  if (!AU.ctx) return null;
+  const ctx = AU.ctx, t = ctx.currentTime;
+  const out = ctx.createGain(); out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(0.28, t + 0.02);
+  out.gain.setValueAtTime(0.28, t + dur - 0.05); out.gain.linearRampToValueAtTime(0, t + dur);
+  const am = ctx.createGain(); am.gain.value = 0.5;
+  const lfo = ctx.createOscillator(); lfo.type = "square"; lfo.frequency.value = 21;
+  const lg = ctx.createGain(); lg.gain.value = 0.5; lfo.connect(lg).connect(am.gain);
+  const oscs = [[1180, "triangle", 0.5], [1430, "triangle", 0.4], [2630, "sine", 0.12]].map(([fr, ty, g]) => {
+    const o = ctx.createOscillator(); o.type = ty; o.frequency.value = fr;
+    const og = ctx.createGain(); og.gain.value = g; o.connect(og).connect(am); return o;
+  });
+  const p = ctx.createPanner(); p.panningModel = "HRTF"; p.refDistance = 1; p.rolloffFactor = 0.8;
+  setPannerPos(p, pos.x, pos.y, pos.z);
+  am.connect(out).connect(p).connect(AU.master);
+  for (const o of [lfo, ...oscs]) { o.start(t); o.stop(t + dur + 0.05); }
+  return { stop() { out.gain.cancelScheduledValues(ctx.currentTime); out.gain.setTargetAtTime(0, ctx.currentTime, 0.01); } };
+}
+// gıcırtı (kapı)
+function sfxCreak(vol = 0.1) {
+  if (!AU.ctx) return;
+  const ctx = AU.ctx, t = ctx.currentTime;
+  const o = ctx.createOscillator(); o.type = "sawtooth";
+  o.frequency.setValueAtTime(150, t); o.frequency.linearRampToValueAtTime(230, t + 0.35); o.frequency.linearRampToValueAtTime(120, t + 0.8);
+  const f = ctx.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 1100; f.Q.value = 5;
+  const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.08); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.85);
+  o.connect(f).connect(g).connect(AU.master); o.start(t); o.stop(t + 0.9);
+}
+// yağmur: ses/yagmur.mp3 döngüsü (yoksa süzülmüş gürültü); içerideyken boğuk
+const RAIN = { el: null, gain: null, lp: null, synth: null, routed: false, cur: 0 };
+function startRain() {
+  stopRain();
+  if (!AU.ctx) return;
+  const ctx = AU.ctx;
+  RAIN.lp = ctx.createBiquadFilter(); RAIN.lp.type = "lowpass"; RAIN.lp.frequency.value = 16000;
+  RAIN.gain = ctx.createGain(); RAIN.gain.gain.value = 0;
+  RAIN.lp.connect(RAIN.gain).connect(AU.master);
+  const a = new Audio(); a.loop = true; RAIN.el = a; RAIN.cur = 0;
+  RAIN.routed = location.protocol !== "file:";
+  if (RAIN.routed) { try { ctx.createMediaElementSource(a).connect(RAIN.lp); } catch (e) { RAIN.routed = false; } }
+  a.volume = RAIN.routed ? 1 : 0;
+  const synth = () => {
+    if (RAIN.el !== a || RAIN.synth) return;
+    const n = ctx.createBufferSource(); n.buffer = AU.noise; n.loop = true;
+    const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 700;
+    const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 5500;
+    const g = ctx.createGain(); g.gain.value = 0.35;
+    n.connect(hp).connect(lp).connect(g).connect(RAIN.lp); n.start(); RAIN.synth = n; RAIN.routed = true; a.pause();
+  };
+  a.onerror = synth;
+  a.src = "ses/yagmur.mp3";
+  a.play().catch(synth);
+}
+function setRain(vol, muffled, dt) {
+  if (!RAIN.el) return;
+  RAIN.cur = lerp(RAIN.cur, vol * (muffled && !RAIN.routed ? 0.6 : 1), Math.min(1, dt * 2.5));
+  if (RAIN.routed) {
+    RAIN.gain.gain.value = RAIN.cur;
+    RAIN.lp.frequency.setTargetAtTime(muffled ? 1200 : 16000, AU.ctx.currentTime, 0.4);
+  } else RAIN.el.volume = clamp(RAIN.cur, 0, 1);
+}
+function stopRain() {
+  if (RAIN.el) { RAIN.el.onerror = null; RAIN.el.pause(); RAIN.el.removeAttribute("src"); RAIN.el = null; }
+  if (RAIN.synth) { try { RAIN.synth.stop(); } catch (e) {} RAIN.synth = null; }
+  if (RAIN.gain) { RAIN.gain.disconnect(); RAIN.gain = null; }
+}
+
 // ============================================================
 // DURUM
 // ============================================================
@@ -774,15 +1103,16 @@ const S = {
   battery: 100, lightOn: false,
   lamp: 1, lampTarget: 1, flicker: 0,
   darkness: 0,
-  interference: 0, interTest: false, showDbg: false,
+  interference: 0, interTest: false, showDbg: false, lockFailed: false,
   black: 0,
   lastTape: -1, tapesFound: 0,
-  intro: null,
+  intro: null, surface: false,
 };
 const CR = { x: 0, y: 0, prev: null, pathDist: 99, nextBlackout: 0, bo: null, caught: false, distTimer: 0 };
 const keys = {};
 
 function resetRun() {
+  if (CR.bo) fadeOutEl(CR.bo.sound, 0.2);
   buildWorld();
   const sc = cellCenter(G.start[0], G.start[1]);
   S.pos.set(sc.x, CFG.eye, sc.z);
@@ -804,14 +1134,21 @@ function resetRun() {
 // ============================================================
 // GİRİŞ / KONTROLLER
 // ============================================================
-function lockPointer() { if (document.pointerLockElement !== canvas) canvas.requestPointerLock?.(); }
+// Fare kilidi bazı ortamlarda (gömülü önizleme, izin yok) alınamaz; o zaman serbest fareyle ve ok tuşlarıyla bakılır.
+function lockPointer() {
+  if (document.pointerLockElement === canvas || !canvas.requestPointerLock) return;
+  try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => { S.lockFailed = true; }); }
+  catch (e) { S.lockFailed = true; }
+}
+document.addEventListener("pointerlockerror", () => { S.lockFailed = true; });
 document.addEventListener("pointerlockchange", () => {
   const locked = document.pointerLockElement === canvas;
   if (!locked && S.mode === "play") { S.paused = true; show("pause"); }
   if (locked && S.mode === "play" && S.paused) { S.paused = false; hide("pause"); }
 });
 document.addEventListener("mousemove", (e) => {
-  if (document.pointerLockElement !== canvas || S.mode !== "play" || S.paused) return;
+  if (S.mode !== "play" || S.paused) return;
+  if (document.pointerLockElement !== canvas && !S.lockFailed) return;
   S.yaw -= e.movementX * 0.0022;
   S.pitch = clamp(S.pitch - e.movementY * 0.0022, -1.35, 1.35);
 });
@@ -869,67 +1206,215 @@ function updateHud() {
 // ============================================================
 // AÇILIŞ SİNEMATİĞİ
 // ============================================================
-// 1) siyah ekranda daktilo yazısı  2) kuyudan düşüş  3) karartma  4) yerde uyanma
-const TYPE_CPS = 22, LINE_PAUSE = 0.75, TYPE_HOLD = 1.4;
+// 1) kulübe: telefon çalar  2) amirle konuşma  3) yağmurda mazgala yürüyüş
+// 4) mazgalın başı: lamba söner, aşağıdan vızıltı, kenar çöker  5) düşüş  6) karartma  7) yerde uyanma
+// Kamera yerel (mazgala göre) anahtar karelerle yürür: [t, x, y, z]
+function kv(k, t) {
+  if (t <= k[0][0]) return new THREE.Vector3(k[0][1], k[0][2], k[0][3]);
+  for (let i = 1; i < k.length; i++) if (t <= k[i][0]) {
+    const a = k[i - 1], b = k[i], u = smooth((t - a[0]) / (b[0] - a[0]));
+    return new THREE.Vector3(lerp(a[1], b[1], u), lerp(a[2], b[2], u), lerp(a[3], b[3], u));
+  }
+  const e = k[k.length - 1]; return new THREE.Vector3(e[1], e[2], e[3]);
+}
+const SIT = 1.2 + HUT.floor, STAND = CFG.eye + HUT.floor;
+const CAM_HUT = {
+  pos: [[0, -13.85, SIT, -4.3], [4.0, -13.85, SIT, -4.3], [5.4, -14.15, SIT - 0.05, -4.4], [6.8, -14.1, SIT - 0.03, -4.38]],
+  look: [[0, -14.55, 1.25, -2.0], [2.6, -14.4, 1.2, -2.1], [3.6, -14.85, 0.95, -4.55], [5.6, -14.85, 0.95, -4.55], [6.8, -14.9, 1.95, -4.75]],
+};
+// konuşma sırasında bakılan yerler (replik sırasına göre): saat, pencereden sokak, masa
+const CALL_LOOK = [[-15.2, 2.0, -4.75], [-15.2, 2.0, -4.75], [-14.6, 1.6, -5.3], [-14.5, 1.55, -2.2], [-14.3, 1.5, -1.2], [-14.6, 1.6, -5.3], [-14.75, 0.9, -4.0], [-14.75, 0.9, -4.0], [-14.85, 0.95, -4.55]];
+const CAM_WALK = {
+  pos: [[0, -14.1, SIT - 0.03, -4.38], [1.4, -14.1, SIT - 0.03, -4.38], [2.6, -13.7, STAND, -4.1], [3.4, -13.3, STAND, -4.05], [4.4, -13.3, STAND, -3.95],
+    [6.0, -13.3, STAND, -2.55], [7.4, -12.0, STAND, -2.45], [16.2, -1.7, STAND, -2.3], [17.4, -0.9, CFG.eye, -1.6], [18.6, -0.2, CFG.eye, -1.38]],
+  look: [[0, -14.85, 0.95, -4.55], [1.4, -14.85, 0.95, -4.55], [2.6, -13.3, 1.7, -3.1], [4.4, -13.3, 1.6, -2.0], [6.0, -11.5, 1.6, -1.6],
+    [7.4, -4, 1.2, -1.8], [11.5, -1, 0.5, -1.0], [13.4, 2.6, 5.6, -1.1], [14.8, 1.0, 1.0, -1.0], [16.2, 0, 0.2, -0.4], [18.6, 0, -0.4, 0]],
+};
+const CAM_EDGE = {
+  pos: [[0, -0.2, CFG.eye, -1.38], [3.6, -0.2, CFG.eye, -1.38], [5.2, -0.12, 1.0, -1.06], [6.0, -0.1, 0.95, -1.0]],
+  look: [[0, 0, -0.4, 0], [1.2, 2.6, 5.4, -1.1], [2.4, 2.6, 5.0, -1.1], [3.6, 0, -2.5, 0.1], [5.2, 0, -7, 0.25]],
+};
+const INTRO_CALL = [
+  { who: "SELİM", file: "selim_01", text: "Alo." },
+  { who: "AMİR", file: "amir_01", text: "Selim, uyumuyorsun değil mi?" },
+  { who: "SELİM", file: "selim_02", text: "Yok abi. Söyle." },
+  { who: "AMİR", file: "amir_02", text: "Köşedeki mazgalın kapağı açık kalmış. Biri aramış." },
+  { who: "AMİR", file: "amir_03", text: "Git bir bak, kapat şunu. Sabah çocuklar oradan geçiyor." },
+  { who: "SELİM", file: "selim_03", text: "Tamam abi, çıkıyorum." },
+  { who: "AMİR", file: "amir_04", text: "Bir de... içinden ses geliyormuş. Öyle dedi kadın." },
+  { who: "SELİM", file: "selim_04", text: "Ne sesi?" },
+  { who: "AMİR", file: "amir_05", text: "Bilmiyorum. Git bak işte." },
+];
+const INTRO_MUTTER = { who: "SELİM", file: "selim_05", text: "Kim açar bunu bu saatte..." };
+const INTRO_EDGE = { who: "SELİM", file: "selim_06", text: "...bu ses ne?" };
+const TTS_VOICE = { "SELİM": { rate: 0.95, pitch: 0.9 }, "AMİR": { rate: 0.9, pitch: 0.6 } };
+
+// Replik: ses/<file>.mp3 varsa onu, yoksa tarayıcı sesini çalar; altyazı gösterir
+function sayLine(line, onDone, subMs = 9000) {
+  const I = S.intro;
+  subtitle(`${line.who}: ${line.text}`, subMs);
+  let finished = false, timer = 0;
+  const done = () => { if (finished) return; finished = true; clearTimeout(timer); if (S.intro === I && S.mode === "intro" && onDone) onDone(); };
+  const tts = () => {
+    timer = setTimeout(done, Math.max(1800, line.text.length * 90));   // ses yoksa yedek süre
+    if (!("speechSynthesis" in window)) return;
+    const u = new SpeechSynthesisUtterance(line.text), v = TTS_VOICE[line.who] || {};
+    u.lang = "tr-TR"; u.rate = v.rate || 1; u.pitch = v.pitch || 1;
+    const tr = speechSynthesis.getVoices().find((x) => x.lang?.toLowerCase().startsWith("tr")); if (tr) u.voice = tr;
+    u.onend = done; speechSynthesis.speak(u);
+  };
+  playVoice(`ses/${line.file}.mp3`, { onEnd: done, onFail: tts, chain: line.who === "AMİR" ? phoneChain : voiceChain });
+}
+function clearSub() { clearTimeout(subTimer); $("sub").innerHTML = ""; }
+function lookFrom(pos, tgt) {
+  const dx = tgt.x - pos.x, dy = tgt.y - pos.y, dz = tgt.z - pos.z;
+  S.yaw = Math.atan2(-dx, -dz); S.pitch = Math.atan2(dy, Math.hypot(dx, dz));
+}
+function setClock(sec) {
+  const s = Math.floor(sec) % 86400, p = (n) => String(n).padStart(2, "0");
+  $("clock").textContent = `${p(Math.floor(s / 3600))}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}`;
+}
+// telefon ahizesi: masadan kulağa / kulaktan masaya
+function earPoint() {
+  const R = G.street, o = R.group.position;
+  return new THREE.Vector3(S.pos.x - o.x + Math.cos(S.yaw) * 0.22, S.pos.y - o.y - 0.12, S.pos.z - o.z - Math.sin(S.yaw) * 0.22);
+}
+
 function startIntro() {
   resetRun();
-  hide("title"); show("hud"); show("skip");
+  hide("title"); show("skip");
   if (!CFG.intro) { finishIntro(); return; }
   S.mode = "intro";
-  // daktilo zaman çizelgesi
-  let t = 0.6; const sched = [];
-  for (const line of INTRO_LINES) { sched.push({ line, start: t }); t += line.length / TYPE_CPS + LINE_PAUSE; }
-  S.intro = { phase: "type", t: 0, sched, typeEnd: t + TYPE_HOLD, shown: -1 };
-  show("typer"); $("typer").innerHTML = "";
-  hide("hud");
+  buildStreet();
+  S.intro = { phase: "hut", t: 0, total: 0, line: -1, look: null, walked: 0, stepAcc: 0 };
+  S.surface = true; S.black = 1; S.lightOn = false;
+  show("hud"); $("hud").classList.add("cine");
+  startRain();
 }
 function introUpdate(dt) {
   const I = S.intro; I.t += dt;
   const sc = cellCenter(G.start[0], G.start[1]);
-  if (I.phase === "type") {
-    // kamera kuyunun üstünde bekler
-    S.pos.set(sc.x, CFG.wallH + 12.4, sc.z); S.pitch = -1.45; S.roll = 0;
-    let text = "", chars = 0;
-    // varsa Selim'in anlatımı: ses/selim_giris_01.mp3 ... (her satır başında)
-    I.sched.forEach((s, i) => {
-      if (I.t >= s.start && i >= (I.voiced || 0)) {
-        I.voiced = i + 1;
-        const a = new Audio(voiceFile("selim_giris", i + 1)); (I.audio = I.audio || []).push(a);
-        a.play().catch(() => {});
+  const O = new THREE.Vector3(sc.x, STREET_Y, sc.z);
+  const R = G.street;
+  if (S.surface) {
+    I.total += dt; setClock(23 * 3600 + 52 * 60 + 4 + I.total);
+    updateRain(dt);
+    const inHut = I.phase === "hut" || I.phase === "call" || (I.phase === "walk" && I.t < 5.2);
+    setRain(inHut ? 0.4 : 0.85, inHut, dt);
+    setGain(AU.wind, 0.025, 0.5); AU.windFilter?.frequency.setTargetAtTime(220, AU.ctx.currentTime, 0.3);   // uzak şehir uğultusu
+  }
+  const place = (k, t) => { const p = kv(k.pos, t).add(O); S.pos.copy(p); lookFrom(p, kv(k.look, t).add(O)); };
+
+  if (I.phase === "hut") {
+    const t = I.t;
+    S.black = keyframes([[0, 1], [0.4, 1], [1.8, 0]], t);
+    place(CAM_HUT, t);
+    S.pitch += Math.sin(S.time * 1.1) * 0.012; S.roll = Math.sin(S.time * 0.7) * 0.01;
+    if (!I.ring1 && t >= 1.6) { I.ring1 = true; I.ringer = phoneRing(new THREE.Vector3(-14.85, 0.85 + HUT.floor, -4.55).add(O), 1.6); }
+    if (!I.ring2 && t >= 4.4) { I.ring2 = true; I.ringer = phoneRing(new THREE.Vector3(-14.85, 0.85 + HUT.floor, -4.55).add(O), 1.6); }
+    if (!I.picked && t >= 5.9) { I.picked = true; I.ringer?.stop(); sfxClick(900, 0.3, 0.05); I.from = R.handset.position.clone(); }
+    if (I.picked) {
+      const u = smooth(clamp((t - 5.9) / 0.6, 0, 1));
+      R.handset.position.lerpVectors(I.from, earPoint(), u);
+      R.handset.rotation.set(0, S.yaw, u * 1.2);
+      R.handset.visible = u < 0.95;
+    }
+    if (t >= 6.8) { I.phase = "call"; I.t = 0; I.look = kv(CAM_HUT.look, 99).add(O); I.line = -1; I.next = 0.2; setGain(AU.static, 0.015, 0.3); }
+    return;
+  }
+  if (I.phase === "call") {
+    const base = kv(CAM_HUT.pos, 99).add(O);
+    S.pos.set(base.x, base.y + Math.sin(S.time * 1.3) * 0.006, base.z);
+    const tgt = I.line >= 0 ? new THREE.Vector3(...CALL_LOOK[Math.min(I.line, CALL_LOOK.length - 1)]).add(O) : I.look;
+    I.look.lerp(tgt, 1 - Math.exp(-dt * 2.2));
+    lookFrom(S.pos, I.look); S.roll = Math.sin(S.time * 0.6) * 0.012;
+    if (I.next !== null) {
+      I.next -= dt;
+      if (I.next <= 0) {
+        I.next = null; I.line++;
+        if (I.line >= INTRO_CALL.length) {
+          clearSub(); setGain(AU.static, 0, 0.3);
+          I.phase = "walk"; I.t = 0; I.from = earPoint(); R.handset.visible = true;
+          // amir kapattı: meşgul sesi
+          sfxBeep(425, 0.3, 0.035); setTimeout(() => sfxBeep(425, 0.3, 0.035), 500);
+        } else sayLine(INTRO_CALL[I.line], () => { I.next = 0.35; });
       }
-    });
-    for (const s of I.sched) {
-      if (I.t < s.start) break;
-      const n = Math.min(s.line.length, Math.floor((I.t - s.start) * TYPE_CPS));
-      text += s.line.slice(0, n) + (n === s.line.length ? "\n" : ""); chars += n;
     }
-    if (chars !== I.shown) {
-      if (chars > I.shown && I.shown >= 0) sfxClick(2600 + rand(-400, 400), 0.1, 0.03);
-      I.shown = chars;
-      $("typer").innerHTML = ""; $("typer").append(text); const cur = document.createElement("span"); cur.className = "cursor"; cur.textContent = "▌"; $("typer").append(cur);
+    return;
+  }
+  if (I.phase === "walk") {
+    const t = I.t, prev = S.pos.clone();
+    place(CAM_WALK, t);
+    // ahize yerine
+    const u = smooth(clamp((t - 0.6) / 0.6, 0, 1));
+    R.handset.position.lerpVectors(I.from, R.cradle, u); R.handset.rotation.set(0, lerp(R.handset.rotation.y, 0, u), lerp(1.2, 0, u));
+    if (!I.hung && t >= 1.2) { I.hung = true; sfxClick(700, 0.35, 0.06); }
+    // kapı
+    if (!I.doorSnd && t >= 3.5) { I.doorSnd = true; if (!playSfxFile("kapi", 0.8)) sfxCreak(); }
+    R.door.rotation.y = 1.7 * smooth(clamp((t - 3.5) / 1.0, 0, 1));
+    // yürürken adım + kafa sallanması
+    const sp = Math.hypot(S.pos.x - prev.x, S.pos.z - prev.z);
+    if (sp > 0.004) {
+      I.stepAcc += sp;
+      S.pos.y += Math.abs(Math.sin(I.stepAcc / 0.72 * Math.PI)) * 0.04 - 0.02;
+      S.roll = Math.sin(I.stepAcc / 0.72 * Math.PI) * 0.012;
+      if (I.stepAcc - (I.lastStep || 0) > 0.72) { I.lastStep = I.stepAcc; sfxStep(false); }
     }
-    if (I.t >= I.typeEnd) {
-      hide("typer"); show("hud");
-      I.phase = "fall"; I.t = 0;
-      sfxClick(500, 0.4, 0.15); sfxStaticBurst(0.25, 0.5);  // ızgara kayıyor
+    if (!I.mutter && t >= 11.8) { I.mutter = true; sayLine(INTRO_MUTTER, null, 2800); }
+    // mazgalın yanındaki lamba yaklaştıkça titrer
+    const L = R.mainLamp;
+    if (t > 12.6) {
+      if (Math.random() < dt * 5) I.flk = rand(0.05, 0.2);
+      const f = I.flk > 0 ? rand(0.1, 0.6) : 1; I.flk = (I.flk || 0) - dt;
+      L.light.intensity = L.base * f; L.head.material.color.setHex(f < 0.5 ? 0x5a3a20 : 0xffb46a);
+    }
+    if (t >= CAM_WALK.pos[CAM_WALK.pos.length - 1][0]) { I.phase = "edge"; I.t = 0; S.roll = 0; }
+    return;
+  }
+  if (I.phase === "edge") {
+    const t = I.t;
+    place(CAM_EDGE, t);
+    S.pos.y += Math.sin(S.time * 1.4) * 0.005;
+    setGain(AU.hum, 0.4 * smooth(clamp((t - 0.3) / 5, 0, 1)), 0.2);   // aşağıdan vızıltı
+    const L = R.mainLamp;
+    if (t < 1.9) {
+      if (Math.random() < dt * 9) I.flk = rand(0.05, 0.15);
+      const f = I.flk > 0 ? rand(0, 0.5) : 0.9; I.flk = (I.flk || 0) - dt;
+      L.light.intensity = L.base * f; L.head.material.color.setHex(f < 0.5 ? 0x5a3a20 : 0xffb46a);
+    } else if (!I.lampDead) {
+      I.lampDead = true; L.light.intensity = 0; L.head.material.color.setHex(0x221a12);
+      sfxClick(4200, 0.3, 0.03); sfxClick(700, 0.2, 0.1);
+    }
+    if (!I.torch && t >= 2.8) { I.torch = true; S.lightOn = true; sfxClick(1400, 0.18, 0.03); }
+    if (!I.said && t >= 3.5) { I.said = true; sayLine(INTRO_EDGE, null, 2600); }
+    S.interference = 0.06 + 0.12 * smooth(clamp((t - 3) / 3, 0, 1));
+    if (t >= 5.9) {
+      // kenar çöker
+      sfxThud(null, 0.55); sfxStaticBurst(0.22, 0.5); sfxClick(500, 0.4, 0.15);
+      I.phase = "fall"; I.t = 0; I.fallFrom = S.pos.clone(); I.fallPitch = S.pitch;
     }
     return;
   }
   if (I.phase === "fall") {
-    const FALL = 1.65, top = CFG.wallH + 12.4, g = 2 * (top - 0.5) / (FALL * FALL);
-    const t = Math.min(I.t, FALL);
-    S.pos.set(sc.x + Math.sin(t * 7) * 0.05, top - 0.5 * g * t * t, sc.z);
-    S.pitch = -1.45 + t * 1.1 + Math.sin(t * 13) * 0.1;
+    const FALL = 1.65, from = I.fallFrom || new THREE.Vector3(sc.x, CFG.wallH + 12.4, sc.z);
+    const top = from.y, g = 2 * (top - 0.5) / (FALL * FALL);
+    const t = Math.min(I.t, FALL), k = smooth(clamp(t / 0.35, 0, 1));
+    S.pos.set(lerp(from.x, sc.x, k) + Math.sin(t * 7) * 0.05, top - 0.5 * g * t * t, lerp(from.z, sc.z, k));
+    S.pitch = (I.fallPitch ?? -1.45) + t * 1.1 + Math.sin(t * 13) * 0.1;
     S.roll = t * 1.4;
     S.yaw += dt * 0.9;
     S.interference = 0.15 + t / FALL * 0.4;
     S.lamp = clamp(t / FALL, 0, 1);
+    if (S.surface && t > 0.45) S.surface = false;   // kuyuya girdi: aşağının ışığı
+    updateRain(dt);
+    setRain(0.85 * (1 - t / FALL), false, dt);
     setGain(AU.wind, 0.05 + t / FALL * 0.35, 0.05); AU.windFilter?.frequency.setTargetAtTime(300 + t * 900, AU.ctx.currentTime, 0.05);
-    setGain(AU.hum, 0.4 * t / FALL);
+    setGain(AU.hum, 0.4 + 0.2 * t / FALL);
     if (I.t >= FALL) {
       sfxThud(null, 1.0); sfxStaticBurst(0.6, 0.6);
       setGain(AU.wind, 0, 0.02); setGain(AU.hum, 0, 0.02); setGain(AU.ring, 0.03, 0.05);
       I.phase = "black"; I.t = 0; S.black = 1; S.interference = 1;
+      leaveStreet();
       hide("hud");
     }
     return;
@@ -954,25 +1439,34 @@ function introUpdate(dt) {
     S.lamp = 1;
     setGain(AU.hum, lerp(0, 1, clamp(t / 4, 0, 1)) * 0.9, 0.2);
     setGain(AU.ring, 0);
-    if (t > 3.4 && !I.said) { I.said = true; subtitle("...neredeyim?", 2800); playVoice("ses/selim_neredeyim.mp3"); }
+    if (t > 3.4 && !I.said2) { I.said2 = true; subtitle("...neredeyim?", 2800); playVoice("ses/selim_neredeyim.mp3"); }
     if (t >= D) finishIntro(true);
   }
 }
+// sokaktan aşağıya geçiş: sokak silinir, fener kapanır, saat sıfırda donar
+function leaveStreet() {
+  disposeStreet(); stopRain();
+  S.surface = false; S.lightOn = false;
+  setClock(0); $("hud").classList.remove("cine");
+  clearSub();
+}
 function finishIntro(natural) {
-  hide("typer"); hide("skip"); show("hud");
-  if (!natural && S.intro && S.intro.audio) S.intro.audio.forEach((a) => a.pause());
+  hide("skip"); show("hud");
   if (!natural) {
+    if (S.intro) S.intro.ringer?.stop();
+    stopVoice(); if ("speechSynthesis" in window) speechSynthesis.cancel();
+    leaveStreet();
     const sc = cellCenter(G.start[0], G.start[1]);
     S.pos.set(sc.x, CFG.eye, sc.z); S.roll = 0; S.pitch = 0;
     if (G.startYaw !== undefined) S.yaw = G.startYaw;
   }
-  if (AU.ctx) { setGain(AU.wind, 0, 0.05); setGain(AU.ring, 0, 0.05); }
+  if (AU.ctx) { setGain(AU.wind, 0, 0.05); setGain(AU.ring, 0, 0.05); setGain(AU.static, 0, 0.05); }
   S.black = 0; S.interference = 0;
   startPlay();
 }
 function startPlay() {
   S.mode = "play"; S.playTime = 0; S.roll = 0;
-  S.paused = document.pointerLockElement !== canvas;
+  S.paused = document.pointerLockElement !== canvas && !S.lockFailed;
   S.paused ? show("pause") : hide("pause");
 }
 
@@ -988,6 +1482,10 @@ function blocked(x, z) {
   return false;
 }
 function updatePlayer(dt) {
+  // ok tuşlarıyla bakış (fare yedeği)
+  const turn = (keys.ArrowLeft ? 1 : 0) - (keys.ArrowRight ? 1 : 0), tilt = (keys.ArrowUp ? 1 : 0) - (keys.ArrowDown ? 1 : 0);
+  S.yaw += turn * 2.2 * dt;
+  S.pitch = clamp(S.pitch + tilt * 1.6 * dt, -1.35, 1.35);
   const f = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
   const s = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
   const moving = f !== 0 || s !== 0;
@@ -1071,6 +1569,16 @@ function updateLights(dt) {
     else S.lamp = lerp(S.lamp, S.lampTarget, Math.min(1, dt * 18));
   }
 
+  // açılıştaki sokak: gece, yağmur, kendi ışıkları
+  if (S.surface) {
+    LIGHT_POOL.forEach((l) => { l.intensity = 0; });
+    ambient.intensity = 0.05; hemi.intensity = 0.16;
+    hemi.color.setHex(0x5a6a8e); hemi.groundColor.setHex(0x14130f);
+    scene.fog.density = 0.034; scene.fog.color.setHex(0x0b0e15); scene.background.setHex(0x0b0e15);
+    flashlight.intensity = S.lightOn ? 1.0 : 0;
+    return;
+  }
+  hemi.color.setHex(0xfff4c8); hemi.groundColor.setHex(0x4a3f1a);
   const [cx, cy] = worldToCell(S.pos.x, S.pos.z);
   const inDark = G.dark[cy]?.[cx] ? 1 : 0;
   S.darkness = lerp(S.darkness, inDark, Math.min(1, dt * 1.5));
@@ -1112,7 +1620,7 @@ function creatureStep(mode) {
   CR.prev = [CR.x, CR.y];
   [CR.x, CR.y] = next;
   const p = cellCenter(CR.x, CR.y);
-  sfxThud(p, 0.55 + 0.45 * clamp(1 - CR.pathDist / 8, 0, 1));
+  if (!CR.bo?.sound) sfxThud(p, 0.55 + 0.45 * clamp(1 - CR.pathDist / 8, 0, 1));   // ses/yaklasma.mp3 çalıyorsa adım sesi yok
   if (CR.x === px && CR.y === py) CR.caught = true;
 }
 function updateCreature(dt) {
@@ -1137,8 +1645,15 @@ function updateCreature(dt) {
   }
   if (CR.bo) {
     const bo = CR.bo; bo.t += dt;
-    if (bo.steps > 0 && bo.t >= bo.stepAt) { creatureStep(bo.mode); bo.steps--; bo.stepAt += 0.33; }
+    if (bo.steps > 0 && bo.t >= bo.stepAt) {
+      if (!bo.sound && bo.mode === "approach" && SFX_FILES.yaklasma) {
+        const cp = cellCenter(CR.x, CR.y).setY(1.2);
+        bo.sound = playSfxFile("yaklasma", 0.35 + 0.65 * clamp(1 - CR.pathDist / 8, 0, 1), { pos: cp });
+      }
+      creatureStep(bo.mode); bo.steps--; bo.stepAt += 0.33;
+    }
     if (bo.t >= bo.dur) {
+      fadeOutEl(bo.sound, 0.5);
       CR.bo = null; S.lampTarget = 1; S.flicker = 0.25;
       CR.nextBlackout = rand(cc.blackoutMin, cc.blackoutMax);
       if (CR.caught) { die(); return; }
@@ -1220,7 +1735,7 @@ const voiceFile = (name, n) => `ses/${name}_${String(n).padStart(2, "0")}.mp3`;
 // Yerel sunucuyla (serve.ps1) açılınca kayıt bodycam mikrofonu gibi süzülür;
 // dosyaya çift tıklayınca tarayıcı buna izin vermediği için düz çalınır.
 // ------------------------------------------------------------
-const VOICE = { el: null, fx: null };
+const VOICE = { el: null, fx: null, phone: null };
 function stopVoice() {
   if (!VOICE.el) return;
   const a = VOICE.el; VOICE.el = null;
@@ -1245,7 +1760,22 @@ function voiceChain() {
   VOICE.fx = hp;
   return hp;
 }
-function playVoice(file, { onEnd, onFail, vol = 1 } = {}) {
+// telefon hattı: dar bant, hafif bozulma
+function phoneChain() {
+  if (VOICE.phone || !AU.ctx) return VOICE.phone;
+  const ctx = AU.ctx;
+  const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 480;
+  const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 2900;
+  const pk = ctx.createBiquadFilter(); pk.type = "peaking"; pk.frequency.value = 1500; pk.gain.value = 6;
+  const sh = ctx.createWaveShaper(); const curve = new Float32Array(1024);
+  for (let i = 0; i < curve.length; i++) { const x = i / 511.5 - 1; curve[i] = Math.tanh(x * 3) / Math.tanh(3); }
+  sh.curve = curve;
+  const g = ctx.createGain(); g.gain.value = 0.75;
+  hp.connect(lp).connect(pk).connect(sh).connect(g).connect(AU.master);
+  VOICE.phone = hp;
+  return hp;
+}
+function playVoice(file, { onEnd, onFail, vol = 1, chain = voiceChain } = {}) {
   stopVoice();
   const a = new Audio(); a.preload = "auto"; a.volume = vol;
   VOICE.el = a;
@@ -1256,7 +1786,7 @@ function playVoice(file, { onEnd, onFail, vol = 1 } = {}) {
   a.onplaying = () => { started = true; clearTimeout(timer); };
   a.onended = () => { if (done) return; done = true; if (VOICE.el === a) VOICE.el = null; if (onEnd) onEnd(); };
   if (location.protocol !== "file:" && AU.ctx) {
-    try { AU.ctx.createMediaElementSource(a).connect(voiceChain()); } catch (e) { /* düz çal */ }
+    try { AU.ctx.createMediaElementSource(a).connect(chain()); } catch (e) { /* düz çal */ }
   }
   a.src = file;
   const pr = a.play(); if (pr && pr.catch) pr.catch(fail);
