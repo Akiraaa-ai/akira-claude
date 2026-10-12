@@ -131,7 +131,7 @@ const CFG = {
     catchDist: 1.4,
     startMinDist: 14,       // başlangıçta oyuncuya en az yol mesafesi (kare)
   },
-  tapes: 3,
+  tapes: 6,
   wallTexts: 7,             // başlangıçtakiyle birlikte toplam duvar yazısı
   intro: true,
 };
@@ -156,6 +156,24 @@ const TAPES = [
     "Kamerada bir şey görmüyorum. Ama görüntü bozuluyor. Hep yaklaşınca.",
     "Biri buradan çıkmış. Eminim. Bir pano gördüm, kilitliydi.",
     "Şifreyi... şifre kasetteydi. Diğer kasette. Ben onu—",
+  ]},
+  { who: "HALİL", file: "halil", date: "06.03.2016", src: "", rate: 0.9, pitch: 0.75, lines: [
+    "Belediyeden... Halil. Mazgalın kapağını kapatmaya gelmiştim.",
+    "Biri ihbar etmiş. Açık kalmış dediler. Kim açmış, söyleyen olmadı.",
+    "Düştüğüm delik kapandı. Arkamdan. Yukarı baktım, tavan vardı.",
+    "Selim'e söyleyin... gelmesin.",
+  ]},
+  { who: "ZEYNEP", file: "zeynep", date: "22.06.2024", src: "", rate: 1.05, pitch: 1.15, lines: [
+    "Gün... sanırım dokuz. Uyuduğum yere işaret koyuyorum.",
+    "Uyandığımda işaretler başka duvardaydı.",
+    "Pil bulunca sevinmeyin. Hep karanlığın içine bırakılmış oluyor.",
+    "Ben artık feneri yakmıyorum. Dinliyorum. Kapatınca daha iyi duyuluyor.",
+  ]},
+  { who: "SELİM", file: "selim_kaset", date: "14.10.2026", src: "", rate: 0.95, pitch: 0.9, lines: [
+    "Kaç kere düştüm bilmiyorum. Saat yine sıfırda.",
+    "Pano çıkışın yanında değil. Çıkış... panonun arkasında.",
+    "Şifreyi unutmayın. Kameraya bakın. Tarih hiç değişmiyor.",
+    "Telefon çalınca... açmayın.",
   ]},
 ];
 
@@ -637,9 +655,11 @@ function buildWorld() {
   for (let i = 0; i < CFG.battery.count; i++) addBattery(freeCell((x, y) => distStart[y][x] > 4 && !G.dark[y][x]));
   for (const [cx, cy] of G.darkCenters) addBattery(freeCell((x, y) => G.dark[y][x] && Math.abs(x - cx) <= 1 && Math.abs(y - cy) <= 1));
 
-  const tapeOrder = [0, 1, 2].slice(0, CFG.tapes);
+  // kasetler sırayla uzaklaşır: ilki yakında, sonuncusu (Selim'in kendi kaydı) labirentin en uzak yerlerinde
+  const tapeOrder = TAPES.map((_, i) => i).slice(0, CFG.tapes);
+  const maxD = Math.max(...distStart.flat().filter((d) => d < Infinity));
   tapeOrder.forEach((tapeIdx, k) => {
-    const minD = 8 + k * 6;
+    const minD = Math.max(6, Math.floor(maxD * (0.18 + 0.65 * k / Math.max(1, tapeOrder.length - 1))));
     const c = freeCell((x, y) => distStart[y][x] >= minD && distStart[y][x] < Infinity) || freeCell(() => true);
     const grp = new THREE.Group();
     grp.add(new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.035, 0.14), MAT.tape));
