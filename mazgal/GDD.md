@@ -16,7 +16,7 @@ Belediye işçisi Selim, yağmurlu bir gecede açık kalan bir mazgalı kapatmay
 
 Oyuncu izler, kontrol sonda gelir. Gece, yağmur yağıyor. Ekranda bodycam saati 23:52'den akar.
 
-1. **Kulübe:** Selim, belediyenin Fen İşleri kulübesinde nöbette, sandalyede uyuklamış. Pencereden yağmurlu sokak görünür. Masadaki eski telefon çalar, Selim döner ve açar. Duvarda 23:52'yi gösteren saat ve 14 Ekim'i işaretli takvim.
+1. **Kulübe:** Selim, belediyenin Fen İşleri kulübesinde nöbette, sandalyede uyuklamış. Pencereden yağmurlu sokak görünür. Masadaki eski telefon çalar, Selim döner ve açar. Masada karlı yayın veren tüplü televizyon, kasetli bir walkman, pil ve açılmış bir konserve; kulübede kodla çizilmiş eşya yok, hepsi model.
 2. **Telefon:** Amiri arar: köşedeki mazgalın kapağı açık kalmış, biri ihbar etmiş, gidip kapatması lazım. Konuşmanın sonunda amir "içinden ses geliyormuş" der, bilmediğini söyleyip kapatır. Meşgul sesi.
 3. **Sürüş:** Selim ahizeyi kapatır, kapıdan çıkıp kulübenin önündeki belediye kamyonetine biner. Buradan oyuncu sürer (W gaz, S fren/geri, A D direksiyon, fare ile etrafa bakış). Ara sokaktan çıkıp kavşakta sola döner; ana caddede mazgala yaklaşınca kamyonet kendiliğinden yanaşıp durur. Silecekler, yağmur damlaları, motor sesi ve gösterge çalışır. Selim inip mazgala yürür: kapak kenara çekilmiş, yanında devrilmiş bir koni var. "Kim açar bunu bu saatte..." Mazgalın yanındaki sokak lambası titremeye başlar.
 4. **Mazgalın başı:** Aşağıdan vızıltı yükselir. Lamba söner, Selim feneri yakar, kuyuya eğilir: "...bu ses ne?" Kenar çöker.
