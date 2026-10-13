@@ -33,7 +33,7 @@ Oyun içi menü (başlık ve ESC ekranı), dört sekme:
 - **Kontrol:** fare hassasiyeti, dikeyi ters çevir, altyazı aç/kapa ve boyutu
 - **Tuşlar:** tuş listesi
 
-ESC ekranında ayrıca Devam Et, Baştan Başla ve Ana Menü var (son ikisi onay için iki tıklama ister). ESC açılış sinematiğini ve araba sürüşünü de durdurur. Seçimler tarayıcıda saklanır. Bilgisayar yavaşsa Düşük seçin.
+Oyun açılınca önce uyarı ve logo ekranı gelir, bir tuşa basınca ana menü açılır (Yeni Oyun, Ayarlar, Kontroller, Yapımcılar, Çıkış). ESC ekranında Devam Et, Ayarlar, Baştan Başla ve Ana Menü var (son ikisi onay için iki tıklama ister). ESC açılış sinematiğini ve araba sürüşünü de durdurur. Seçimler tarayıcıda saklanır. Bilgisayar yavaşsa Düşük seçin.
 
 Kod tarafında `index.html` başındaki `CFG` nesnesi: yürüme/koşma hızı, stamina, kafa sallanması, bodycam efekt şiddeti, labirent boyutu, pil, karanlık bölgeler, yaratık davranışı, açılış sinematiği (`intro`).
 

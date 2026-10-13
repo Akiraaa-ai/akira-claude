@@ -62,6 +62,7 @@ Davranış:
 
 - [x] Açılış sinematiği (kulübe, telefon, kamyonetle sürüş, yağmurda yürüyüş, düşme)
 - [x] Ev açılışı: sigara, MAZGAL yazısı, tüplü TV yayını ve anlatıcı, evden kulübeye sürüş, bodycam kulübede takılır
+- [x] Açılış ekranı (kulaklık uyarısı, logo, "herhangi bir tuşa bas"), Steam tarzı ana menü (yeni oyun, ayarlar, kontroller, yapımcılar, çıkış; arkada koridor, radyo çalar), yenilenmiş duraklatma menüsü
 - [ ] Selim'in evi modeli (alp gönderecek)
 - [x] Duvar yazıları
 - [x] Labirentte ofise açılan kapılar (E), ofis haritası, duvar notları ve resimler, ofiste gerilim olayları
