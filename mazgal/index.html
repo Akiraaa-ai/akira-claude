@@ -1425,6 +1425,7 @@ function setupHands(gl) {
   const head = new THREE.Mesh(new THREE.CylinderGeometry(0.023, 0.016, 0.05, 16), tm); head.position.y = 0.105; t.add(head);
   HANDS.lensMat = new THREE.MeshBasicMaterial({ color: 0x302e2a });
   const lens = new THREE.Mesh(new THREE.CircleGeometry(0.02, 16), HANDS.lensMat); lens.rotation.x = -Math.PI / 2; lens.position.y = 0.1305; t.add(lens);
+  t.scale.setScalar(HAND_TUNE.torch.size || 1);
   rig.add(t); HANDS.torch = t;
   rig.traverse((o) => o.layers.set(1));
   rig.visible = false;
@@ -1434,8 +1435,8 @@ function setupHands(gl) {
 const HAND_MODEL = { scale: 0.0034, pos: [0, -0.2 - 466 * 0.0034, 5.85 * 0.0034 + 0.08] };
 // el pozları (kamera yerel yönler): fener tutan sağ el ve direksiyondaki eller
 const HAND_TUNE = {
-  torch: { p: [0.17, -0.19, -0.36], gx: [0, 0.1, -1], gy: [0.9, 0.4, 0], curl: 1.2, th: 0.5, thAx: 1, ax: [0.05, 0.2, -1], off: 0.05 },
-  wheel: { R: -1, L: -1, gyR: [0, 0, -1], gyL: [1, 0, -1], curl: 0.85, roll: 0.785 },
+  torch: { p: [0.22, -0.07, -0.4], gx: [-0.7, 0.1, -0.75], gy: [-0.658, -0.706, 0.261], curl: 1.2, th: 0.5, thAx: 1, ax: [-0.7, 0.1, -0.75], off: 0.07, size: 1.45 },
+  wheel: { R: -1, L: -1, gyR: [0, 0, -1], gyL: [1, 0, -1], curl: 0.85, roll: 1.57, off: [0.05, 0.07, 0] },
   rs: 1,
 };
 function boneWorldRot(bone, q) {   // kemiği dünya uzayında q kadar döndür
@@ -1506,7 +1507,8 @@ function updateHands(dt) {
     const ax = new THREE.Vector3();
     for (const [side, i, sx] of [["L", 0, -1], ["R", 1, 1]]) {
       const a = carArms.children[i]; a.updateMatrixWorld(true);
-      handIK(side, a.getWorldPosition(new THREE.Vector3()), w(sx * 0.7, -0.9, 0.2));
+      const WO = HAND_TUNE.wheel.off || [0, 0, 0];   // direksiyonun üstüne (10 ve 2), kamera yönünde kaydır
+      handIK(side, a.getWorldPosition(new THREE.Vector3()).add(w(WO[0] * sx, WO[1], WO[2]).sub(w(0, 0, 0))), w(sx * 0.7, -0.9, 0.2));
       ax.set(0, 1, 0).transformDirection(a.matrixWorld);
       const WT = HAND_TUNE.wheel;
       handOrient(side, ax.clone().multiplyScalar(WT[side]), new THREE.Vector3(...(side === "R" ? WT.gyR : WT.gyL)).transformDirection(a.parent.matrixWorld).applyAxisAngle(ax, (WT.roll || 0) * (side === "R" ? 1 : -1)));
@@ -2011,9 +2013,24 @@ function buildHome(st) {
   box(1.1, 0.04, 0.6, wood, 0.1, 0.43, 0.95);
   for (const [x, z] of [[-0.4, 0.7], [0.6, 0.7], [-0.4, 1.2], [0.6, 1.2]]) box(0.04, 0.41, 0.04, wood, x, 0.205, z);
   const ashM = mat({ color: 0x3c4246, shininess: 60, specular: 0x555555 });
-  const ash = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.055, 0.028, 18), ashM); ash.position.set(HP.ash[0], 0.464, HP.ash[2]); g.add(ash);
-  const butt = mat({ color: 0xcfc7b4 });
-  for (let i = 0; i < 4; i++) { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.03, 6), butt); b.rotation.set(Math.PI / 2, 0, rand(0, 3)); b.position.set(HP.ash[0] + rand(-0.03, 0.03), 0.482, HP.ash[2] + rand(-0.03, 0.03)); g.add(b); }
+  // metal kül tablası: kenarlı sığ kase, içinde kül yığını, izmaritler; masaya dökülmüş kül ve iki izmarit
+  const prof = [[0, 0], [0.05, 0], [0.058, 0.004], [0.066, 0.022], [0.07, 0.026], [0.064, 0.027], [0.054, 0.008], [0, 0.008]].map(([x, y]) => new THREE.Vector2(x, y));
+  const ash = new THREE.Mesh(new THREE.LatheGeometry(prof, 28), ashM); ash.position.set(HP.ash[0], 0.45, HP.ash[2]); g.add(ash);
+  const pile = new THREE.Mesh(new THREE.SphereGeometry(0.045, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat({ color: 0x2b2826, shininess: 2 }));
+  pile.scale.set(1, 0.18, 1); pile.position.set(HP.ash[0], 0.458, HP.ash[2]); g.add(pile);
+  const paperM = mat({ color: 0xd9d3c6, shininess: 4 }), filtM = mat({ color: 0xc98a4a, shininess: 6 }), burntM = mat({ color: 0x1d1a18 });
+  const stub = (x, y, z, ry, tilt, len) => {   // izmarit: filtre + kısa, ucu yanmış kağıt
+    const b = new THREE.Group();
+    const f = new THREE.Mesh(new THREE.CylinderGeometry(0.0044, 0.0044, 0.02, 8), filtM); f.position.y = 0.01; b.add(f);
+    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.0041, 0.0043, len, 8), paperM); p.position.y = 0.02 + len / 2; b.add(p);
+    const e = new THREE.Mesh(new THREE.CylinderGeometry(0.0038, 0.0041, 0.003, 8), burntM); e.position.y = 0.02 + len; b.add(e);
+    b.rotation.set(0, ry, Math.PI / 2 - tilt); b.position.set(x, y, z); g.add(b);
+  };
+  for (let i = 0; i < 5; i++) { const a2 = rand(0, Math.PI * 2), r = rand(0.012, 0.04); stub(HP.ash[0] + Math.cos(a2) * r, 0.468, HP.ash[2] + Math.sin(a2) * r, rand(0, 6.3), rand(0.1, 0.35), rand(0.008, 0.02)); }
+  stub(HP.ash[0] - 0.11, 0.454, HP.ash[2] + 0.06, 0.8, 0, 0.012); stub(HP.ash[0] + 0.09, 0.454, HP.ash[2] + 0.09, 2.2, 0, 0.018);
+  const specks = new THREE.InstancedMesh(new THREE.BoxGeometry(0.004, 0.0015, 0.004), mat({ color: 0x3a3632 }), 60), dm = new THREE.Object3D();
+  for (let i = 0; i < 60; i++) { const a2 = rand(0, Math.PI * 2), r = 0.07 + Math.pow(rand(0, 1), 2) * 0.09; dm.position.set(HP.ash[0] + Math.cos(a2) * r, 0.4505, HP.ash[2] + Math.sin(a2) * r); dm.rotation.y = rand(0, 3); dm.scale.setScalar(rand(0.5, 1.8)); dm.updateMatrix(); specks.setMatrixAt(i, dm.matrix); }
+  g.add(specks);
   const ashCig = cigMesh(0); ashCig.rotation.set(0, 0.6, Math.PI / 2 - 0.12); ashCig.position.set(HP.ash[0] - 0.035, 0.486, HP.ash[2] + 0.01); ashCig.visible = false; g.add(ashCig);
   const can = buildModel("can", { only: "can0" }); if (can) { can.group.position.set(-0.15, 0.45, 0.88); can.group.rotation.y = 1.2; g.add(can.group); }
   box(0.05, 0.022, 0.17, mat({ color: 0x111111, shininess: 30 }), -0.3, 0.461, 1.06, 0.3);
