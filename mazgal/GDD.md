@@ -16,12 +16,12 @@ Belediye işçisi Selim, yağmurlu bir gecede açık kalan bir mazgalı kapatmay
 
 Oyuncu izler, kontrol sonda gelir. Gece, yağmur yağıyor. Bodycam henüz takılı değil: görüntü çıplak göz, kayıt yazısı ve saat yok.
 
-0. **Ev:** Selim'in odası (geçici, kodla kurulu; ev modeli gelince değişecek). Kanepede sigara içip yayın sonu çubukları gösteren tüplü TV'ye boş boş bakar. Ekranda MAZGAL yazısı daktiloyla belirip söner. Sigarayı kül tablasına bırakır, TV'deki yayın ekranı kaplar: tüplü TV görüntüsüyle fotoğraflar, video, sokaktan ve aşağıdaki koridorlardan kareler, üstünde anlatıcının sesi. Son kare odanın TV'den görünüşü: kanepe boş, kül tablasında sigara tütüyor. Ses bitince kamera ekrandan geri çekilip Selim'in gözüne döner. Selim söylenir, TV'yi kapatır, saate bakar, sigarayı söndürür, kalkıp çıkar. Arabaya biner ve oyuncu ana caddenin batı ucundan kulübeye sürer (kavşaktan sola, ara sokak); kulübenin önüne gelince araba yanaşır.
+0. **Ev:** Selim'in odası (geçici, kodla kurulu; ev modeli gelince değişecek). Kanepede sigara içip yayın sonu çubukları gösteren tüplü TV'ye boş boş bakar. Ekranda MAZGAL yazısı daktiloyla belirip söner. Sigarayı kül tablasına bırakır, TV'deki yayın ekranı kaplar: tüplü TV görüntüsüyle fotoğraflar, video, yağmurlu sokak, açık mazgal ve titreyen sokak lambası kareleri, üstünde anlatıcının sesi (koridor/labirent karesi yok). Son kare odanın TV'den görünüşü: kanepe boş, kül tablasında sigara tütüyor. Ses bitince kamera ekrandan geri çekilip Selim'in gözüne döner. Selim söylenir, TV'yi kapatır, saate bakar, sigarayı söndürür, kalkıp çıkar. Evin önünde yağmurda arabaya yürür, kapıyı açıp biner; oyuncu ana caddenin batı ucundan (uzun yol, sokak lambaları) kulübeye sürer (kavşaktan sola, ara sokak); kulübenin önüne gelince araba yanaşır.
 1. **Kulübe:** Selim, belediyenin Fen İşleri kulübesinde nöbette, sandalyede uyuklamış. Pencereden yağmurlu sokak görünür. Masadaki eski telefon çalar, Selim döner ve açar. Masada karlı yayın veren tüplü televizyon, kasetli bir walkman, pil ve açılmış bir konserve; kulübede kodla çizilmiş eşya yok, hepsi model.
 2. **Telefon:** Amiri arar: köşedeki mazgalın kapağı açık kalmış, biri ihbar etmiş, gidip kapatması lazım. Konuşmanın sonunda amir "içinden ses geliyormuş" der, bilmediğini söyleyip kapatır. Meşgul sesi.
 3. **Sürüş:** Selim ahizeyi kapatır, bodycam'i takar (kayıt başlar, saat 23:52'den akar), kapıdan çıkıp kulübenin önündeki belediye kamyonetine biner. Buradan oyuncu sürer (W gaz, S fren/geri, A D direksiyon, fare ile etrafa bakış). Ara sokaktan çıkıp kavşakta sola döner; ana caddede mazgala yaklaşınca kamyonet kendiliğinden yanaşıp durur. Silecekler, yağmur damlaları, motor sesi ve gösterge çalışır. Selim inip mazgala yürür: kapak kenara çekilmiş, yanında devrilmiş bir koni var. "Kim açar bunu bu saatte..." Mazgalın yanındaki sokak lambası titremeye başlar.
 4. **Mazgalın başı:** Aşağıdan vızıltı yükselir. Lamba söner, Selim feneri yakar, kuyuya eğilir: "...bu ses ne?" Kenar çöker.
-5. **Düşüş:** Beton kuyuda dönerek düşer, rüzgâr sesi ve parazit artar, aşağıda floresan ışığı belirir.
+5. **Düşüş:** Mazgalın altı 12 m'lik ıslak beton bir kuyu (paslı basamaklar, biri kopuk, boru). Kenar çöker, Selim kayar, kamera önce aşağı sonra yukarıdaki açıklığa ve yağmura bakarak düşer, duvara çarpıp savrulur (parazit, sarsıntı), karanlıkta yere çakılır.
 6. **Çarpma:** Ağır bir çarpma sesi, kayıt kararır, kulak çınlaması. Bodycam saati 00:00:00'da donar ve oyun boyunca öyle kalır.
 7. **Uyanma:** Yerde, yan yatmış görüntü. Göz kırpar gibi kararma açılıp kapanır, Selim yavaşça doğrulur. Vızıltı geri gelir. Altyazı: *"...neredeyim?"*
 8. Kontrol oyuncuya geçer. Başlangıç karesinin tavanında düşülen delik görünür.
@@ -66,7 +66,7 @@ Davranış:
 - [x] Duvar yazıları
 - [x] Labirentte ofise açılan kapılar (E), ofis haritası, duvar notları ve resimler, ofiste gerilim olayları
 - [x] Oyuncunun giyimli gövdesi (aşağı bakınca görünür, yürürken bacak/kol hareketi)
-- [x] Envanter (TAB), yedek pil (R), eğilip alma, ruh sağlığı ve walkman müziği (M, ses/muzik.mp3)
+- [x] Envanter (TAB), yedek pil (R), eğilip alma, ruh sağlığı ve walkman müziği (M, ses/muzik.mp3); müzik çalarken ortam sesleri kısılır, ruh sağlığı yavaş dolar
 - [x] Gerçekçi birinci şahıs eller: fener tutan sağ el, yerden alan sol el, direksiyonda iki el
 - [ ] Gövde: Flow kıyafet dokuları
 - [ ] Elektrik panosu ve şifre
