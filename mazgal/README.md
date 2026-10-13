@@ -9,7 +9,7 @@ Açılmazsa PowerShell'de `serve.ps1` çalıştırın, http://localhost:8765 adr
 
 ## Kontroller
 
-WASD yürü (açılışta arabayı sürer: W gaz, S fren/geri, A D direksiyon) · Shift koş · F fener · Fare ya da ok tuşları bak · Boşluk sinematiği/kaseti atla · T son kaseti tekrar izle · ESC ya da P duraklat · I parazit testi · B Bekçi mesafesi (test)
+WASD yürü (açılışta arabayı sürer: W gaz, S fren/geri, A D direksiyon) · Shift koş · F fener · E kapıyı aç · Fare ya da ok tuşları bak · Boşluk sinematiği/kaseti atla · T son kaseti tekrar izle · ESC ya da P duraklat · I parazit testi · B Bekçi mesafesi (test)
 
 ## Dosyalar
 
@@ -20,7 +20,8 @@ WASD yürü (açılışta arabayı sürer: W gaz, S fren/geri, A D direksiyon) �
 | `serve.ps1` | Yerel test sunucusu (PowerShell) |
 | `SESLENDIRME.md` | Seslendirme metni: karakterler, ses yönü, dosya adları |
 | `dokular.js`, `dokular/` | Flow ile üretilen doku görselleri (duvar, tavan, asfalt, kulübe duvarı, torpido, kapı paneli, cam damlaları). `dokular.js` aynı görsellerin gömülü hâli; çift tıklayınca (file://) da çalışsın diye. Dosya yoksa oyun kodla çizilen dokulara döner. |
-| `modeller.js` | Sketchfab'dan alınan 3B modellerin gömülü hâli: bekçi kulübesi, masa telefonu, tüplü TV, sürücünün kolları, sokak (dükkânlar, apartman kuleleri, sokak lambası, çöp kutusu), araba (içi ve dışı). Dosya yoksa oyun kodla kurulan eski hâllere döner. |
+| `modeller.js` | Sketchfab'dan alınan 3B modellerin gömülü hâli: bekçi kulübesi, masa telefonu, tüplü TV, sürücünün kolları, sokak (dükkânlar, apartman kuleleri, sokak lambası, çöp kutusu), araba (içi ve dışı), masa eşyaları, oyuncunun giyimli gövdesi. Dosya yoksa oyun kodla kurulan eski hâllere döner. |
+| `harita.js` | Labirentteki kapıların arkasındaki ofis: model, çarpışma ızgarası, lamba yerleri, duvar notları ve resimleri. İlk oynanışta yüklenir; dosya yoksa kapılar açılmaz. |
 | `ses/` | Seslendirme ve efekt mp3'leri: `yagmur.mp3` hazır; `zil.mp3`, `kapi.mp3`, `yaklasma.mp3` isteğe bağlı (yoksa kodla üretilen ses çalar) |
 
 ## Ayarlar
@@ -71,4 +72,6 @@ Kasetler `TAPES` listesindedir; `src` alanına video dosyası yazılırsa (ör. 
 - Pil: "Simple Battery", trashbinkr, Sketchfab Standart Lisansı. https://sketchfab.com/3d-models/simple-battery-c5dfaa8ccd1240d8a0244940d4eb8736 (kulübe masasında ve labirentteki pil).
 - Konserve: "Game-ready Can of beef Tushonka", Antarct1c, Sketchfab Standart Lisansı. https://sketchfab.com/3d-models/game-ready-can-of-beef-tushonka-d3426a22025a48a09547a3f167445cec (etiket yazıları silindi).
 - Katlanır sandalye: "Game-ready Folding Chair", Antarct1c, Sketchfab Standart Lisansı. https://sketchfab.com/3d-models/game-ready-folding-chair-1fdf04d3539040ebba17db82f75488d9
+- Kapıların arkasındaki ofis (`harita.js`): Sketchfab "backrooms-vr", VTX. Lisansı henüz doğrulanmadı; yayından önce model sayfasından bakılıp buraya yazılmalı. Dokular küçültüldü, ışık dokulara pişmiş hâliyle kullanılır, İngilizce EXIT tabelası ÇIKIŞ olarak yeniden boyandı, priz/duman dedektörü gibi küçük parçalar çıkarıldı.
+- Oyuncunun gövdesi: "Man base mesh", BlakkMato, CC BY 4.0. https://sketchfab.com/BlakkMato (değiştirildi: iskelet ve ağırlıklar eklendi, mont, pantolon, bot ve fosforlu yelek gövdeden üretildi, baş ve saç birinci şahıs görünümde çıkarıldı).
 - Araba: "2012 Hyundai Genesis Coupe", amirbuilds2000, Sketchfab Standart Lisansı. https://sketchfab.com/3d-models/2012-hyundai-genesis-coupe-95175f735af343b490b8709767a0271e (ön, arka ve direksiyon logoları silindi, jant kapağındaki logo boyandı; tekerlek, direksiyon ve gösterge ibreleri ayrı parça).

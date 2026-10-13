@@ -61,6 +61,8 @@ Davranış:
 
 - [x] Açılış sinematiği (kulübe, telefon, kamyonetle sürüş, yağmurda yürüyüş, düşme)
 - [x] Duvar yazıları
+- [x] Labirentte ofise açılan kapılar (E), ofis haritası, duvar notları ve resimler, ofiste gerilim olayları
+- [x] Oyuncunun giyimli gövdesi (aşağı bakınca görünür, yürürken bacak/kol hareketi)
 - [ ] Elektrik panosu ve şifre
 - [ ] Harita parçası
 - [ ] Çıkış ve final
