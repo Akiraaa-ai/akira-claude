@@ -175,7 +175,7 @@
     <div class="credits hidden" id="credits">
       <b>MAZGAL</b>Fikir, hikâye ve yönetim: alp
       <b>SES</b>Yağmur: liecio (Pixabay) · Radyo şarkısı ve anlatıcı: alp
-      <b>3D MODELLER (SKETCHFAB)</b>Bekçi kulübesi: castleonsandYT (CC BY 4.0)<br>Masa telefonu: R3indeer (CC BY-NC 4.0)<br>Tüplü TV: Timothy Ahene<br>Sokak: dasy444<br>Walkman ve kaset: heat_of_fusion<br>Pil: trashbinkr<br>Konserve ve katlanır sandalye: Antarct1c<br>Ofis: VTX<br>Eller: SomeOne34321 (CC BY 4.0)<br>Gövde: BlakkMato (CC BY 4.0)<br>Araba: amirbuilds2000
+      <b>3D MODELLER (SKETCHFAB)</b>Bekçi kulübesi: castleonsandYT (CC BY 4.0)<br>Masa telefonu: R3indeer (CC BY-NC 4.0)<br>Tüplü TV: Timothy Ahene<br>Sokak: dasy444<br>Walkman ve kaset: heat_of_fusion<br>Pil: trashbinkr<br>Konserve ve katlanır sandalye: Antarct1c<br>Ofis: VTX<br>Eller: Matt Rafferty (CC BY 4.0)<br>Gövde: BlakkMato (CC BY 4.0)<br>Araba: amirbuilds2000
       <b>MOTOR</b>three.js
     </div>
   </div>
@@ -213,7 +213,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
 <script src="dokular.js"></script>
-<script src="modeller.js?v=5"></script>
+<script src="modeller.js?v=6"></script>
 <script>
 "use strict";
 
@@ -1375,7 +1375,7 @@ function updateBody() {
   B.upperarmL.scale.setScalar(vm); B.upperarmR.scale.setScalar(vm);
 }
 // ============================================================
-// BİRİNCİ ŞAHIS ELLER (Sketchfab "Hands model rigged", SomeOne34321, CC BY 4.0)
+// BİRİNCİ ŞAHIS ELLER (Sketchfab "(Animation) FPS Arms For Games", Matt Rafferty, CC BY 4.0)
 // iskeletli eller kameraya bağlı; iki kemikli IK ile bilek hedefe, el yönü ve parmak bükümü kodla.
 // ceket kolu bake sırasında kolların dışa ötelenmiş kabuğu. ayrı katmanda (1) çizilir: duvara girmez.
 // ============================================================
@@ -1399,7 +1399,7 @@ function buildHands() {
   const bones = P.bones.map((b) => { const o = new THREE.Bone(); o.name = b.n; new THREE.Matrix4().fromArray(b.m).decompose(o.position, o.quaternion, o.scale); return o; });
   const g = new THREE.Group();
   P.bones.forEach((b, i) => (b.p < 0 ? g : bones[b.p]).add(bones[i]));
-  const skinMesh = new THREE.SkinnedMesh(skinGeo(P), new THREE.MeshPhongMaterial({ map: tex(P.map), normalMap: tex(P.normalMap), color: 0xd2c8bf, shininess: 18, specular: 0x2a2622, side: THREE.DoubleSide }));
+  const skinMesh = new THREE.SkinnedMesh(skinGeo(P), new THREE.MeshPhongMaterial({ map: tex(P.map), normalMap: tex(P.normalMap), color: 0xc9b4a2, shininess: 14, specular: 0x221e1a, side: THREE.DoubleSide }));
   const ct = makeCanvas(128, 128, (c, w, h) => { c.fillStyle = "#1f2a38"; c.fillRect(0, 0, w, h); speckle(c, w, h, 900, "0,0,0", 0.05, 0.22, 1, 3); speckle(c, w, h, 450, "255,255,255", 0.03, 0.1, 1, 2); });
   ct.wrapS = ct.wrapT = THREE.RepeatWrapping; ct.repeat.set(6, 6);
   const sleeve = new THREE.SkinnedMesh(skinGeo(P.sleeve), new THREE.MeshPhongMaterial({ map: ct, shininess: 4, specular: 0x0a0a0a, side: THREE.DoubleSide }));
@@ -1410,17 +1410,19 @@ function buildHands() {
   key.position.set(-0.8, 1.1, 0.35); fill.position.set(0.6, -0.8, -0.2);
   for (const L of [key, fill]) { L.target.position.set(0.15, -0.2, -0.35); camera.add(L, L.target); L.layers.set(1); }
   HANDS.key = key;
-  // model ileri +x: kameranın -z'sine çevir; omuzlar gözün 20 cm altında
-  g.rotation.y = Math.PI / 2; g.position.set(0, -1.413, -0.06);
+  // model ileri +z: kameranın -z'sine çevir; göz modelin kamerasında, omuzlar 18 cm altta
+  g.rotation.y = Math.PI; g.position.set(0, -1.645, 0.03);
   rig.updateMatrixWorld(true);
   const skel = new THREE.Skeleton(bones, P.ibm.map((m) => new THREE.Matrix4().fromArray(m)));
   skinMesh.bind(skel, new THREE.Matrix4()); sleeve.bind(skel, new THREE.Matrix4());
   const by = (n) => bones.find((b) => b.name === n);
-  // modelde eller köke bağlı: bileklere taşı ki önkolu izlesinler
-  by("Bone018_end_041").attach(by("Bone020_024")); by("Bone0181_end_042").attach(by("Bone182_07"));
-  HANDS.B = { R: [by("Bone_02"), by("Bone001_03"), by("Bone018_end_041"), by("Bone020_024")], L: [by("Bone1_05"), by("Bone0011_06"), by("Bone0181_end_042"), by("Bone182_07")] };
-  // parmak kökleri: serçe, yüzük, orta, işaret
-  HANDS.F = { R: ["Bone003_026", "Bone006_029", "Bone009_032", "Bone012_035"].map(by), L: ["Bone0031_09", "Bone0061_012", "Bone0091_015", "Bone0121_018"].map(by) };
+  const j = (s, n) => bones.find((b) => b.name.startsWith("Character1_" + s + n + "_"));
+  // kol, önkol, bilek (el kemiği iki kez: konum ve yön)
+  for (const [k, s] of [["R", "Right"], ["L", "Left"]]) {
+    HANDS.B[k] = [j(s, "Arm"), j(s, "ForeArm"), j(s, "Hand"), j(s, "Hand")];
+    HANDS.F[k] = ["Pinky1", "Ring1", "Middle1", "Index1"].map((n) => j(s, "Hand" + n));   // parmak kökleri: serçe, yüzük, orta, işaret
+    HANDS.T = HANDS.T || {}; HANDS.T[k] = j(s, "HandThumb1");
+  }
   HANDS.bones = bones; HANDS.rest = bones.map((b) => b.quaternion.clone());
   // el feneri
   const t = new THREE.Group(), tm = new THREE.MeshPhongMaterial({ color: 0x1a1a1c, shininess: 30, specular: 0x333333 });
@@ -1434,8 +1436,8 @@ function buildHands() {
 }
 // el pozları (kamera yerel yönler): fener tutan sağ el ve direksiyondaki eller
 const HAND_TUNE = {
-  torch: { p: [0.15, -0.19, -0.3], gx: [0, 0.1, -1], gy: [-0.6, -0.8, 0], curl: 1.2, ax: [0.03, 0.06, -1], off: 0.05 },
-  wheel: { R: -1, L: -1, gyR: [0, 0, -1], gyL: [1, 0, -1], curl: 0.5 },
+  torch: { p: [0.18, -0.17, -0.36], gx: [0, 0.1, -1], gy: [1, -0.2, 0], curl: 1.2, th: 0.5, thAx: 1, ax: [0.03, 0.06, -1], off: 0.05 },
+  wheel: { R: -1, L: -1, gyR: [0, 0, -1], gyL: [1, 0, -1], curl: 0.85 },
   rs: 1,
 };
 function boneWorldRot(bone, q) {   // kemiği dünya uzayında q kadar döndür
@@ -1472,6 +1474,10 @@ function handOrient(side, gx, gy) {
 function handCurl(side, ang) {   // parmakları avuca doğru bük
   const x = new THREE.Vector3().setFromMatrixColumn(handFrame(side, _hm1), 0).multiplyScalar(side === "R" ? HAND_TUNE.rs : -1);
   for (const f of HANDS.F[side]) for (let b = f, k = 0; b && b.isBone && k < 3; k++) { boneWorldRot(b, new THREE.Quaternion().setFromAxisAngle(x, ang)); b = b.children.find((c) => c.isBone); }
+}
+function handThumb(side, ang, ax = 1) {   // başparmağı avuca/fenerin üstüne kapat (ax: 1 el ekseni y, 2 avuç normali)
+  const v = new THREE.Vector3().setFromMatrixColumn(handFrame(side, _hm1), ax).multiplyScalar(side === "R" ? 1 : -1);
+  for (let b = HANDS.T[side], k = 0; b && b.isBone && k < 3; k++) { boneWorldRot(b, new THREE.Quaternion().setFromAxisAngle(v, ang * (k ? 0.6 : 1))); b = b.children.find((c) => c.isBone); }
 }
 function placeTorch(side, axis, off = 0) {   // feneri yumruğun içine, kavrama ekseni (ya da verilen yön) boyunca; off: ileri kaydır
   const t = HANDS.torch, m = handFrame(side, _hm1), c = new THREE.Vector3(), p = new THREE.Vector3();
@@ -1515,7 +1521,7 @@ function updateHands(dt) {
     const tgt = w(0.2, -0.36, -0.5).lerp(w(0.04, -0.19, -0.12), k);
     if (r > 0) tgt.lerp(homeW(HP.ash[0], HP.ash[1] + 0.09, HP.ash[2] + 0.06), r);
     handIK("R", tgt, w(0.7, -0.7, 0.1));
-    handOrient("R", dv(-1, 0, 0.2).lerp(dv(0.8, 0.5, 0), k).lerp(dv(-1, 0, 0.3), r), dv(-0.2, -0.15, -1).lerp(dv(-0.5, 0.8, 0.1), k).lerp(dv(-0.1, -0.8, -0.6), r));
+    handOrient("R", dv(1, 0, -0.2).lerp(dv(-0.8, -0.5, 0), k).lerp(dv(1, 0, -0.3), r), dv(-0.2, -0.15, -1).lerp(dv(-0.5, 0.8, 0.1), k).lerp(dv(-0.1, -0.8, -0.6), r));
     handCurl("R", 0.3);
     handIK("L", w(-0.25, -0.75, -0.05), w(-0.7, -0.6, 0.2));
     placeCig(smk);
@@ -1528,13 +1534,13 @@ function updateHands(dt) {
   const bx = Math.sin(ph) * 0.012 * a - H.sw, by = Math.abs(Math.cos(ph)) * 0.012 * a, k = smooth(H.kl);
   const TT = HAND_TUNE.torch;
   handIK("R", w(lerp(0.26, TT.p[0], k) + bx, lerp(-0.55, TT.p[1], k) + by, lerp(-0.12, TT.p[2], k)), w(0.6, -0.8, 0.1));
-  handOrient("R", dv(...TT.gx), dv(...TT.gy)); handCurl("R", TT.curl); placeTorch("R", TT.ax && dv(...TT.ax), TT.off || 0);
+  handOrient("R", dv(...TT.gx), dv(...TT.gy)); handCurl("R", TT.curl); if (TT.th) handThumb("R", TT.th, TT.thAx || 1); placeTorch("R", TT.ax && dv(...TT.ax), TT.off || 0);
   // sol el: eğilince yerdeki eşyaya uzanır, yoksa görüş dışında
   const r = crouch ? Math.sin(Math.PI * clamp((S.crouch.t - 0.1) / 0.75, 0, 1)) : 0, low = w(-0.25, -0.6, -0.08);
   if (r > 0) {
     const item = S.crouch.from.clone(); item.y += 0.04;
     handIK("L", low.lerp(item, smooth(r)), w(-0.7, -0.6, 0.2));
-    handOrient("L", dv(1, 0, 0), item.sub(w(-0.1, -0.4, 0)).setY(0)); handCurl("L", 0.55 * r);
+    handOrient("L", dv(-1, 0, 0), item.sub(w(-0.1, -0.4, 0)).setY(0)); handCurl("L", 0.55 * r);
     const palm = new THREE.Vector3(), q = new THREE.Vector3();
     for (const f of H.F.L) palm.add(f.getWorldPosition(q));
     palm.multiplyScalar(0.25).add(H.B.L[3].getWorldPosition(q)).multiplyScalar(0.5); palm.y -= 0.03;
