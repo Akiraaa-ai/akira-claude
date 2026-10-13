@@ -139,7 +139,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
 <script src="dokular.js"></script>
-<script src="modeller.js?v=4"></script>
+<script src="modeller.js?v=5"></script>
 <script>
 "use strict";
 
@@ -1112,8 +1112,161 @@ function updateBody() {
   B.footL.rotation.x = B.footR.rotation.x = 0;
   B.upperarmL.rotation.set(sw * 0.7, 0, -0.95); B.upperarmR.rotation.set(-sw * 0.7, 0, 0.95);
   B.forearmL.rotation.x = B.forearmR.rotation.x = -0.25 - 0.15 * a * run;
-  // fener tutan sağ el biraz önde
-  if (S.lightOn) { B.upperarmR.rotation.x = -1.0; B.forearmR.rotation.x = -1.2; }
+  // birinci şahıs elleri görünürken gövdenin kolları gizli
+  const vm = HANDS.rig && HANDS.rig.visible ? 0.001 : 1;
+  B.upperarmL.scale.setScalar(vm); B.upperarmR.scale.setScalar(vm);
+}
+// ============================================================
+// BİRİNCİ ŞAHIS ELLER (Sketchfab "Hands model rigged", SomeOne34321, CC BY 4.0)
+// iskeletli eller kameraya bağlı; iki kemikli IK ile bilek hedefe, el yönü ve parmak bükümü kodla.
+// ceket kolu bake sırasında kolların dışa ötelenmiş kabuğu. ayrı katmanda (1) çizilir: duvara girmez.
+// ============================================================
+const HANDS = { rig: null, B: {}, F: {}, rest: [], bones: [], kl: 0, sw: 0, lastYaw: 0 };
+const _hv = [0, 0, 0, 0, 0, 0].map(() => new THREE.Vector3()), _hq = new THREE.Quaternion(), _hq2 = new THREE.Quaternion();
+const _hm1 = new THREE.Matrix4(), _hm2 = new THREE.Matrix4();
+function buildHands() {
+  const P = window.MODELLER && MODELLER.eller; if (!P) return null;
+  const dec = (b64, T) => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new T(u.buffer); };
+  const tex = (src) => { const im = new Image(), t = new THREE.Texture(im); im.onload = () => { t.needsUpdate = true; }; im.src = src; t.flipY = false; return t; };
+  const skinGeo = (S) => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(dec(S.pos, Float32Array), 3));
+    geo.setAttribute("normal", new THREE.BufferAttribute(dec(S.nor, Int8Array), 3, true));
+    geo.setAttribute("uv", new THREE.BufferAttribute(dec(S.uv, Float32Array), 2));
+    geo.setAttribute("skinIndex", new THREE.BufferAttribute(dec(S.si, Uint8Array), 4));
+    geo.setAttribute("skinWeight", new THREE.BufferAttribute(dec(S.sw, Uint8Array), 4, true));
+    geo.setIndex(new THREE.BufferAttribute(dec(S.idx, Uint16Array), 1));
+    return geo;
+  };
+  const bones = P.bones.map((b) => { const o = new THREE.Bone(); o.name = b.n; new THREE.Matrix4().fromArray(b.m).decompose(o.position, o.quaternion, o.scale); return o; });
+  const g = new THREE.Group();
+  P.bones.forEach((b, i) => (b.p < 0 ? g : bones[b.p]).add(bones[i]));
+  const skinMesh = new THREE.SkinnedMesh(skinGeo(P), new THREE.MeshPhongMaterial({ map: tex(P.map), normalMap: tex(P.normalMap), shininess: 10, specular: 0x1a1a1a, side: THREE.DoubleSide }));
+  const ct = makeCanvas(128, 128, (c, w, h) => { c.fillStyle = "#1f2a38"; c.fillRect(0, 0, w, h); speckle(c, w, h, 900, "0,0,0", 0.05, 0.22, 1, 3); speckle(c, w, h, 450, "255,255,255", 0.03, 0.1, 1, 2); });
+  ct.wrapS = ct.wrapT = THREE.RepeatWrapping; ct.repeat.set(6, 6);
+  const sleeve = new THREE.SkinnedMesh(skinGeo(P.sleeve), new THREE.MeshPhongMaterial({ map: ct, shininess: 4, specular: 0x0a0a0a, side: THREE.DoubleSide }));
+  for (const m of [skinMesh, sleeve]) { m.frustumCulled = false; g.add(m); }
+  const rig = new THREE.Group(); rig.add(g); camera.add(rig);
+  // model ileri +x: kameranın -z'sine çevir; omuzlar gözün 20 cm altında
+  g.rotation.y = Math.PI / 2; g.position.set(0, -1.413, -0.06);
+  rig.updateMatrixWorld(true);
+  const skel = new THREE.Skeleton(bones, P.ibm.map((m) => new THREE.Matrix4().fromArray(m)));
+  skinMesh.bind(skel, new THREE.Matrix4()); sleeve.bind(skel, new THREE.Matrix4());
+  const by = (n) => bones.find((b) => b.name === n);
+  // modelde eller köke bağlı: bileklere taşı ki önkolu izlesinler
+  by("Bone018_end_041").attach(by("Bone020_024")); by("Bone0181_end_042").attach(by("Bone182_07"));
+  HANDS.B = { R: [by("Bone_02"), by("Bone001_03"), by("Bone018_end_041"), by("Bone020_024")], L: [by("Bone1_05"), by("Bone0011_06"), by("Bone0181_end_042"), by("Bone182_07")] };
+  // parmak kökleri: serçe, yüzük, orta, işaret
+  HANDS.F = { R: ["Bone003_026", "Bone006_029", "Bone009_032", "Bone012_035"].map(by), L: ["Bone0031_09", "Bone0061_012", "Bone0091_015", "Bone0121_018"].map(by) };
+  HANDS.bones = bones; HANDS.rest = bones.map((b) => b.quaternion.clone());
+  // el feneri
+  const t = new THREE.Group(), tm = new THREE.MeshPhongMaterial({ color: 0x1a1a1c, shininess: 30, specular: 0x333333 });
+  t.add(new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.17, 14), tm));
+  const head = new THREE.Mesh(new THREE.CylinderGeometry(0.023, 0.016, 0.05, 16), tm); head.position.y = 0.105; t.add(head);
+  HANDS.lensMat = new THREE.MeshBasicMaterial({ color: 0x302e2a });
+  const lens = new THREE.Mesh(new THREE.CircleGeometry(0.02, 16), HANDS.lensMat); lens.rotation.x = -Math.PI / 2; lens.position.y = 0.1305; t.add(lens);
+  rig.add(t); HANDS.torch = t;
+  rig.traverse((o) => o.layers.set(1));
+  return (HANDS.rig = rig);
+}
+function boneWorldRot(bone, q) {   // kemiği dünya uzayında q kadar döndür
+  bone.parent.getWorldQuaternion(_hq2); bone.getWorldQuaternion(_hq);
+  bone.quaternion.copy(_hq2.invert().multiply(q.multiply(_hq)));
+  bone.updateMatrixWorld(true);
+}
+function handIK(side, target, pole) {
+  const [up, lo, end] = HANDS.B[side], [A, E0, C, T, D, Pd] = _hv;
+  up.getWorldPosition(A); lo.getWorldPosition(E0); end.getWorldPosition(C);
+  const l1 = A.distanceTo(E0), l2 = E0.distanceTo(C);
+  D.subVectors(target, A); const d = clamp(D.length(), Math.abs(l1 - l2) + 1e-3, l1 + l2 - 1e-3); D.normalize();
+  T.copy(A).addScaledVector(D, d);
+  const x = (l1 * l1 - l2 * l2 + d * d) / (2 * d), h = Math.sqrt(Math.max(0, l1 * l1 - x * x));
+  Pd.subVectors(pole, A); Pd.addScaledVector(D, -Pd.dot(D)).normalize();
+  const E = Pd.multiplyScalar(h).addScaledVector(D, x).add(A);   // dirsek
+  boneWorldRot(up, new THREE.Quaternion().setFromUnitVectors(E0.sub(A).normalize(), E.clone().sub(A).normalize()));
+  end.getWorldPosition(C);
+  boneWorldRot(lo, new THREE.Quaternion().setFromUnitVectors(C.sub(E).normalize(), T.sub(E).normalize()));
+}
+// el çerçevesi: x = serçeden işarete (kavrama ekseni), y = bilekten orta parmak köküne
+function handFrame(side, m) {
+  const F = HANDS.F[side], a = new THREE.Vector3(), b = new THREE.Vector3(), w = new THREE.Vector3();
+  F[3].getWorldPosition(a); F[0].getWorldPosition(b); const x = a.sub(b).normalize();
+  F[2].getWorldPosition(b); HANDS.B[side][3].getWorldPosition(w); const y = b.sub(w); y.addScaledVector(x, -y.dot(x)).normalize();
+  return m.makeBasis(x, y, new THREE.Vector3().crossVectors(x, y));
+}
+function handOrient(side, gx, gy) {
+  handFrame(side, _hm1);
+  const x = gx.clone().normalize(), y = gy.clone(); y.addScaledVector(x, -y.dot(x)).normalize();
+  _hm2.makeBasis(x, y, new THREE.Vector3().crossVectors(x, y));
+  boneWorldRot(HANDS.B[side][3], new THREE.Quaternion().setFromRotationMatrix(_hm2.multiply(_hm1.invert())));
+}
+function handCurl(side, ang) {   // parmakları avuca doğru bük
+  const x = new THREE.Vector3().setFromMatrixColumn(handFrame(side, _hm1), 0).multiplyScalar(side === "R" ? 1 : -1);
+  for (const f of HANDS.F[side]) for (let b = f, k = 0; b && b.isBone && k < 3; k++) { boneWorldRot(b, new THREE.Quaternion().setFromAxisAngle(x, ang)); b = b.children.find((c) => c.isBone); }
+}
+function placeTorch(side) {   // feneri yumruğun içine, kavrama ekseni boyunca
+  const t = HANDS.torch, m = handFrame(side, _hm1), c = new THREE.Vector3(), p = new THREE.Vector3();
+  for (const f of HANDS.F[side]) c.add(f.getWorldPosition(p));
+  c.multiplyScalar(0.25).addScaledVector(p.setFromMatrixColumn(m, 2), (side === "R" ? 1 : -1) * 0.02);
+  t.position.copy(t.parent.worldToLocal(c));
+  t.quaternion.copy(t.parent.getWorldQuaternion(_hq).invert().multiply(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), p.setFromMatrixColumn(m, 0))));
+}
+function updateHands(dt) {
+  const I = S.intro, carArms = S.mode === "intro" && I && I.carT > S.time - 0.15 && G.street && G.street.car.arms;
+  const play = S.mode === "play" && !S.surface, torchOK = play || (S.mode === "intro" && !carArms);
+  const H = HANDS;
+  H.kl = clamp(H.kl + (torchOK && S.lightOn ? 1 : -1) * dt * 3.2, 0, 1);
+  const crouch = play && S.crouch;
+  const show = GFX.body !== false && (carArms || H.kl > 0.01 || crouch);
+  if (!H.rig) { if (!show || !buildHands()) return; }
+  H.rig.visible = !!show; if (!show) return;
+  H.bones.forEach((b, i) => b.quaternion.copy(H.rest[i]));
+  H.rig.position.set(0, carArms ? -0.04 : 0, carArms ? 0.22 : 0);   // koltukta omuzlar daha geride
+  camera.updateMatrixWorld(true); H.rig.updateMatrixWorld(true);
+  const w = (x, y, z) => camera.localToWorld(new THREE.Vector3(x, y, z)), dv = (x, y, z) => new THREE.Vector3(x, y, z).transformDirection(camera.matrixWorld);
+  H.torch.visible = !carArms && H.kl > 0.01;
+  H.lensMat.color.setHex(S.lightOn ? 0xfff4dd : 0x302e2a);
+  if (carArms) {   // eller direksiyonda, 3 ve 9 konumunda
+    const ax = new THREE.Vector3();
+    for (const [side, i, sx] of [["L", 0, -1], ["R", 1, 1]]) {
+      const a = carArms.children[i]; a.updateMatrixWorld(true);
+      handIK(side, a.getWorldPosition(new THREE.Vector3()), w(sx * 0.7, -0.9, 0.2));
+      ax.set(0, 1, 0).transformDirection(a.matrixWorld);
+      handOrient(side, side === "R" ? ax : ax.clone().negate(), new THREE.Vector3(-sx, 0, -1).transformDirection(a.parent.matrixWorld));
+      handCurl(side, 0.5);
+    }
+    return;
+  }
+  // yürürken sallanma ve dönerken geride kalma
+  const a = S.bobAmp || 0, ph = S.bobPhase || 0;
+  let dy = S.yaw - H.lastYaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); H.lastYaw = S.yaw;
+  H.sw = lerp(H.sw, clamp(dy / Math.max(dt, 1e-3) * 0.012, -0.05, 0.05), Math.min(1, dt * 8));
+  const bx = Math.sin(ph) * 0.012 * a - H.sw, by = Math.abs(Math.cos(ph)) * 0.012 * a, k = smooth(H.kl);
+  handIK("R", w(lerp(0.26, 0.15, k) + bx, lerp(-0.55, -0.2, k) + by, lerp(-0.12, -0.34, k)), w(0.6, -0.8, 0.1));
+  handOrient("R", dv(-0.15, 0.05, -1), dv(-0.8, -0.25, -0.5)); handCurl("R", 0.5); placeTorch("R");
+  // sol el: eğilince yerdeki eşyaya uzanır, yoksa görüş dışında
+  const r = crouch ? Math.sin(Math.PI * clamp((S.crouch.t - 0.1) / 0.75, 0, 1)) : 0, low = w(-0.25, -0.6, -0.08);
+  if (r > 0) {
+    const item = S.crouch.from.clone(); item.y += 0.04;
+    handIK("L", low.lerp(item, smooth(r)), w(-0.7, -0.6, 0.2));
+    handOrient("L", dv(1, 0, 0), item.sub(w(-0.1, -0.4, 0)).setY(0)); handCurl("L", 0.55 * r);
+    const palm = new THREE.Vector3(), q = new THREE.Vector3();
+    for (const f of H.F.L) palm.add(f.getWorldPosition(q));
+    palm.multiplyScalar(0.25).add(H.B.L[3].getWorldPosition(q)).multiplyScalar(0.5); palm.y -= 0.03;
+    S.crouch.hand = palm;
+  } else handIK("L", low, w(-0.7, -0.6, 0.2));
+}
+// eller ayrı geçişte çizilir; ışıklar 1. katmanı da aydınlatsın
+let handLightCheck = 0;
+function renderHands() {
+  if (!HANDS.rig || !HANDS.rig.visible) return;
+  if ((handLightCheck -= 1) <= 0) { handLightCheck = 30; scene.traverse((o) => { if (o.isLight) o.layers.enable(1); }); }
+  // arka plan rengi yeniden temizlemesin; fener ele yakın: eli yakmasın
+  const bg = scene.background, fi = flashlight.intensity;
+  scene.background = null; flashlight.intensity = fi * 0.12;
+  renderer.autoClear = false; renderer.clearDepth();
+  camera.layers.set(1); renderer.render(scene, camera); camera.layers.set(0);
+  renderer.autoClear = true; scene.background = bg; flashlight.intensity = fi;
 }
 function updateDoorHint() {
   const d = S.trans ? null : nearestDoor();
@@ -1822,7 +1975,9 @@ function buildCarModel(st, M) {
     return { mount, rot };
   };
   const sw = axisPart("dir"), speedo = axisPart("hiz"), tacho = axisPart("devir");
-  const arms = null;   // kol modeli (iskeletli birinci şahıs kolları) gelince: addArms(sw.mount, 0.172, ...)
+  // ellerin direksiyondaki tutma noktaları (3 ve 9); direksiyonla birlikte sınırlı döner
+  const arms = new THREE.Group(); sw.mount.add(arms);
+  for (const sx of [-1, 1]) { const a = new THREE.Object3D(); a.position.set(sx * 0.172, 0.0, 0.03); arms.add(a); }
   // sürücü gözü modeldeki göz noktasında
   CAR_SEAT.set(P.eye[0], P.eye[1] + LIFT, P.eye[2] - 0.16);   // cama yakın: yol görünsün
   const dashLight = new THREE.PointLight(0x9fbcff, 0.5, 1.6, 1.6); dashLight.position.set(CAR_SEAT.x, CAR_SEAT.y - 0.25, -0.5); g.add(dashLight);   // gösterge ışığı
@@ -2020,6 +2175,7 @@ function carCam(I, O) {
   S.yaw = car.yaw + (I.lookYaw || 0);
   S.pitch = -0.09 + (I.lookPitch || 0);
   S.roll = -car.steerAng * Math.min(1, v / 10) * 0.018;
+  I.carT = S.time;   // eller direksiyona
 }
 document.addEventListener("mousemove", (e) => {
   const I = S.intro;
@@ -2067,7 +2223,7 @@ function updateCarFx(dt, inCar) {
   car.wheels.forEach((w) => { w.rotation.x -= car.v * dt / (car.model ? 0.37 : 0.38); });
   if (car.front) car.front.forEach((t) => { t.rotation.y = car.steerAng; });
   car.steer.rotation.z = car.steerAng * 4;
-  if (car.arms) car.arms.rotation.z = clamp(car.steer.rotation.z, -0.55, 0.55);
+  if (car.arms) car.arms.rotation.z = clamp(car.steer.rotation.z, -0.3, 0.3);
   if (CARAU.gain && AU.ctx) {
     const t = AU.ctx.currentTime;
     CARAU.o1.frequency.setTargetAtTime(36 + v * 5.5 + (I.thr ? 9 : 0), t, 0.15);
@@ -3060,10 +3216,12 @@ function updatePlayer(dt) {
   // eğilip alma: kamera yere iner, nesne ele gelir, kalkar
   if (S.crouch) {
     const K = S.crouch, p = K.item; K.t += dt;
-    const u = smooth(clamp((K.t - 0.25) / 0.3, 0, 1));
-    p.mesh.position.lerpVectors(K.from, new THREE.Vector3(S.pos.x, S.pos.y - 0.9, S.pos.z), u);
+    // eşya uzanan sol ele gelir, el kalkarken avuçta kalır
+    const u = smooth(clamp((K.t - (K.hand ? 0.15 : 0.25)) / 0.3, 0, 1));
+    p.mesh.position.lerpVectors(K.from, K.hand || new THREE.Vector3(S.pos.x, S.pos.y - 0.9, S.pos.z), u);
+    if (K.hand && K.t >= 0.8) p.mesh.parent?.remove(p.mesh);
     if (!K.done && K.t >= 0.55) {
-      K.done = true; p.mesh.parent?.remove(p.mesh);
+      K.done = true; if (!K.hand) p.mesh.parent?.remove(p.mesh);
       if (p.type === "battery") {
         S.batteries++; sfxClick(1800, 0.2, 0.03);
         toast(S.battery < 60 ? "PİL ALINDI · R ile tak" : "PİL ALINDI · TAB envanter");
@@ -3400,6 +3558,7 @@ function frame(now) {
     if (S.crouch && S.mode === "play") { const k = Math.sin(Math.PI * clamp(S.crouch.t / 1.05, 0, 1)); camera.position.y -= 0.85 * k; S.crouchPitch = -0.6 * k; } else S.crouchPitch = 0;
     updateBody();
     camera.rotation.set(S.pitch + (S.crouchPitch || 0), S.yaw, S.roll + (S.mode === "play" ? (S.bobOffX || 0) * GFX.bob * 0.4 : 0));
+    updateHands(dt);
     updateListener();
   }
   // kapı geçişi: kararır, karanlıkta yer değişir, açılır
@@ -3417,7 +3576,7 @@ function frame(now) {
   u.uGrain.value = CFG.fx.grain * GFX.fx; u.uScan.value = CFG.fx.scan * GFX.fx;
   u.uChroma.value = CFG.fx.chroma * GFX.fx; u.uVig.value = CFG.fx.vignette * Math.min(1, GFX.fx);
   u.uFish.value = CFG.fx.fisheye * Math.min(1, 0.5 + GFX.fx * 0.5);
-  renderer.setRenderTarget(rt); renderer.render(scene, camera);
+  renderer.setRenderTarget(rt); renderer.render(scene, camera); renderHands();
   if (Q().bloom) {
     const bw = bloomA.width, bh = bloomA.height;
     blurMat.uniforms.tIn.value = rt.texture; blurMat.uniforms.uThresh.value = 0.86; blurMat.uniforms.uDir.value.set(1 / bw, 0);
