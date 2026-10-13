@@ -34,6 +34,18 @@ Gece, belediyenin Fen İşleri kulübesinde nöbetteki Selim'e amiri telefon ede
 | `selim_06.mp3` | Selim | ...bu ses ne? (mazgalın başında, fısıltı) |
 | `selim_neredeyim.mp3` | Selim | ...neredeyim? (düşüşten sonra) |
 
+## Koşu sonrası: Selim nefes nefese
+
+Koşu bitince ara ara biri rastgele çalar. Kısık, soluk soluğa, kesik kesik.
+
+| Dosya | Kim | Replik |
+|---|---|---|
+| `selim_nefes_01.mp3` | Selim | Dur... dur biraz. |
+| `selim_nefes_02.mp3` | Selim | Bu koridor... bitmiyor. |
+| `selim_nefes_03.mp3` | Selim | Kalbim kulağımda atıyor. |
+| `selim_nefes_04.mp3` | Selim | Kimse yok. Kimse yok... |
+| `selim_nefes_05.mp3` | Selim | Nereye koşuyorum ben? |
+
 ## Efekt sesleri (isteğe bağlı)
 
 | Dosya | Ne zaman çalar |
