@@ -23,7 +23,7 @@ WASD yürü (açılışta arabayı sürer: W gaz, S fren/geri, A D direksiyon) �
 | `modeller.js` | Sketchfab'dan alınan 3B modellerin gömülü hâli: bekçi kulübesi, masa telefonu, tüplü TV, sürücünün kolları, sokak (dükkânlar, apartman kuleleri, sokak lambası, çöp kutusu), araba (içi ve dışı), masa eşyaları, oyuncunun giyimli gövdesi. Dosya yoksa oyun kodla kurulan eski hâllere döner. |
 | `tv/` | Açılıştaki TV yayınının fotoğrafları ve videosu (alp'in ürettiği görseller; video `mp4` ve `webm` olarak, tarayıcı hangisini oynatabiliyorsa). |
 | `harita.js` | Labirentteki kapıların arkasındaki ofis: model, çarpışma ızgarası, lamba yerleri, duvar notları ve resimleri. İlk oynanışta yüklenir; dosya yoksa kapılar açılmaz. |
-| `ses/` | Seslendirme ve efekt mp3'leri: `yagmur.mp3` hazır; `muzik.mp3` walkman'de çalan tek parça (ruh sağlığını toparlar; dosya yoksa walkman kodla üretilen eski bir ezgi çalar); `zil.mp3`, `kapi.mp3`, `yaklasma.mp3` isteğe bağlı (yoksa kodla üretilen ses çalar) |
+| `ses/` | Seslendirme ve efekt mp3'leri: `yagmur.mp3` hazır; `anlatici.mp3` açılıştaki TV yayınının sesi; `radyo.mp3` arabaya binince ve ESC menüsünde çalan parça; `muzik.mp3` walkman'de çalan tek parça (ruh sağlığını toparlar; dosya yoksa walkman kodla üretilen eski bir ezgi çalar); `zil.mp3`, `kapi.mp3`, `yaklasma.mp3` isteğe bağlı (yoksa kodla üretilen ses çalar) |
 
 ## Ayarlar
 
