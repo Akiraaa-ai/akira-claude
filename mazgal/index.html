@@ -213,7 +213,9 @@
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
 <script src="dokular.js"></script>
-<script src="modeller.js?v=6"></script>
+<script src="modeller.js?v=7"></script>
+<script src="gltf.js"></script>
+<script src="eller.js"></script>
 <script>
 "use strict";
 
@@ -1382,58 +1384,50 @@ function updateBody() {
 const HANDS = { rig: null, B: {}, F: {}, rest: [], bones: [], kl: 0, sw: 0, lastYaw: 0 };
 const _hv = [0, 0, 0, 0, 0, 0].map(() => new THREE.Vector3()), _hq = new THREE.Quaternion(), _hq2 = new THREE.Quaternion();
 const _hm1 = new THREE.Matrix4(), _hm2 = new THREE.Matrix4();
-function buildHands() {
-  const P = window.MODELLER && MODELLER.eller; if (!P) return null;
-  const dec = (b64, T) => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new T(u.buffer); };
-  const tex = (src) => { const im = new Image(), t = new THREE.Texture(im); im.onload = () => { t.needsUpdate = true; }; im.src = src; t.flipY = false; return t; };
-  const skinGeo = (S) => {
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.BufferAttribute(dec(S.pos, Float32Array), 3));
-    geo.setAttribute("normal", new THREE.BufferAttribute(dec(S.nor, Int8Array), 3, true));
-    geo.setAttribute("uv", new THREE.BufferAttribute(dec(S.uv, Float32Array), 2));
-    geo.setAttribute("skinIndex", new THREE.BufferAttribute(dec(S.si, Uint8Array), 4));
-    geo.setAttribute("skinWeight", new THREE.BufferAttribute(dec(S.sw, Uint8Array), 4, true));
-    geo.setIndex(new THREE.BufferAttribute(dec(S.idx, Uint16Array), 1));
-    return geo;
-  };
-  const bones = P.bones.map((b) => { const o = new THREE.Bone(); o.name = b.n; new THREE.Matrix4().fromArray(b.m).decompose(o.position, o.quaternion, o.scale); return o; });
-  const g = new THREE.Group();
-  P.bones.forEach((b, i) => (b.p < 0 ? g : bones[b.p]).add(bones[i]));
-  const skinMesh = new THREE.SkinnedMesh(skinGeo(P), new THREE.MeshPhongMaterial({ map: tex(P.map), normalMap: tex(P.normalMap), color: 0x9e8676, shininess: 20, specular: 0x262626, side: THREE.DoubleSide }));
-  skinMesh.material.normalScale.set(1.5, 1.5);   // eklem ve damarlar belirgin olsun
-  const ct = makeCanvas(128, 128, (c, w, h) => { c.fillStyle = "#1f2a38"; c.fillRect(0, 0, w, h); speckle(c, w, h, 900, "0,0,0", 0.05, 0.22, 1, 3); speckle(c, w, h, 450, "255,255,255", 0.03, 0.1, 1, 2); });
-  ct.wrapS = ct.wrapT = THREE.RepeatWrapping; ct.repeat.set(6, 6);
-  const sleeve = new THREE.SkinnedMesh(skinGeo(P.sleeve), new THREE.MeshPhongMaterial({ map: ct, shininess: 4, specular: 0x0a0a0a, side: THREE.DoubleSide }));
-  for (const m of [skinMesh, sleeve]) { m.frustumCulled = false; g.add(m); }
-  const rig = new THREE.Group(); rig.add(g); camera.add(rig);
-  // ellere hacim: yalnız el geçişinde yanan, sol üstten vuran ışık ve alttan zayıf dolgu (düz, yassı görünmesin)
-  const key = new THREE.DirectionalLight(0xffe8cc, 0.85), fill = new THREE.DirectionalLight(0x8090b0, 0.18);
-  key.position.set(-0.8, 1.1, 0.35); fill.position.set(0.6, -0.8, -0.2);
-  for (const L of [key, fill]) { L.target.position.set(0.15, -0.2, -0.35); camera.add(L, L.target); L.layers.set(1); }
-  HANDS.key = key;
-  // model ileri +z: kameranın -z'sine çevir; göz modelin kamerasında, omuzlar 18 cm altta
-  g.rotation.y = Math.PI; g.position.set(0, -1.645, 0.03);
+function buildHands() {   // alp'in gönderdiği glb olduğu gibi yüklenir (eller.js), hazır olana dek null
+  if (HANDS.loading || !window.ELLER_GLB || !THREE.GLTFLoader) return null;
+  HANDS.loading = true;
+  const bin = atob(window.ELLER_GLB), u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  new THREE.GLTFLoader().parse(u.buffer, "", setupHands, (e) => console.warn("eller yüklenemedi", e));
+  return null;
+}
+function setupHands(gl) {
+  const model = gl.scene;
+  let skin = null; model.traverse((o) => { if (o.isSkinnedMesh) skin = o; });
+  if (!skin) return;
+  skin.frustumCulled = false;
+  // duruş: modelin kendi animasyonundan sakin bir kare
+  const mix = new THREE.AnimationMixer(model); mix.clipAction(gl.animations[0]).play(); mix.setTime(14); mix.stopAllAction();
+  // model santimetre, ileri +z: kameranın -z'sine çevir; göz modelin kamerasında
+  model.scale.setScalar(0.01); model.rotation.y = Math.PI; model.position.set(0, -1.645, 0.033);
+  const rig = new THREE.Group(); rig.add(model); camera.add(rig);
+  // ellerin kendi ışığı (yalnız el geçişinde): yumuşak ortam + sol üstten ana ışık
+  const hemi = new THREE.HemisphereLight(0xfff1e2, 0x3a342e, 0.9), key = new THREE.DirectionalLight(0xfff0dc, 1.1);
+  key.position.set(-0.8, 1.1, 0.35); key.target.position.set(0.15, -0.2, -0.35);
+  camera.add(hemi, key, key.target); for (const L of [hemi, key]) L.layers.set(1);
+  HANDS.key = key; HANDS.hemi = hemi;
   rig.updateMatrixWorld(true);
-  const skel = new THREE.Skeleton(bones, P.ibm.map((m) => new THREE.Matrix4().fromArray(m)));
-  skinMesh.bind(skel, new THREE.Matrix4()); sleeve.bind(skel, new THREE.Matrix4());
-  const by = (n) => bones.find((b) => b.name === n);
+  const bones = skin.skeleton.bones;
   const j = (s, n) => bones.find((b) => b.name.startsWith("Character1_" + s + n + "_"));
   // kol, önkol, bilek (el kemiği iki kez: konum ve yön)
+  HANDS.T = {};
   for (const [k, s] of [["R", "Right"], ["L", "Left"]]) {
     HANDS.B[k] = [j(s, "Arm"), j(s, "ForeArm"), j(s, "Hand"), j(s, "Hand")];
     HANDS.F[k] = ["Pinky1", "Ring1", "Middle1", "Index1"].map((n) => j(s, "Hand" + n));   // parmak kökleri: serçe, yüzük, orta, işaret
-    HANDS.T = HANDS.T || {}; HANDS.T[k] = j(s, "HandThumb1");
+    HANDS.T[k] = j(s, "HandThumb1");
   }
   HANDS.bones = bones; HANDS.rest = bones.map((b) => b.quaternion.clone());
   // el feneri
-  const t = new THREE.Group(), tm = new THREE.MeshPhongMaterial({ color: 0x1a1a1c, shininess: 30, specular: 0x333333 });
+  const t = new THREE.Group(), tm = new THREE.MeshStandardMaterial({ color: 0x1a1a1c, roughness: 0.45, metalness: 0.6 });
   t.add(new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.17, 14), tm));
   const head = new THREE.Mesh(new THREE.CylinderGeometry(0.023, 0.016, 0.05, 16), tm); head.position.y = 0.105; t.add(head);
   HANDS.lensMat = new THREE.MeshBasicMaterial({ color: 0x302e2a });
   const lens = new THREE.Mesh(new THREE.CircleGeometry(0.02, 16), HANDS.lensMat); lens.rotation.x = -Math.PI / 2; lens.position.y = 0.1305; t.add(lens);
   rig.add(t); HANDS.torch = t;
   rig.traverse((o) => o.layers.set(1));
-  return (HANDS.rig = rig);
+  rig.visible = false;
+  HANDS.rig = rig;
 }
 // el pozları (kamera yerel yönler): fener tutan sağ el ve direksiyondaki eller
 const HAND_TUNE = {
@@ -1496,7 +1490,7 @@ function updateHands(dt) {
   const crouch = play && S.crouch;
   const smk = S.mode === "intro" && I && I.hand && !carArms && HOME_PH.has(I.phase) && I.phase !== "tv" && (I.hand.cig || I.hand.reach > 0.001) ? I.hand : null;
   const show = GFX.body !== false && (carArms || H.kl > 0.01 || crouch || smk);
-  if (!H.rig) { if (!show || !buildHands()) return; }
+  if (!H.rig) { if (show) buildHands(); return; }
   H.rig.visible = !!show; if (!show) return;
   if (H.cig) H.cig.visible = false;
   H.bones.forEach((b, i) => b.quaternion.copy(H.rest[i]));
@@ -1548,19 +1542,15 @@ function updateHands(dt) {
     S.crouch.hand = palm;
   } else handIK("L", low, w(-0.7, -0.6, 0.2));
 }
-// eller ayrı geçişte çizilir; ışıklar 1. katmanı da aydınlatsın
-let handLightCheck = 0;
+// eller ayrı geçişte, yalnız kendi ışıklarıyla çizilir (sahnenin ışıkları 1. katmanı aydınlatmaz)
 function renderHands() {
   if (!HANDS.rig || !HANDS.rig.visible) return;
-  if ((handLightCheck -= 1) <= 0) { handLightCheck = 30; scene.traverse((o) => { if (o.isLight) o.layers.enable(1); }); }
-  // arka plan rengi yeniden temizlemesin; fener ele yakın: eli yakmasın
-  const bg = scene.background, fi = flashlight.intensity;
-  const ai = ambient.intensity;   // düz ortam ışığı eli yassılaştırır: el geçişinde kısılır, yönlü ışık şekli verir
-  scene.background = null; flashlight.intensity = fi * 0.12; ambient.intensity = ai * 0.35;
-  if (HANDS.key) HANDS.key.intensity = (S.surface || (S.mode === "intro") ? 0.5 : 0.95) * (HANDS.kk || 1);
+  const bg = scene.background, dark = S.surface || S.mode === "intro";
+  scene.background = null;
+  HANDS.key.intensity = (dark ? 0.55 : 1.1) * (HANDS.kk || 1); HANDS.hemi.intensity = (dark ? 0.35 : 0.9) * (HANDS.kk || 1);
   renderer.autoClear = false; renderer.clearDepth();
   camera.layers.set(1); renderer.render(scene, camera); camera.layers.set(0);
-  renderer.autoClear = true; scene.background = bg; flashlight.intensity = fi; ambient.intensity = ai;
+  renderer.autoClear = true; scene.background = bg;
 }
 function updateDoorHint() {
   const d = S.trans ? null : nearestDoor();
