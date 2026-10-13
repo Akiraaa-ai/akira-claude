@@ -9,7 +9,7 @@ Açılmazsa PowerShell'de `serve.ps1` çalıştırın, http://localhost:8765 adr
 
 ## Kontroller
 
-WASD yürü (açılışta arabayı sürer: W gaz, S fren/geri, A D direksiyon) · Shift koş · F fener · E kapıyı aç · Fare ya da ok tuşları bak · Boşluk sinematiği/kaseti atla · T son kaseti tekrar izle · ESC ya da P duraklat · I parazit testi · B Bekçi mesafesi (test)
+WASD yürü (açılışta arabayı sürer: W gaz, S fren/geri, A D direksiyon) · Shift koş · F fener · E kapıyı aç · R yedek pil tak · TAB envanter · M walkman (müzik) · Fare ya da ok tuşları bak · Boşluk kaseti atla (açılış sahneleri atlanamaz) · T son kaseti tekrar izle · ESC ya da P duraklat · I parazit testi · B Bekçi mesafesi (test)
 
 ## Dosyalar
 
@@ -22,7 +22,7 @@ WASD yürü (açılışta arabayı sürer: W gaz, S fren/geri, A D direksiyon) �
 | `dokular.js`, `dokular/` | Flow ile üretilen doku görselleri (duvar, tavan, asfalt, kulübe duvarı, torpido, kapı paneli, cam damlaları). `dokular.js` aynı görsellerin gömülü hâli; çift tıklayınca (file://) da çalışsın diye. Dosya yoksa oyun kodla çizilen dokulara döner. |
 | `modeller.js` | Sketchfab'dan alınan 3B modellerin gömülü hâli: bekçi kulübesi, masa telefonu, tüplü TV, sürücünün kolları, sokak (dükkânlar, apartman kuleleri, sokak lambası, çöp kutusu), araba (içi ve dışı), masa eşyaları, oyuncunun giyimli gövdesi. Dosya yoksa oyun kodla kurulan eski hâllere döner. |
 | `harita.js` | Labirentteki kapıların arkasındaki ofis: model, çarpışma ızgarası, lamba yerleri, duvar notları ve resimleri. İlk oynanışta yüklenir; dosya yoksa kapılar açılmaz. |
-| `ses/` | Seslendirme ve efekt mp3'leri: `yagmur.mp3` hazır; `zil.mp3`, `kapi.mp3`, `yaklasma.mp3` isteğe bağlı (yoksa kodla üretilen ses çalar) |
+| `ses/` | Seslendirme ve efekt mp3'leri: `yagmur.mp3` hazır; `muzik.mp3` walkman'de çalan tek parça (ruh sağlığını toparlar, yoksa walkman boş); `zil.mp3`, `kapi.mp3`, `yaklasma.mp3` isteğe bağlı (yoksa kodla üretilen ses çalar) |
 
 ## Ayarlar
 
