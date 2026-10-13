@@ -1399,12 +1399,17 @@ function buildHands() {
   const bones = P.bones.map((b) => { const o = new THREE.Bone(); o.name = b.n; new THREE.Matrix4().fromArray(b.m).decompose(o.position, o.quaternion, o.scale); return o; });
   const g = new THREE.Group();
   P.bones.forEach((b, i) => (b.p < 0 ? g : bones[b.p]).add(bones[i]));
-  const skinMesh = new THREE.SkinnedMesh(skinGeo(P), new THREE.MeshPhongMaterial({ map: tex(P.map), normalMap: tex(P.normalMap), shininess: 10, specular: 0x1a1a1a, side: THREE.DoubleSide }));
+  const skinMesh = new THREE.SkinnedMesh(skinGeo(P), new THREE.MeshPhongMaterial({ map: tex(P.map), normalMap: tex(P.normalMap), color: 0xd2c8bf, shininess: 18, specular: 0x2a2622, side: THREE.DoubleSide }));
   const ct = makeCanvas(128, 128, (c, w, h) => { c.fillStyle = "#1f2a38"; c.fillRect(0, 0, w, h); speckle(c, w, h, 900, "0,0,0", 0.05, 0.22, 1, 3); speckle(c, w, h, 450, "255,255,255", 0.03, 0.1, 1, 2); });
   ct.wrapS = ct.wrapT = THREE.RepeatWrapping; ct.repeat.set(6, 6);
   const sleeve = new THREE.SkinnedMesh(skinGeo(P.sleeve), new THREE.MeshPhongMaterial({ map: ct, shininess: 4, specular: 0x0a0a0a, side: THREE.DoubleSide }));
   for (const m of [skinMesh, sleeve]) { m.frustumCulled = false; g.add(m); }
   const rig = new THREE.Group(); rig.add(g); camera.add(rig);
+  // ellere hacim: yalnız el geçişinde yanan, sol üstten vuran ışık ve alttan zayıf dolgu (düz, yassı görünmesin)
+  const key = new THREE.DirectionalLight(0xffe8cc, 0.85), fill = new THREE.DirectionalLight(0x8090b0, 0.18);
+  key.position.set(-0.8, 1.1, 0.35); fill.position.set(0.6, -0.8, -0.2);
+  for (const L of [key, fill]) { L.target.position.set(0.15, -0.2, -0.35); camera.add(L, L.target); L.layers.set(1); }
+  HANDS.key = key;
   // model ileri +x: kameranın -z'sine çevir; omuzlar gözün 20 cm altında
   g.rotation.y = Math.PI / 2; g.position.set(0, -1.413, -0.06);
   rig.updateMatrixWorld(true);
@@ -1429,7 +1434,7 @@ function buildHands() {
 }
 // el pozları (kamera yerel yönler): fener tutan sağ el ve direksiyondaki eller
 const HAND_TUNE = {
-  torch: { p: [0.17, -0.18, -0.36], gx: [0, 0.1, -1], gy: [-0.6, -0.8, 0], curl: 1.2, ax: [0.03, 0.06, -1], off: 0.05 },
+  torch: { p: [0.15, -0.19, -0.3], gx: [0, 0.1, -1], gy: [-0.6, -0.8, 0], curl: 1.2, ax: [0.03, 0.06, -1], off: 0.05 },
   wheel: { R: -1, L: -1, gyR: [0, 0, -1], gyL: [1, 0, -1], curl: 0.5 },
   rs: 1,
 };
@@ -1543,10 +1548,12 @@ function renderHands() {
   if ((handLightCheck -= 1) <= 0) { handLightCheck = 30; scene.traverse((o) => { if (o.isLight) o.layers.enable(1); }); }
   // arka plan rengi yeniden temizlemesin; fener ele yakın: eli yakmasın
   const bg = scene.background, fi = flashlight.intensity;
-  scene.background = null; flashlight.intensity = fi * 0.12;
+  const ai = ambient.intensity;   // düz ortam ışığı eli yassılaştırır: el geçişinde kısılır, yönlü ışık şekli verir
+  scene.background = null; flashlight.intensity = fi * 0.12; ambient.intensity = ai * 0.35;
+  if (HANDS.key) HANDS.key.intensity = S.surface || (S.mode === "intro") ? 0.45 : 0.85;
   renderer.autoClear = false; renderer.clearDepth();
   camera.layers.set(1); renderer.render(scene, camera); camera.layers.set(0);
-  renderer.autoClear = true; scene.background = bg; flashlight.intensity = fi;
+  renderer.autoClear = true; scene.background = bg; flashlight.intensity = fi; ambient.intensity = ai;
 }
 function updateDoorHint() {
   const d = S.trans ? null : nearestDoor();
