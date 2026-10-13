@@ -235,6 +235,7 @@ const CFG = {
   fx: { fisheye: 0.24, chroma: 0.0022, grain: 0.085, scan: 0.07, vignette: 0.62, tint: 0.07 },
   maze: { cellsX: 15, cellsY: 15, loopChance: 0.14, rooms: 5 },   // ızgara = 2*cells+1
   cell: 4,                  // metre
+  mazeTvs: 12,              // labirentteki tüplü TV sayısı (girişteki yayını oynatır)
   wallH: 3.2,
   battery: { seconds: 240, pickup: 50, count: 7, lowAt: 20 },
   darkZones: { count: 4, radius: 2, minDistFromStart: 12 },
@@ -849,6 +850,97 @@ function buildWorld() {
 
   addDoors(distStart, used);
   buildWritings(distStart);
+  buildMazeTvs(distStart, used);
+}
+
+// ============================================================
+// LABİRENTTEKİ TÜPLÜ TV'LER: girişte Selim'in izlediği gece yayını burada da döner
+// ============================================================
+const MTV = { list: [], canvas: null, ctx: null, tex: null, light: null, audio: null, acc: 0, shot: null, noAudio: false };
+let MTV_SHOTS = null;   // girişteki kareler; son oda karesi yerine kar
+function buildMazeTvs(distStart, used) {
+  MTV.list = []; MTV.shot = null;
+  if (!MTV.canvas) {
+    MTV.canvas = document.createElement("canvas"); MTV.canvas.width = 256; MTV.canvas.height = 144;
+    MTV.ctx = MTV.canvas.getContext("2d");
+    MTV.tex = new THREE.CanvasTexture(MTV.canvas); MTV.tex.magFilter = THREE.LinearFilter;
+  }
+  const scrMat = new THREE.MeshBasicMaterial({ map: MTV.tex, color: 0xd8d8d8 });
+  const standM = new THREE.MeshLambertMaterial({ color: 0x2c1d12 });
+  // duvar dibi: önce çıkmazlar, sonra herhangi bir duvar kenarı; TV'ler birbirinden uzak dağılır
+  const faces = [];
+  for (const [x, y] of openCells((x, y) => !used.has(x + "," + y) && distStart[y][x] >= 3 && distStart[y][x] < Infinity)) {
+    const n = neighbors(x, y).length;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (isWall(x + dx, y + dy)) faces.push({ x, y, dx, dy, end: n === 1 && !isWall(x - dx, y - dy) });
+  }
+  const pickd = [];
+  for (let k = 0; k < CFG.mazeTvs && faces.length; k++) {
+    let best = null, bd = -1;
+    for (const f of faces) {
+      if (pickd.some((q) => q.x === f.x && q.y === f.y)) continue;
+      const d = pickd.length ? Math.min(...pickd.map((q) => Math.hypot(q.x - f.x, q.y - f.y))) : rand(0, 1);
+      const sc = d + (f.end ? 1.5 : 0) + rand(0, 0.8);
+      if (sc > bd) { bd = sc; best = f; }
+    }
+    if (!best) break;
+    pickd.push(best); used.add(best.x + "," + best.y);
+  }
+  for (const f of pickd) {
+    const p = cellCenter(f.x, f.y).add(new THREE.Vector3(f.dx, 0, f.dy).multiplyScalar(C / 2 - 0.42));
+    const g = new THREE.Group(); g.position.copy(p); g.rotation.y = Math.atan2(-f.dx, -f.dy);
+    const stand = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.5, 0.5), standM); stand.position.y = 0.25; g.add(stand);
+    const K = buildModel("tv", { only: "kasa" }), E = K && buildModel("tv", { only: "ekran" });
+    if (K) {
+      for (const b of [K, E]) { b.group.scale.setScalar(1.6); b.group.rotation.y = Math.PI; b.group.position.set(0, 0.5, 0.02); g.add(b.group); }
+      E.group.traverse((o) => { if (o.isMesh) o.material = scrMat; });
+    } else {
+      const box = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.62, 0.6), new THREE.MeshLambertMaterial({ color: 0x1a1a1a })); box.position.y = 0.81; g.add(box);
+      const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.44), scrMat); scr.position.set(0, 0.83, 0.305); g.add(scr);
+    }
+    G.world.add(g);
+    MTV.list.push({ x: p.x, z: p.z, pos: new THREE.Vector3(p.x, 0.9, p.z).add(new THREE.Vector3(-f.dx, 0, -f.dy).multiplyScalar(0.35)) });
+  }
+  // en yakın TV'nin ekran ışığı (tek ışık, oyuncuya en yakın TV'ye taşınır)
+  MTV.light = new THREE.PointLight(0x9fb2d8, 0, 5, 1.6); G.world.add(MTV.light);
+}
+function mtvAudio() {
+  if (MTV.audio || MTV.noAudio) return MTV.audio;
+  const a = new Audio(); a.loop = true; a.preload = "auto"; a.volume = 0;
+  a.onerror = () => { MTV.noAudio = true; MTV.audio = null; };
+  if (location.protocol !== "file:" && AU.ctx) {
+    try {   // ses en yakın TV'den gelir: HRTF ile yönlü, mesafeyle kısılır
+      const pn = AU.ctx.createPanner(); pn.panningModel = "HRTF"; pn.distanceModel = "inverse"; pn.refDistance = 1.6; pn.rolloffFactor = 1.4; pn.maxDistance = 40;
+      const lp = AU.ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 3800;   // eski TV hoparlörü
+      AU.ctx.createMediaElementSource(a).connect(lp).connect(pn).connect(AU.voice || AU.master);
+      MTV.pan = pn; MTV.routed = true;
+    } catch (e) { MTV.routed = false; }
+  }
+  a.src = "ses/anlatici.mp3"; MTV.audio = a; return a;
+}
+function mazeTvTick(dt) {
+  if (!MTV.list.length || S.area !== "maze") { MTV.audio?.pause(); if (MTV.light) MTV.light.intensity = 0; return; }
+  let near = null, nd = Infinity;
+  for (const t of MTV.list) { const d = Math.hypot(t.x - S.pos.x, t.z - S.pos.z); if (d < nd) { nd = d; near = t; } }
+  const a = mtvAudio();
+  if (a) {
+    if (a.paused && nd < 30) a.play().catch(() => {});
+    if (MTV.routed) { a.volume = 0.85; const P = MTV.pan; if (P.positionX) { P.positionX.value = near.pos.x; P.positionY.value = near.pos.y; P.positionZ.value = near.pos.z; } else P.setPosition(near.pos.x, near.pos.y, near.pos.z); }
+    else a.volume = plainVol(0.85 * Math.pow(clamp(1 - nd / 16, 0, 1), 2), GFX.voice);
+  }
+  // yayın sesle aynı yerde akar; ses yoksa saate göre
+  const t = a && !a.paused && a.currentTime > 0 ? a.currentTime % TV_LEN : S.playTime % TV_LEN;
+  // bekçi yakındaysa yayın karlanır
+  const close = typeof creatureEuclid === "function" && creatureEuclid() < 9;
+  MTV_SHOTS ??= TV_SHOTS.map((x) => (x[2] === "room" ? [x[0], x[1], "snow"] : x));
+  const sh = close ? MTV.snowShot ??= [0, TV_LEN, "snow"] : (MTV_SHOTS.find((x) => t < x[1]) || MTV_SHOTS[MTV_SHOTS.length - 1]);
+  if (sh !== MTV.shot) {
+    MTV.shot = sh;
+    const v = tvMedia().video;
+    if (sh[2] === "video") { try { v.currentTime = sh[3] + (t - sh[0]) * 0.75; v.playbackRate = 0.75; v.play().catch(() => {}); } catch (e) {} } else v.pause();
+  }
+  MTV.acc += dt;
+  if (nd < 22 && MTV.acc >= 1 / 15) { MTV.acc = 0; tvOverlay(null, t, sh, MTV.canvas); MTV.tex.needsUpdate = true; }
+  MTV.light.position.copy(near.pos); MTV.light.intensity = nd < 12 ? (sh[2] === "snow" ? 0.5 : 0.35) * (0.85 + Math.random() * 0.3) : 0;
 }
 
 // ============================================================
@@ -2074,8 +2166,8 @@ function tvCover(c, w, h, src, sw, sh, u, zx, zy) {
   const s = Math.max(w / sw, h / sh) * (1.04 + 0.08 * u), dw = sw * s, dh = sh * s;
   c.drawImage(src, (w - dw) / 2 + zx * u * 18, (h - dh) / 2 + zy * u * 12, dw, dh); return true;
 }
-function tvOverlay(I, t, sh) {
-  const cv = $("tvView"), c = cv.getContext("2d"), w = cv.width, h = cv.height, M = tvMedia();
+function tvOverlay(I, t, sh, cv = $("tvView")) {
+  const c = cv.getContext("2d"), w = cv.width, h = cv.height, M = tvMedia();
   const kind = sh[2], u = (t - sh[0]) / (sh[1] - sh[0]), d3 = ["street", "hole", "lamp", "room"].includes(kind);
   c.clearRect(0, 0, w, h);
   c.filter = "saturate(0.7) contrast(1.18) brightness(1.06) blur(0.5px)";
@@ -3085,6 +3177,7 @@ function radioTick(dt) {
 }
 function pauseGame() {
   if (S.paused || (S.mode !== "play" && S.mode !== "intro")) return;
+  MTV.audio?.pause();
   S.paused = true; PAUSE.confirm = null; PAUSE.panel = false;
   for (const k in keys) keys[k] = false;
   if (VOICE.el) VOICE.el.pause();
@@ -4019,6 +4112,7 @@ const PR = 0.32;
 function blocked(x, z) {
   if (S.area === "map") return mapBlocked(x, z);
   for (const p of G.pillars) if (Math.abs(x - p.x) < p.r + PR && Math.abs(z - p.z) < p.r + PR) return true;
+  for (const t of MTV.list) if (Math.abs(x - t.x) < 0.45 + PR && Math.abs(z - t.z) < 0.45 + PR) return true;
   for (const [dx, dz] of [[-PR, -PR], [PR, -PR], [-PR, PR], [PR, PR]]) {
     const [gx, gy] = worldToCell(x + dx, z + dz);
     if (isWall(gx, gy)) return true;
@@ -4406,6 +4500,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   S.time += dt;
   radioTick(dt);
+  if (S.mode !== "play" && MTV.audio && !MTV.audio.paused) MTV.audio.pause();   // kaset, menü, ölüm: yayın susar
   // walkman çalarken ortam sesleri (vızıltı, rüzgâr, yağmur) kısılır
   if (AU.ctx) { const duck = MUSIC.on && S.mode === "play" && !S.paused ? 0.3 : 1; if (AU.duck !== duck) { AU.duck = duck; setGain(AU.amb, GFX.amb * duck, 0.4); } }
 
@@ -4415,6 +4510,7 @@ function frame(now) {
     updatePlayer(dt);
     if (S.mode === "play") updateCreature(dt);
     if (S.mode === "play") updateSanity(dt);
+    if (S.mode === "play") mazeTvTick(dt);
     if (S.mode === "play") updatePant(dt);
   } else if (S.mode === "tape") drawTapeNoise();
 
