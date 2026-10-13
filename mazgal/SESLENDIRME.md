@@ -11,6 +11,19 @@ Her replik ayrı bir mp3 dosyasıdır. Dosyaları `ses/` klasörüne aşağıdak
 
 **ElevenLabs için:** Türkçe destekleyen çok dilli bir model, Stability düşük (%30-45, daha duygusal), Style biraz açık. Her repliği ayrı üretip mp3 indirin. Yavaş okutmak için cümle sonlarına "..." eklemek işe yarar.
 
+## Açılış: Selim'in evi ve yol
+
+Oyun Selim'in evinde başlar: kanepede sigara içip boş boş TV izler, ekranda MAZGAL yazısı belirir, sonra TV'deki yayın ekranı kaplar ve anlatıcı konuşur (`anlatici.mp3`, telefon/eski TV hoparlörü gibi süzülmüş). Yayın bitince Selim söylene söylene kalkar, arabasına biner, oyuncu kulübeye kadar sürer. Bodycam'i kulübeden mazgala çıkarken takar. Kayıt yoksa tarayıcı sesi okur.
+
+| Dosya | Kim | Replik |
+| --- | --- | --- |
+| `anlatici.mp3` | Anlatıcı | (TV yayını, hazır) |
+| `selim_ev_01.mp3` | Selim | Yine bu saçmalıklar... (TV'ye, bıkkın) |
+| `selim_ev_02.mp3` | Selim | Saat kaç olmuş... (duvar saatine bakarken) |
+| `selim_ev_03.mp3` | Selim | Nöbet. Kalk bakalım Selim. (kendi kendine, kalkarken) |
+| `selim_araba_01.mp3` | Selim | Her gece aynı yol... (arabada, mırıldanarak) |
+| `selim_araba_02.mp3` | Selim | Bir gün de bir şey olsun be. (arabada, iç çekerek) |
+
 ## Giriş sahnesi: Selim ve Amir
 
 Gece, belediyenin Fen İşleri kulübesinde nöbetteki Selim'e amiri telefon eder, açık kalan mazgalın kapağını kapatmaya yollar. Selim yürüyüp mazgala gider, aşağıdan gelen sesi dinlemek için eğilir ve düşer.
