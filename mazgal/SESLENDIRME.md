@@ -17,7 +17,7 @@ Gece, belediyenin Fen İşleri kulübesinde nöbetteki Selim'e amiri telefon ede
 
 **Selim:** Belediye işçisi, 30'larında, gece nöbetinde uyuklarken telefon çalmış. Yorgun, biraz huysuz ama saygılı ("abi" diyor). Mazgalın başında sesi kısılır, yarı fısıltı. "Neredeyim" düşüşten sonra sersemlemiş, boğuk.
 
-**Amir:** 50'lerinde, kalın sesli, evden arıyor, uykulu ve aceleci. Telefon hattı efektini oyun ekliyor (`serve.ps1` ile açınca), siz düz kaydedin. "İçinden ses geliyormuş" kısmını kendisi de tuhaf bulduğu için duraksayarak söylüyor.
+**Amir:** 50'lerinde, kalın sesli, evden arıyor, uykulu ve aceleci. Telefon hattı efekti `ses/amir_*.mp3` dosyalarına işlenmiştir (dar bant, 8 kHz telefon kodeği, hat cızırtısı); yeni kayıt gelirse aynı işlem tekrarlanmalı. "İçinden ses geliyormuş" kısmını kendisi de tuhaf bulduğu için duraksayarak söylüyor.
 
 | Dosya | Kim | Replik |
 | --- | --- | --- |

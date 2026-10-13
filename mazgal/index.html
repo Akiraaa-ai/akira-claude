@@ -683,12 +683,21 @@ function buildWorld() {
   };
   const addBattery = (c) => {
     if (!c) return;
-    const grp = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.2, 10), MAT.battery);
-    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.04, 8), MAT.batteryCap); cap.position.y = 0.12;
-    grp.add(body, cap);
-    const p = cellCenter(c[0], c[1]).add(new THREE.Vector3(rand(-1, 1), 0.15, rand(-1, 1)));
-    grp.position.copy(p); grp.rotation.z = Math.PI / 2; grp.rotation.y = rand(0, 6);
+    // Sketchfab pil modeli (yerde yatar, iri pil boyunda); model yoksa silindir
+    const BM = buildModel("battery", { only: "battery0", tweak: { "*": { glow: 0.12 } } });
+    let grp, p;
+    if (BM) {
+      grp = new THREE.Group(); BM.group.scale.setScalar(2.2); BM.group.rotation.z = Math.PI / 2; BM.group.position.set(0.055, 0.013, 0); grp.add(BM.group);
+      p = cellCenter(c[0], c[1]).add(new THREE.Vector3(rand(-1, 1), 0, rand(-1, 1)));
+      grp.position.copy(p); grp.rotation.y = rand(0, 6);
+    } else {
+      grp = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.2, 10), MAT.battery);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.04, 8), MAT.batteryCap); cap.position.y = 0.12;
+      grp.add(body, cap);
+      p = cellCenter(c[0], c[1]).add(new THREE.Vector3(rand(-1, 1), 0.15, rand(-1, 1)));
+      grp.position.copy(p); grp.rotation.z = Math.PI / 2; grp.rotation.y = rand(0, 6);
+    }
     G.world.add(grp);
     G.pickups.push({ type: "battery", mesh: grp, base: p.y });
   };
@@ -702,9 +711,14 @@ function buildWorld() {
     const minD = Math.max(6, Math.floor(maxD * (0.18 + 0.65 * k / Math.max(1, tapeOrder.length - 1))));
     const c = freeCell((x, y) => distStart[y][x] >= minD && distStart[y][x] < Infinity) || freeCell(() => true);
     const grp = new THREE.Group();
-    grp.add(new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.035, 0.14), MAT.tape));
-    const label = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.037, 0.06), MAT.tapeLabel); label.position.z = -0.02;
-    grp.add(label);
+    // walkman modelinin kaseti (büyütülmüş); model yoksa kutu kaset
+    const KS = buildModel("walkman", { only: ["kaset", "makara"], tweak: { "*": { glow: 0.12 } } });
+    if (KS) { KS.group.scale.setScalar(2.4); KS.group.position.set(0, -0.036, 0.04); grp.add(KS.group); }
+    else {
+      grp.add(new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.035, 0.14), MAT.tape));
+      const label = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.037, 0.06), MAT.tapeLabel); label.position.z = -0.02;
+      grp.add(label);
+    }
     const p = cellCenter(c[0], c[1]).add(new THREE.Vector3(rand(-0.8, 0.8), 0.02, rand(-0.8, 0.8)));
     grp.position.copy(p); grp.rotation.y = rand(0, 6);
     G.world.add(grp);
@@ -1301,12 +1315,10 @@ function buildStreet() {
   const KM = buildModel("kulube", { doorPivot: new THREE.Vector3(0.895, 0, 0.795),
     tweak: { Glass: { opacity: 0.55 }, Light: { emissive: 0xffd9a0, emissiveIntensity: 0.9 } } });
   let door, H, IN;   // H: iç tavan yüksekliği, IN: iç duvar yüzleri
-  const plateMats = [M.metal, M.metal, M.metal, M.metal, M.sign, M.metal];   // tabela: önde yazı, kenarlar sac
   if (KM) {
     KM.group.scale.setScalar(1.2); KM.group.position.set(-13.976, -0.19, -4.176); hut.add(KM.group);
     door = KM.door; door.userData.dir = -1;
     H = 2.15; IN = { x0: -15.15, x1: -12.82, z0: -5.34, z1: -3.05 };
-    const sign = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.22, 0.02), plateMats); sign.position.set(-14.2, 2.14, -2.995); hut.add(sign);
     const porch = new THREE.PointLight(0xffc887, 0.35, 3.2, 2); porch.position.set(-12.6, 2.05, -3.62); hut.add(porch);   // kapı üstü lamba
   } else {
     H = HUT.h; IN = { x0: HUT.x0 + t, x1: HUT.x1 - t, z0: HUT.z0 + t, z1: HUT.z1 - t };
@@ -1322,141 +1334,59 @@ function buildStreet() {
     const glass = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.9), M.glass); glass.position.set(-14.5, 1.45, fz); hut.add(glass);
     box(W + 0.3, 0.08, D + 0.4, M.hut, cx, H + 0.04, cz + 0.1, hut);          // çatı
     box(W - 0.1, 0.03, D - 0.1, M.lino, cx, 0.015, cz, hut);                  // zemin
-    const sign = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.35, 0.02), plateMats); sign.position.set(-14.1, 2.32, HUT.z1 + 0.01); hut.add(sign);
     // kapı: menteşe sağda, dışarı açılır
     door = new THREE.Group(); door.userData.dir = 1; door.position.set(-12.9, 0, HUT.z1 - 0.03); hut.add(door);
     box(0.78, 1.98, 0.04, M.door, -0.4, 0.99, 0, door);
     box(0.04, 0.03, 0.14, M.dark, -0.7, 1.0, 0, door);   // kol
   }
-  // masa, telefon, termos, bardak
-  box(0.6, 0.04, 1.4, M.wood, -14.85, 0.75, -4.4, hut);
-  for (const [x, z] of [[-15.1, -5.05], [-14.6, -5.05], [-15.1, -3.75], [-14.6, -3.75]]) box(0.04, 0.73, 0.04, M.wood, x, 0.365, z, hut);
+  // masa: kulübe modelinin kendi masası (model yoksa yedek kutu masa). Üstünde telefon, televizyon, walkman, pil ve konserve.
+  const TOP = KM ? 0.888 : 0.77;
+  if (!KM) {
+    box(0.6, 0.04, 1.4, M.wood, -14.85, 0.75, -4.4, hut);
+    for (const [x, z] of [[-15.1, -5.05], [-14.6, -5.05], [-15.1, -3.75], [-14.6, -3.75]]) box(0.04, 0.73, 0.04, M.wood, x, 0.365, z, hut);
+  }
   // telefon: Sketchfab modeli varsa o (ahize ayrı parça), yoksa kutulardan
   const TEL = buildModel("telefon", { only: "govde" });
   const handset = new THREE.Group();
   let cradle;
   if (TEL) {
-    TEL.group.position.set(-14.85, 0.77, -4.36); hut.add(TEL.group);
+    TEL.group.position.set(...(KM ? [-14.28, TOP, -3.92] : [-14.85, TOP, -4.36])); hut.add(TEL.group);
     handset.add(buildModel("telefon", { only: "ahize" }).group);
     cradle = new THREE.Vector3(...TEL.pack.ahize).add(TEL.group.position);
   } else {
     box(0.24, 0.07, 0.22, M.phone, -14.85, 0.805, -4.55, hut); box(0.17, 0.05, 0.2, M.phone, -14.92, 0.86, -4.55, hut);   // telefon gövdesi
-    const dial = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.012, 14), M.dark); dial.rotation.z = Math.PI / 2 - 0.5; dial.position.set(-14.73, 0.83, -4.55); hut.add(dial);
     box(0.05, 0.045, 0.24, M.phone, 0, 0, 0, handset);
-    box(0.07, 0.05, 0.06, M.phone, 0, -0.01, -0.1, handset); box(0.07, 0.05, 0.06, M.phone, 0, -0.01, 0.1, handset);
     cradle = new THREE.Vector3(-14.87, 0.88, -4.55);
   }
   handset.position.copy(cradle); hut.add(handset);
-  // termos: gövde, kapak bardağı, sap
-  const th = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.048, 0.28, 14), M.thermos); th.position.set(-15.0, 0.91, -3.9); hut.add(th);
-  const thCap = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.05, 0.07, 14), M.metal); thCap.position.set(-15.0, 1.085, -3.9); hut.add(thCap);
-  box(0.015, 0.16, 0.025, M.dark, -15.0, 0.93, -3.84, hut);
-  // ince belli çay bardağı, tabak, kaşık
-  const tg = new THREE.Mesh(new THREE.LatheGeometry([[0.02, 0], [0.026, 0.02], [0.019, 0.045], [0.026, 0.085], [0.028, 0.09]].map(([r, y]) => new THREE.Vector2(r, y)), 14), M.teaGlass);
-  tg.position.set(TEL ? -14.64 : -14.72, 0.778, TEL ? -3.79 : -3.95); hut.add(tg);
-  const tea = new THREE.Mesh(new THREE.LatheGeometry([[0.0, 0.002], [0.019, 0.004], [0.024, 0.02], [0.018, 0.045], [0.024, 0.072], [0.0, 0.072]].map(([r, y]) => new THREE.Vector2(r, y)), 12), M.tea);
-  tea.position.copy(tg.position); hut.add(tea);
-  const saucer = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.045, 0.008, 16), M.hardhat); saucer.position.set(tg.position.x, 0.774, tg.position.z); hut.add(saucer);
-  box(0.005, 0.004, 0.07, M.metal, tg.position.x + 0.05, 0.781, tg.position.z - 0.01, hut);
-  // nöbet defteri ve kalem
-  const nb = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.2, 0.012), [M.paper, M.paper, M.paper, M.paper, M.notebook, M.paper]);
-  nb.rotation.set(-Math.PI / 2, 0, Math.PI / 2 + 0.12); nb.position.set(-14.78, 0.776, TEL ? -4.0 : -4.2); hut.add(nb);
-  const pen = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.14, 6), M.dark); pen.rotation.set(Math.PI / 2, 0, 0.5); pen.position.set(-14.68, 0.786, TEL ? -4.05 : -4.25); hut.add(pen);
-  // masanın ucunda tüplü televizyon (Sketchfab modeli, ekranda karlı yayın); model yoksa eski radyo
+  // masanın köşesinde tüplü televizyon (Sketchfab modeli, ekranda karlı yayın)
   const TVM = buildModel("tv", { only: "kasa" });
   let tv = null;
   if (TVM) {
-    TVM.group.rotation.y = -Math.PI / 2; TVM.group.position.set(-14.9, 0.77, -4.86); hut.add(TVM.group);
+    const tvRot = KM ? -0.8 : -Math.PI / 2;
+    TVM.group.rotation.y = tvRot; TVM.group.position.set(...(KM ? [-14.69, TOP, -3.43] : [-14.9, TOP, -4.86])); hut.add(TVM.group);
     const c = document.createElement("canvas"); c.width = 96; c.height = 72;
     const tex = new THREE.CanvasTexture(c); tex.magFilter = THREE.NearestFilter;
     const scr = buildModel("tv", { only: "ekran" });
     const scrMat = new THREE.MeshPhongMaterial({ map: tex, color: 0x333333, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.55, shininess: 60, specular: 0x333333 });
     scr.group.traverse((o) => { if (o.isMesh) o.material = scrMat; });
-    scr.group.rotation.y = -Math.PI / 2; scr.group.position.copy(TVM.group.position); hut.add(scr.group);
-    const glow = new THREE.PointLight(0x9fb2d8, 0.25, 2.4, 1.8); glow.position.set(-14.45, 1.0, -4.86); hut.add(glow);
+    scr.group.rotation.y = tvRot; scr.group.position.copy(TVM.group.position); hut.add(scr.group);
+    const glow = new THREE.PointLight(0x9fb2d8, 0.25, 2.4, 1.8); glow.position.set(...(KM ? [-14.37, 1.12, -3.74] : [-14.45, 1.0, -4.86])); hut.add(glow);
     tv = { canvas: c, ctx: c.getContext("2d"), tex, glow, acc: 0 };
-  } else {
-    box(0.1, 0.13, 0.26, M.dark, -15.06, 0.835, -4.98, hut);
-    const rf = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.13), M.radio); rf.rotation.y = Math.PI / 2; rf.position.set(-15.005, 0.835, -4.98); hut.add(rf);
-    const ant = box(0.006, 0.4, 0.006, M.metal, -15.08, 1.07, -5.05, hut); ant.rotation.x = 0.35;
   }
-  // kül tablası
-  const AX = TVM ? -14.62 : -14.68, AZ = TVM ? -4.62 : -4.88;
-  const ash = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.045, 0.02, 12), M.metal); ash.position.set(AX, 0.78, AZ); hut.add(ash);
-  for (const a of [0.3, 1.9, 4]) box(0.03, 0.008, 0.008, M.hardhat, AX + Math.cos(a) * 0.02, 0.795, AZ + Math.sin(a) * 0.02, hut).rotation.y = a;
-  // sandalye (Selim'in oturduğu)
-  box(0.42, 0.04, 0.42, M.chair, -13.75, 0.45, -4.3, hut);
-  box(0.04, 0.45, 0.4, M.chair, -13.53, 0.72, -4.3, hut);
-  for (const [x, z] of [[-13.95, -4.1], [-13.95, -4.5], [-13.55, -4.1], [-13.55, -4.5]]) box(0.03, 0.45, 0.03, M.dark, x, 0.225, z, hut);
-  // arka duvarda raf: klasörler, baret (modelde arka duvar camlı: raf pencerenin altına iner)
-  const sy = KM ? 0.8 : 1.75;
-  box(0.7, 0.025, 0.22, M.wood, -13.35, sy, IN.z0 + 0.11, hut);
-  // klasörler: sırtında etiket ve parmak deliği; sonuncusu yana yaslanmış
-  let bx = -13.71;
-  ["#2d4f7a", "#7a2d2d", "#2f5a3a", "#2d4f7a", "#6a5a2a", "#4a4a4a"].forEach((c, i) => {
-    const w = i % 3 === 1 ? 0.075 : 0.062, last = i === 5;
-    const ox = last ? -w / 2 : 0;   // yaslanan klasör sağ alt köşesinden döner
-    const bg = new THREE.Group(); bg.position.set(bx + (last ? w : w / 2), sy + 0.0125, IN.z0 + 0.11); hut.add(bg);
-    const mat = new THREE.MeshLambertMaterial({ color: c });
-    box(w - 0.004, 0.27, 0.2, mat, ox, 0.135, 0, bg);
-    box(w * 0.6, 0.08, 0.003, M.paper, ox, 0.19, 0.1015, bg);
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.011, 0.003, 6, 12), M.dark); ring.position.set(ox, 0.06, 0.1015); bg.add(ring);
-    if (last) bg.rotation.z = -0.15;
-    bx += w;
-  });
-  const hat = new THREE.Mesh(new THREE.SphereGeometry(0.12, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), M.hardhat); hat.position.set(-13.13, sy + 0.015, IN.z0 + 0.11); hut.add(hat);
-  box(0.28, 0.01, 0.28, M.hardhat, -13.13, sy + 0.02, IN.z0 + 0.11, hut).scale.set(1, 1, 0.85);
-  // elektrikli soba (kızgın teller)
-  box(0.36, 0.42, 0.12, M.dark, -13.15, 0.21, IN.z0 + 0.09, hut);
-  for (let i = 0; i < 3; i++) box(0.28, 0.018, 0.01, M.heaterGlow, -13.15, 0.12 + i * 0.1, IN.z0 + 0.155, hut);
-  const heatLight = new THREE.PointLight(0xff5a1e, 0.5, 2.2, 1.6); heatLight.position.set(-13.15, 0.3, IN.z0 + 0.39); hut.add(heatLight);
-  // duvarda takvim (14 Ekim işaretli), saat (23:52), yedek yelek
-  // takvim: karton arka, öne kıvrık yapraklar, üstte spiral ve çivi
-  const cal = new THREE.Group();
-  box(0.4, 0.55, 0.006, M.paper, 0, 0, 0.003, cal);
-  const sheet = new THREE.Mesh(new THREE.BoxGeometry(0.39, 0.5, 0.008), [M.paper, M.paper, M.paper, M.paper, M.calendar, M.paper]);
-  sheet.position.set(0, -0.022, 0.01); sheet.rotation.x = -0.03; cal.add(sheet);
-  const spiral = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.36, 8), M.metal); spiral.rotation.z = Math.PI / 2; spiral.position.set(0, 0.255, 0.012); cal.add(spiral);
-  box(0.008, 0.008, 0.03, M.metal, 0, 0.29, 0.015, cal);
-  // duvar saati: plastik gövde, kadran, cam ve üç boyutlu akrep/yelkovan (23:52)
-  const clk = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.165, 0.155, 0.045, 28), M.plastic); body.rotation.x = Math.PI / 2; body.position.z = 0.0225; clk.add(body);
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.158, 0.012, 8, 28), M.plastic); rim.position.z = 0.046; clk.add(rim);
-  const face = new THREE.Mesh(new THREE.CircleGeometry(0.15, 28), M.clock); face.position.z = 0.0455; clk.add(face);
-  const hand = (len, wd, ang, z) => { const g = new THREE.BoxGeometry(wd, len, 0.003); g.translate(0, len / 2 - 0.015, 0); const m = new THREE.Mesh(g, M.dark); m.rotation.z = -ang; m.position.z = z; clk.add(m); };
-  hand(0.085, 0.012, (11 + 52 / 60) / 12 * Math.PI * 2, 0.05); hand(0.125, 0.007, 52 / 60 * Math.PI * 2, 0.054);
-  const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.012, 10), M.dark); pin.rotation.x = Math.PI / 2; pin.position.z = 0.056; clk.add(pin);
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.4, 24, 6, 0, Math.PI * 2, 0, 0.39), M.clockGlass); dome.rotation.x = Math.PI / 2; dome.position.z = -0.32; clk.add(dome);
-  // yedek yelek: sandalye sırtına asılı. Kesimli (V yaka, kol oyuğu, omuz askısı) önde uzun, arkada kısa panel; askılar sırtın üstünden kıvrılır
-  const vest = new THREE.Group();
-  const vestPanel = (neck) => {
-    const sh = new THREE.Shape([[-0.23, 0], [0.23, 0], [0.23, 0.3], [0.17, 0.36], [0.15, 0.55], [0.06, 0.55], [0, neck], [-0.06, 0.55], [-0.15, 0.55], [-0.17, 0.36], [-0.23, 0.3]].map(([x, y]) => new THREE.Vector2(x, y)));
-    const g = new THREE.ExtrudeGeometry(sh, { depth: 0.01, bevelEnabled: false, curveSegments: 4 });
-    const pos = g.attributes.position, uv = g.attributes.uv;
-    for (let i = 0; i < pos.count; i++) uv.setXY(i, (pos.getX(i) + 0.23) / 0.46, pos.getY(i) / 0.55);
-    g.rotateY(Math.PI / 2);   // yüzü +x'e bakar
-    return new THREE.Mesh(g, [M.vest, M.vestEdge]);
+  // Sketchfab eşyaları: açılmış konserve, kasetli walkman, pil, katlanır sandalye
+  const prop = (key, only, x, y, z, ry, rz = 0) => {
+    const b = buildModel(key, { only }); if (!b) return null;
+    b.group.position.set(x, y, z); b.group.rotation.set(0, ry, rz); hut.add(b.group); return b;
   };
-  const vFront = vestPanel(0.27); vFront.position.set(0.024, -0.56, 0); vFront.rotation.z = 0.03; vest.add(vFront);
-  const vBack = vestPanel(0.47); vBack.scale.y = 0.6; vBack.position.set(-0.034, -0.33, 0); vBack.rotation.z = -0.05; vest.add(vBack);
-  for (const z of [-0.105, 0.105]) {   // askı kıvrımı
-    const fold = new THREE.Mesh(new THREE.CylinderGeometry(0.029, 0.029, 0.09, 10, 1, true, Math.PI / 2, Math.PI), M.vestFold);
-    fold.rotation.x = Math.PI / 2; fold.position.set(0, -0.01, z); vest.add(fold);
+  if (KM) {
+    prop("can", "can0", -14.8, TOP, -3.95, 0.3);
+    prop("walkman", null, -14.2, TOP, -3.45, 0.5);
+    prop("battery", "battery0", -14.1, TOP + 0.006, -3.63, 1.1, Math.PI / 2);
+    prop("chair", "chair0", -13.75, 0.007, -4.4, -0.77);
   }
-  if (KM) {   // modelde duvarların çoğu cam: takvim ön köşe direğinde, saat dolabın üstünde, yelek sandalyede
-    cal.rotation.y = Math.PI; cal.position.set(-13.05, 1.5, IN.z1 - 0.004);
-    clk.scale.setScalar(0.8); clk.position.set(...CLOCK_POS); clk.position.z = IN.z0;
-    vest.position.set(-13.53, 0.95, -4.3);
-  } else {
-    cal.position.set(-14.25, 1.55, HUT.z0 + t);
-    clk.rotation.y = Math.PI / 2; clk.position.set(HUT.x0 + t, 1.9, -4.75);
-    vest.position.set(-13.53, 0.95, -4.3);
-  }
-  hut.add(cal, clk, vest);
-  // tavan ampulü
-  box(0.01, 0.2, 0.01, M.dark, -14.1, H - 0.1, -4.25, hut);
-  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), M.bulb); bulb.position.set(-14.1, H - 0.24, -4.25); hut.add(bulb);
-  const bulbLight = new THREE.PointLight(0xffcf8a, 1.25, 7, 1.5); bulbLight.position.set(-14.1, H - 0.32, -4.25); hut.add(bulbLight);
+  // tavandaki ışık (görünen gövdesi modelin lambası)
+  const bulbLight = new THREE.PointLight(0xffcf8a, 1.25, 7, 1.5); bulbLight.position.set(-13.99, H - 0.3, -4.19); hut.add(bulbLight);
 
   const car = buildCar(st, M);
 
@@ -2323,20 +2253,20 @@ function kv(k, t) {
 }
 const SIT = 1.2 + HUT.floor, STAND = CFG.eye + HUT.floor;
 const CAM_HUT = {
-  pos: [[0, -13.85, SIT, -4.3], [4.0, -13.85, SIT, -4.3], [5.4, -14.15, SIT - 0.05, -4.4], [6.8, -14.1, SIT - 0.03, -4.38]],
-  look: [[0, -14.55, 1.25, -2.0], [2.6, -14.4, 1.2, -2.1], [3.6, -14.85, 0.95, -4.55], [5.6, -14.85, 0.95, -4.55], [6.8, -14.9, 1.95, -4.75]],
+  pos: [[0, -13.85, SIT, -4.3], [4.0, -13.85, SIT, -4.3], [5.4, -13.97, SIT - 0.05, -4.26], [6.8, -13.93, SIT - 0.04, -4.27]],
+  look: [[0, -14.55, 1.25, -2.0], [2.6, -14.4, 1.2, -2.1], [3.6, -14.28, 1.1, -3.92], [5.6, -14.28, 1.1, -3.92], [6.8, -14.2, 1.06, -3.45]],
 };
-// konuşma sırasında bakılan yerler (replik sırasına göre): saat, pencereden sokak, masa
-// Sketchfab kulübe modeli varsa (modeller.js) kapı sağ duvarda, saat dolabın üstünde durur
+// konuşma sırasında bakılan yerler (replik sırasına göre): walkman, pencereden sokak, masa, telefon
+// Sketchfab kulübe modeli varsa (modeller.js) kapı sağ duvarda, masa ön sol köşede durur
 const HUT_MODEL = !!(window.MODELLER && window.MODELLER.kulube);
-const CLOCK_POS = HUT_MODEL ? [-14.95, 1.99, -5.34] : [-15.2, 2.0, -4.75];
-const CALL_LOOK = [CLOCK_POS, CLOCK_POS, [-14.6, 1.6, -5.3], [-14.5, 1.55, -2.2], [-14.3, 1.5, -1.2], [-14.6, 1.6, -5.3], [-14.75, 0.9, -4.0], [-14.75, 0.9, -4.0], [-14.85, 0.95, -4.55]];
+const CALL_W = [-14.2, 1.06, -3.45], CALL_D = [-14.45, 1.05, -3.6], CALL_P = [-14.28, 1.1, -3.92];
+const CALL_LOOK = [CALL_W, CALL_W, [-14.6, 1.6, -5.3], [-14.5, 1.55, -2.2], [-14.3, 1.5, -1.2], [-14.6, 1.6, -5.3], CALL_D, CALL_D, CALL_P];
 // kulübeden çıkış ve kamyonete yürüyüş (kulübe çerçevesinde; son nokta kamyonetin kapısı)
 const CAM_EXIT = HUT_MODEL ? {
   // sandalyeden kalk, sağ duvardaki kapıya dön, dışarı çık, açık kanadın ucundan dolanıp kamyonete yürü
-  pos: [[0, -14.1, SIT - 0.03, -4.38], [1.4, -14.1, SIT - 0.03, -4.38], [2.6, -13.7, STAND, -4.0], [3.4, -13.3, STAND, -3.7], [4.4, -13.25, STAND, -3.66],
+  pos: [[0, -13.93, SIT - 0.04, -4.27], [1.4, -13.93, SIT - 0.04, -4.27], [2.6, -13.7, STAND, -4.0], [3.4, -13.3, STAND, -3.7], [4.4, -13.25, STAND, -3.66],
     [5.6, -12.3, STAND, -3.62], [6.4, -11.85, STAND, -3.3], [7.8, -12.55, STAND, -2.05]],
-  look: [[0, -14.85, 0.95, -4.55], [1.4, -14.85, 0.95, -4.55], [2.6, -12.8, 1.7, -3.66], [4.4, -12.2, 1.6, -3.66], [5.6, -11.5, 1.4, -3.2], [6.4, -12.0, 1.3, -2.0], [7.8, -12.0, 1.0, -0.6]],
+  look: [[0, -14.28, 1.1, -3.92], [1.4, -14.28, 1.1, -3.92], [2.6, -12.8, 1.7, -3.66], [4.4, -12.2, 1.6, -3.66], [5.6, -11.5, 1.4, -3.2], [6.4, -12.0, 1.3, -2.0], [7.8, -12.0, 1.0, -0.6]],
 } : {
   pos: [[0, -14.1, SIT - 0.03, -4.38], [1.4, -14.1, SIT - 0.03, -4.38], [2.6, -13.7, STAND, -4.1], [3.4, -13.3, STAND, -4.05], [4.4, -13.3, STAND, -3.95],
     [6.0, -13.3, STAND, -2.55], [7.8, -12.55, STAND, -2.05]],
@@ -2380,7 +2310,7 @@ function sayLine(line, onDone, subMs = 9000) {
     const tr = speechSynthesis.getVoices().find((x) => x.lang?.toLowerCase().startsWith("tr")); if (tr) u.voice = tr;
     u.onend = done; speechSynthesis.speak(u);
   };
-  playVoice(`ses/${line.file}.mp3`, { onEnd: done, onFail: tts, chain: line.who === "AMİR" ? phoneChain : voiceChain });
+  playVoice(`ses/${line.file}.mp3`, { onEnd: done, onFail: tts, chain: line.who === "AMİR" ? null : voiceChain });   // amir_*.mp3 telefon efekti dosyaya işli
 }
 function clearSub() { clearTimeout(subTimer); $("sub").innerHTML = ""; }
 function lookFrom(pos, tgt) {
@@ -2437,8 +2367,8 @@ function introUpdate(dt) {
     S.black = keyframes([[0, 1], [0.4, 1], [1.8, 0]], t);
     placeHut(CAM_HUT, t); freeLook(I, dt, 0);
     S.pitch += Math.sin(S.time * 1.1) * 0.012; S.roll = Math.sin(S.time * 0.7) * 0.01;
-    if (!I.ring1 && t >= 1.6) { I.ring1 = true; I.ringer = phoneRing(hutW(new THREE.Vector3(-14.85, 0.85 + HUT.floor, -4.55)), 1.6); }
-    if (!I.ring2 && t >= 4.4) { I.ring2 = true; I.ringer = phoneRing(hutW(new THREE.Vector3(-14.85, 0.85 + HUT.floor, -4.55)), 1.6); }
+    if (!I.ring1 && t >= 1.6) { I.ring1 = true; I.ringer = phoneRing(hutW(R.handset.position.clone().setY(R.handset.position.y + HUT.floor)), 1.6); }
+    if (!I.ring2 && t >= 4.4) { I.ring2 = true; I.ringer = phoneRing(hutW(R.handset.position.clone().setY(R.handset.position.y + HUT.floor)), 1.6); }
     if (!I.picked && t >= 5.9) { I.picked = true; I.ringer?.stop(); sfxClick(900, 0.3, 0.05); I.from = R.handset.position.clone(); }
     if (I.picked) {
       const u = smooth(clamp((t - 5.9) / 0.6, 0, 1));
@@ -2615,7 +2545,7 @@ function introUpdate(dt) {
     S.lamp = 1;
     setGain(AU.hum, lerp(0, 1, clamp(t / 4, 0, 1)) * 0.9, 0.2);
     setGain(AU.ring, 0);
-    if (t > 3.4 && !I.said2) { I.said2 = true; subtitle("...neredeyim?", 2800); playVoice("ses/selim_neredeyim.mp3"); }
+    if (t > 3.4 && !I.said2) { I.said2 = true; subtitle("...neredeyim?", 2800); playVoice("ses/selim_neredeyim.mp3", { vol: 0.55 }); }
     if (t >= D) finishIntro(true);
   }
 }
@@ -2965,7 +2895,7 @@ function playVoice(file, { onEnd, onFail, vol = 1, chain = voiceChain } = {}) {
   a.onended = () => { if (done) return; done = true; if (VOICE.el === a) VOICE.el = null; if (onEnd) onEnd(); };
   a._resume = () => { if (done) return; if (!started) arm(); const p = a.play(); if (p && p.catch) p.catch(fail); };
   if (location.protocol !== "file:" && AU.ctx) {
-    try { AU.ctx.createMediaElementSource(a).connect(chain()); a.volume = vol; } catch (e) { /* düz çal */ }
+    try { AU.ctx.createMediaElementSource(a).connect(chain ? chain() : AU.voice); a.volume = vol; } catch (e) { /* düz çal */ }
   }
   a.src = file;
   arm();
