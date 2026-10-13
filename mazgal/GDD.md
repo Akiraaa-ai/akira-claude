@@ -63,6 +63,8 @@ Davranış:
 - [x] Duvar yazıları
 - [x] Labirentte ofise açılan kapılar (E), ofis haritası, duvar notları ve resimler, ofiste gerilim olayları
 - [x] Oyuncunun giyimli gövdesi (aşağı bakınca görünür, yürürken bacak/kol hareketi)
+- [x] Envanter (TAB), yedek pil (R), eğilip alma, ruh sağlığı ve walkman müziği (M, ses/muzik.mp3)
+- [ ] Gövde: Flow kıyafet dokuları ve gerçekçi birinci şahıs el modeli
 - [ ] Elektrik panosu ve şifre
 - [ ] Harita parçası
 - [ ] Çıkış ve final
