@@ -30,6 +30,7 @@
   #inv h3 { margin: 0 0 12px; font-weight: normal; letter-spacing: 5px; }
   #inv .row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(232,226,200,.1); }
   #inv .k { color: #8a8368; }
+  #inv img.map { display: block; width: 100%; margin-top: 10px; image-rendering: pixelated; }
   #toast { position: absolute; bottom: 90px; width: 100%; text-align: center; font-size: 16px; letter-spacing: 2px; opacity: 0; transition: opacity .5s; }
   #toast.show { opacity: 1; }
   #sub { position: absolute; bottom: 120px; width: 100%; text-align: center; font-size: calc(19px * var(--subScale, 1)); }
@@ -150,9 +151,11 @@ const CFG = {
   walkSpeed: 2.9,           // m/sn
   runSpeed: 5.4,
   staminaMax: 100,
-  staminaDrain: 24,         // koşarken saniyede
-  staminaRegen: 13,
-  staminaMinToRun: 20,      // tükendikten sonra tekrar koşmak için gereken
+  staminaDrain: 5,          // koşarken saniyede (dolu nefesle ~20 sn koşu)
+  staminaRegen: 9,
+  staminaRegenTired: 3,     // tükenince yavaş dolar
+  staminaMinToRun: 45,      // tükendikten sonra tekrar koşmak için gereken
+  pantTime: 7,              // tükenince en az bu kadar sn nefes nefese
   bobWalk: { freq: 7.2, amp: 0.045, sway: 0.012 },
   bobRun:  { freq: 10.5, amp: 0.085, sway: 0.025 },
   eye: 1.65,
@@ -174,7 +177,9 @@ const CFG = {
   },
   tapes: 6,
   doors: 2,                 // labirentte ofise açılan kapı sayısı (çıkmaz sokak sonlarında)
-  wallTexts: 7,             // başlangıçtakiyle birlikte toplam duvar yazısı
+  wallTexts: 10,            // labirentteki boya duvar yazısı
+  mazeNotes: 12,            // labirentteki kâğıt/kalem notları
+  pieces: 4,                // harita parçası (labirentin dört çeyreği)
   intro: true,
 };
 
@@ -229,6 +234,11 @@ const WALL_TEXTS = [
   "SAYMAYI\nBIRAKTIM",
   "BURASI\nAYNI YER",
   "|||| |||| |||",
+  "UYUMA",
+  "ARAYAN DA\nSENSİN",
+  "PANO KAPI DEĞİL\nARKASI KAPI",
+  "IŞIĞI KAPAT\nDİNLE",
+  "ÇIKIŞ YOK DEMEDİM\nKAPI YOK DEDİM",
 ];
 
 // ============================================================
@@ -564,6 +574,17 @@ const MAT = {
   batteryCap: new THREE.MeshBasicMaterial({ color: 0x1a7a30 }),
   tape: new THREE.MeshLambertMaterial({ color: 0x1c1c1c }),
   tapeLabel: new THREE.MeshLambertMaterial({ color: 0xe8e0c0, emissive: 0x2a2818 }),
+  // yırtık harita kâğıdı: kurşun kalemle çizilmiş koridorlar
+  piece: new THREE.MeshLambertMaterial({ transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, emissive: 0xffffff, emissiveIntensity: 0.3, map: makeCanvas(256, 196, (g, w, h) => {
+    g.clearRect(0, 0, w, h); g.beginPath(); g.moveTo(6, 8);
+    for (let x = 6; x < w; x += 18) g.lineTo(x, rand(2, 14)); for (let y = 8; y < h; y += 18) g.lineTo(w - rand(2, 14), y);
+    for (let x = w - 6; x > 0; x -= 18) g.lineTo(x, h - rand(2, 14)); for (let y = h - 8; y > 0; y -= 18) g.lineTo(rand(2, 14), y);
+    g.closePath(); g.fillStyle = "#e3dcc4"; g.fill(); g.save(); g.clip();
+    for (let i = 0; i < 4; i++) stain(g, rand(0, w), rand(0, h), rand(30, 80), "120,95,45", rand(0.1, 0.25));
+    g.strokeStyle = "rgba(50,50,55,0.75)"; g.lineWidth = 3;
+    for (let i = 0; i < 14; i++) { const x = 30 + Math.floor(rand(0, 7)) * 28, y = 30 + Math.floor(rand(0, 5)) * 28; g.beginPath(); g.moveTo(x, y); Math.random() < 0.5 ? g.lineTo(x + 56, y) : g.lineTo(x, y + 56); g.stroke(); }
+    g.restore();
+  }) }),
   shaft: new THREE.MeshLambertMaterial({ map: TEX.shaft, side: THREE.BackSide }),
   grate: new THREE.MeshBasicMaterial({ map: TEX.grate, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, fog: false }),
   sky: new THREE.MeshBasicMaterial({ color: 0x2c3442, fog: false }),
@@ -705,7 +726,7 @@ function buildWorld() {
   const tapeOrder = TAPES.map((_, i) => i).slice(0, CFG.tapes);
   const maxD = Math.max(...distStart.flat().filter((d) => d < Infinity));
   tapeOrder.forEach((tapeIdx, k) => {
-    const minD = Math.max(6, Math.floor(maxD * (0.18 + 0.65 * k / Math.max(1, tapeOrder.length - 1))));
+    const minD = Math.max(4, Math.floor(maxD * (0.08 + 0.5 * k / Math.max(1, tapeOrder.length - 1))));   // ilki birkaç adım ötede
     const c = freeCell((x, y) => distStart[y][x] >= minD && distStart[y][x] < Infinity) || freeCell(() => true);
     const grp = new THREE.Group();
     // walkman modelinin kaseti (büyütülmüş); model yoksa kutu kaset
@@ -721,6 +742,33 @@ function buildWorld() {
     G.world.add(grp);
     G.pickups.push({ type: "tape", tape: tapeIdx, mesh: grp, base: p.y });
   });
+
+  // haritadaki X: başlangıca en uzak çıkmaz (orada "buradaydım" notu durur)
+  const deadEnds = openCells((x, y) => neighbors(x, y).length === 1 && distStart[y][x] < Infinity && !used.has(x + "," + y));
+  G.mapX = deadEnds.length ? deadEnds.reduce((a, b) => (distStart[b[1]][b[0]] > distStart[a[1]][a[0]] ? b : a)) : null;
+  if (G.mapX) used.add(G.mapX.join());
+  // harita parçaları: labirentin her çeyreğinde bir yırtık kâğıt
+  const half = [G.W / 2, G.H / 2];
+  for (let q = 0; q < CFG.pieces; q++) {
+    const inQ = (x, y) => (x < half[0]) === (q % 2 === 0) && (y < half[1]) === (q < 2);
+    const c = freeCell((x, y) => inQ(x, y) && distStart[y][x] >= 4 && distStart[y][x] < Infinity) || freeCell((x, y) => inQ(x, y) && distStart[y][x] < Infinity);
+    if (!c) continue;
+    const grp = new THREE.Group(), paper = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.26), MAT.piece);
+    paper.rotation.x = -Math.PI / 2; paper.position.y = 0.012; grp.add(paper);
+    const p = cellCenter(c[0], c[1]).add(new THREE.Vector3(rand(-0.9, 0.9), 0, rand(-0.9, 0.9)));
+    grp.position.copy(p); grp.rotation.y = rand(0, 6); G.world.add(grp);
+    G.pickups.push({ type: "piece", q, mesh: grp, base: p.y });
+  }
+  // walkman: başlangıca yakın
+  {
+    const c = freeCell((x, y) => distStart[y][x] >= 2 && distStart[y][x] <= 5) || freeCell((x, y) => distStart[y][x] < Infinity);
+    const WM = buildModel("walkman", { tweak: { "*": { glow: 0.35 } } }), grp = new THREE.Group();
+    if (WM) { WM.group.scale.setScalar(3); grp.add(WM.group); }
+    else grp.add(new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.04, 0.11), MAT.tape));
+    const p = cellCenter(c[0], c[1]).add(new THREE.Vector3(rand(-0.8, 0.8), 0.02, rand(-0.8, 0.8)));
+    grp.position.copy(p); grp.rotation.y = rand(0, 6); G.world.add(grp);
+    G.pickups.push({ type: "walkman", mesh: grp, base: p.y });
+  }
 
   // yaratık başlangıcı: oyuncudan yol olarak uzak
   const farCells = openCells((x, y) => distStart[y][x] >= CFG.creature.startMinDist && distStart[y][x] < Infinity);
@@ -784,10 +832,20 @@ function buildWritings(distStart) {
   if (n0.length) { const [nx, ny] = pick(n0); G.startYaw = Math.atan2(-(nx - G.start[0]), -(ny - G.start[1])); }
   const rest = WALL_TEXTS.slice().sort(() => Math.random() - 0.5).slice(0, CFG.wallTexts);
   const pool = faces.filter((f) => distStart[f.y][f.x] >= 5);
-  const spot = () => { const ok = pool.filter((f) => placed.every((q) => Math.abs(q.x - f.x) + Math.abs(q.y - f.y) >= 6)); return ok.length ? pick(ok) : null; };
+  const spot = () => { const ok = pool.filter((f) => placed.every((q) => Math.abs(q.x - f.x) + Math.abs(q.y - f.y) >= 5)); return ok.length ? pick(ok) : null; };
+  // haritadaki X: en uzak çıkmazın dip duvarında "buradaydım" notu
+  if (G.mapX) {
+    const [x, y] = G.mapX, [nx, ny] = neighbors(x, y)[0], f = faces.find((q) => q.x === x && q.y === y && q.dx === x - nx && q.dy === y - ny);   // çıkmazın dip duvarı
+    if (f) {
+      const tex = tallyTexture();
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.594), new THREE.MeshLambertMaterial({ map: tex, polygonOffset: true, polygonOffsetFactor: -2 }));
+      mesh.position.copy(cellCenter(f.x, f.y).add(new THREE.Vector3(f.dx, 0, f.dy).multiplyScalar(C / 2 - 0.02))).setY(1.45);
+      mesh.rotation.y = Math.atan2(-f.dx, -f.dy); G.world.add(mesh); placed.push(f);
+    }
+  }
   for (const text of rest) { const f = spot(); if (!f) break; place(f, text); }
   // ofisten taşan notlar: kâğıt, kalem, keçeli
-  for (const nt of MAZE_NOTES.slice().sort(() => Math.random() - 0.5).slice(0, 4)) {
+  for (const nt of MAZE_NOTES.slice().sort(() => Math.random() - 0.5).slice(0, CFG.mazeNotes)) {
     const f = spot(); if (!f) break;
     const [w, h, y] = NOTE_SIZE[nt.k];
     const tex = noteTexture(nt.t, nt.k);
@@ -801,6 +859,16 @@ function buildWritings(distStart) {
 const MAZE_NOTES = [
   { t: "TELEFON ÇALARSA\nAÇMA.", k: "paper" }, { t: "aç.", k: "pencil" }, { t: "AÇAN ARAR.", k: "marker" },
   { t: "telefonun kablosu yok", k: "pencil" }, { t: "SAAT DURMADI.\nBİZ DURDUK.", k: "marker" }, { t: "halı neden hep ıslak", k: "scratch" },
+  { t: "IŞIKLAR OTOMATİKTİR.\nDOKUNMAYINIZ.", k: "paper" }, { t: "MESAİ SAATLERİ\n00:00 – 00:00", k: "paper" },
+  { t: "GÖREVLİ TELEFONA BAKMIYORSA\nTEKRAR ARAMAYINIZ.", k: "paper" }, { t: "Gece nöbetçisi her çağrıyı\nkayıt altına alır.", k: "paper" },
+  { t: "2016 · 2019 · 2021 · 2023 · 2024 · 2026 · ____", k: "paper" },
+  { t: "KAYBOLAN EŞYALAR\nBULUNDUĞU YERDE BIRAKILIR.\nSAHİBİ DÖNER.", k: "paper" },
+  { t: "BU KORİDOR\nBAKIMDADIR.\nBAKIM BİTMEYECEKTİR.", k: "paper" },
+  { t: "YÜRÜMEYE DEVAM EDİNİZ.\nDURMAK DA YÜRÜMEKTİR.", k: "paper" },
+  { t: "kameraya bak.\ntarih aynı. hep aynı.", k: "pencil" }, { t: "uyandığımda yine buradaydım.\nsandalye sıcaktı.", k: "pencil" },
+  { t: "işaretler yine yer değiştirmiş", k: "pencil" }, { t: "SAYMAYI BIRAKTIM. SEN DE BIRAK.", k: "pencil" },
+  { t: "SESİ TANIDIM.\nKENDİ SESİMDİ.", k: "marker" }, { t: "Selim'e söyle gelmesin", k: "pencil" },
+  { t: "fener kapalıyken\nduvarlar daha yakın", k: "pencil" }, { t: "AMCA AŞAĞIDA", k: "crayon" },
 ];
 
 // ============================================================
@@ -836,7 +904,8 @@ function makeDoor() {
   return g;
 }
 
-const MO = new THREE.Vector3(400, 0, 0);   // ofisin dünyadaki yeri (labirentten uzak)
+const MO = new THREE.Vector3(400, 0, 0);
+const OFIS_H = 1.22;   // ofis modelinin dikey ölçeği   // ofisin dünyadaki yeri (labirentten uzak)
 const MAPL = { group: null, dyn: null, mats: [], fixed: [], lamps: [], doors: [], filled: false, ev: null, from: null, loading: false, seen: false };
 function loadMap() {
   if (window.HARITA || MAPL.loading) return;
@@ -846,14 +915,16 @@ function loadMap() {
 function addDoors(distStart, used) {
   G.doors = [];
   const maxD = Math.max(...distStart.flat().filter((d) => d < Infinity));
-  const ends = openCells((x, y) => neighbors(x, y).length === 1 && distStart[y][x] >= Math.max(14, maxD * 0.5) && distStart[y][x] < Infinity && !used.has(x + "," + y)).sort(() => Math.random() - 0.5);
+  // önce uzak çıkmazlar; yetmezse eşik gevşer (her zaman CFG.doors kadar kapı)
+  const endsAt = (k) => openCells((x, y) => neighbors(x, y).length === 1 && distStart[y][x] >= Math.max(8, maxD * k) && distStart[y][x] < Infinity && !used.has(x + "," + y)).sort(() => Math.random() - 0.5);
+  const ends = [...endsAt(0.45), ...endsAt(0.25), ...endsAt(0)];
   for (const [x, y] of ends) {
     if (G.doors.length >= CFG.doors) break;
-    if (G.doors.some((d) => Math.abs(d.x - x) + Math.abs(d.y - y) < 8)) continue;
+    if (G.doors.some((d) => (d.x === x && d.y === y) || Math.abs(d.x - x) + Math.abs(d.y - y) < 8)) continue;
     const [nx, ny] = neighbors(x, y)[0], dx = x - nx, dy = y - ny;
     const pos = cellCenter(x, y).add(new THREE.Vector3(dx, 0, dy).multiplyScalar(C / 2));
     const g = makeDoor(); g.position.copy(pos); g.rotation.y = Math.atan2(-dx, -dy); G.world.add(g);
-    G.doors.push({ kind: "maze", x, y, dx, dy, pos });
+    G.doors.push({ kind: "maze", x, y, dx, dy, pos }); used.add(x + "," + y);
   }
 }
 function buildMap() {
@@ -871,10 +942,11 @@ function buildMap() {
     }
     o.material = m;
   });
+  M.group.scale.y = OFIS_H;   // tavan daha yüksek
   MAPL.group = new THREE.Group(); MAPL.group.position.copy(MO); MAPL.group.add(M.group);
   MAPL.dyn = new THREE.Group(); MAPL.group.add(MAPL.dyn);
   MAPL.group.visible = false; scene.add(MAPL.group);
-  MAPL.lamps = HARITA.lamps.map(([x, y, z]) => ({ pos: new THREE.Vector3(x + MO.x, y - 0.15, z + MO.z) }));
+  MAPL.lamps = HARITA.lamps.map(([x, y, z]) => ({ pos: new THREE.Vector3(x + MO.x, y * OFIS_H - 0.15, z + MO.z) }));
   // dönüş kapısı: koridorun dip duvarı. Girilen çift kapı kilitli.
   const B = HARITA.spawns.B, d = makeDoor();
   d.position.set(6.772, 0, B.pos[1]); d.rotation.y = -Math.PI / 2; MAPL.group.add(d);
@@ -937,6 +1009,26 @@ function noteTexture(text, kind) {
   tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
   return (NOTE_TEX[key] = tex);
 }
+// 1'den 8'e sayılar, 7'ye kadar üstleri çizili; altında BURADAYDIM
+function tallyTexture() {
+  return NOTE_TEX.tally || (NOTE_TEX.tally = makeCanvas(512, 724, (g, w, h) => {
+    g.fillStyle = "#e6e0cd"; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 6; i++) stain(g, rand(0, w), rand(0, h), rand(40, 130), "120,95,45", rand(0.08, 0.22));
+    g.fillStyle = "rgba(230,225,200,0.75)"; g.fillRect(30, -6, 90, 34); g.fillRect(w - 120, -6, 90, 34);
+    g.font = '64px "Comic Sans MS", "Segoe Print", cursive'; g.textAlign = "center"; g.textBaseline = "middle";
+    for (let i = 0; i < 8; i++) {
+      const x = 70 + (i % 4) * 124, y = 150 + Math.floor(i / 4) * 140;
+      g.fillStyle = "rgba(55,55,60,0.85)"; g.fillText(String(i + 1), x + rand(-4, 4), y + rand(-4, 4));
+      if (i < 7) {   // çizik: üst üste iki kalem darbesi
+        g.strokeStyle = "rgba(30,30,35,0.8)"; g.lineWidth = 5;
+        for (let k = 0; k < 2; k++) { g.beginPath(); g.moveTo(x - 38, y + rand(-20, 12)); g.lineTo(x + 38, y + rand(-12, 20)); g.stroke(); }
+      }
+    }
+    g.save(); g.translate(w / 2, 520); g.rotate(-0.05);
+    g.font = 'bold 78px "Comic Sans MS", "Segoe Print", cursive'; g.fillStyle = "rgba(20,20,25,0.9)"; g.fillText("BURADAYDIM", 0, 0);
+    g.restore();
+  }));
+}
 const PIC_TEX = {};
 function mapPlane(tex, w, h, p, n, y, opaque) {
   const m = new THREE.MeshLambertMaterial({ map: tex, transparent: !opaque, depthWrite: !!opaque, polygonOffset: true, polygonOffsetFactor: -2,
@@ -974,7 +1066,8 @@ function fillMap() {
   if (k) MAPL.ev.kosma = { mesh: mapPlane(writingTexture(MAPL.loops ? "BURASI\nAYNI YER" : "KOŞMA"), 2.0, 1.0, k.p, k.n, 1.6), seen: 0, away: 0, done: !!MAPL.loops };
   const shuf = (a) => a.slice().sort(() => Math.random() - 0.5);
   const phone = MAZE_NOTES.slice(0, 3).map((y) => ({ y }));   // telefon notları her girişte
-  const items = [...phone, ...shuf(HARITA.yazilar).slice(0, 7).map((y) => ({ y })), ...shuf(HARITA.resimler).slice(0, 5).map((r) => ({ r }))].sort(() => Math.random() - 0.5);
+  const papers = HARITA.yazilar.filter((y) => y.k === "paper"), others = shuf(HARITA.yazilar.filter((y) => y.k !== "paper")).slice(0, 9);
+  const items = [...phone, ...papers.map((y) => ({ y })), ...others.map((y) => ({ y })), ...shuf(HARITA.resimler).slice(0, 5).map((r) => ({ r }))].sort(() => Math.random() - 0.5);
   for (const it of items) {
     const c = take(() => true); if (!c) break;
     if (it.y) {
@@ -991,7 +1084,7 @@ function fillMap() {
 function enterMap(door) {
   if (S.mode !== "play" || !buildMap()) return;
   MAPL.from = door; S.area = "map"; MAPL.loops = 0;
-  MAPL.ev = { t: 0, next: rand(22, 35), bo: null, phone: null, slam: rand(15, 30), knock: null, kosma: null, breath: 0 };
+  MAPL.ev = { t: 0, next: rand(10, 18), bo: null, phone: null, slam: rand(15, 30), knock: null, kosma: null, breath: 0 };
   fillMap();
   G.world.visible = false; MAPL.group.visible = true;
   const sp = HARITA.spawns.A;
@@ -1284,7 +1377,7 @@ function mapUpdate(dt) {
   if (E.bo) {
     const b = E.bo; b.t += dt;
     if (b.steps < 3 && b.t > 0.8 + b.steps * 0.5) { sfxThud(behind(7 - b.steps * 1.8), 0.25 + 0.2 * b.steps); b.steps++; }
-    if (b.t >= 2.8) { E.bo = null; S.lampTarget = 1; S.flicker = 0.35; E.next = rand(26, 48); }
+    if (b.t >= 2.8) { E.bo = null; S.lampTarget = 1; S.flicker = 0.35; E.next = rand(18, 32); }
   }
   // sahipsiz telefon: üç kez çalar, hep görüş alanının dışında
   if (!E.phone && E.t > 38 && !E.bo) {
@@ -1306,7 +1399,7 @@ function mapUpdate(dt) {
   }
   // uzun süre kıpırdamadan durunca çok yakından, belli belirsiz bir nefes
   E.breath = S.stillFor > 12 ? Math.min(0.2, (S.stillFor - 12) * 0.025) : 0;
-  S.interference = lerp(S.interference, S.interTest ? 1 : E.bo ? 0.2 : 0.03, Math.min(1, dt * 3));
+  S.interference = lerp(S.interference, E.bo ? 0.2 : 0.03, Math.min(1, dt * 3));
   if (AU.ctx) {
     const b = behind(1.2); setPannerPos(AU.panner, b.x, 1.5, b.z);
     setGain(AU.breath, E.breath, 0.3); setGain(AU.static, S.interference * 0.12, 0.1);
@@ -1611,7 +1704,8 @@ const ROADS = [
   { x0: -63.5, x1: -56.5, z0: -105, z1: 3.5 },      // ara sokak
 ];
 // kulübe eski yerel koordinatlarıyla kurulur, sonra döndürülüp ara sokağa taşınır
-const HUT_FRAME = { from: { x: -14, z: -3.1 }, to: { x: -55.2, z: -40 }, rot: -Math.PI / 2 };
+const HUT_DZ = -32;   // kulübe ve araba ara sokağın içlerinde: mazgala giden yol uzun
+const HUT_FRAME = { from: { x: -14, z: -3.1 }, to: { x: -55.2, z: -40 + HUT_DZ }, rot: -Math.PI / 2 };
 function hutP(x, y, z) {
   const dx = x - HUT_FRAME.from.x, dz = z - HUT_FRAME.from.z, c = Math.cos(HUT_FRAME.rot), s = Math.sin(HUT_FRAME.rot);
   return new THREE.Vector3(HUT_FRAME.to.x + dx * c + dz * s, y, HUT_FRAME.to.z - dx * s + dz * c);
@@ -1620,7 +1714,7 @@ function hutInv(x, z) {
   const dx = x - HUT_FRAME.to.x, dz = z - HUT_FRAME.to.z, c = Math.cos(HUT_FRAME.rot), s = Math.sin(HUT_FRAME.rot);
   return [HUT_FRAME.from.x + dx * c - dz * s, HUT_FRAME.from.z + dx * s + dz * c];
 }
-const CAR_START = { x: -57.7, z: -38, yaw: Math.PI };   // kulübenin önünde, güneye bakıyor
+const CAR_START = { x: -57.7, z: -38 + HUT_DZ, yaw: Math.PI };   // kulübenin önünde, güneye bakıyor
 const CAR_SEAT = new THREE.Vector3(-0.38, 1.22, 0.2);   // sürücü (araç yerel; ileri = -z); araba modeli varsa buildCarModel değiştirir
 
 // modeller.js paketinden mesh grubu kurar. Kapı parçaları ayrı bir menteşe grubunda döner.
@@ -1672,6 +1766,14 @@ function buildStreet() {
   shape.holes.push(new THREE.Path([new THREE.Vector2(-hole, -hole), new THREE.Vector2(-hole, hole), new THREE.Vector2(hole, hole), new THREE.Vector2(hole, -hole)]));
   const road = new THREE.ShapeGeometry(shape); road.rotateX(-Math.PI / 2); worldUV(road);
   st.add(new THREE.Mesh(road, M.asphalt));
+  {
+    const pit = new THREE.MeshBasicMaterial({ color: 0x030303, fog: false }), D = 2.4;
+    const bottom = new THREE.Mesh(new THREE.PlaneGeometry(hole * 2, hole * 2), pit); bottom.rotation.x = -Math.PI / 2; bottom.position.y = -D; st.add(bottom);
+    for (let i = 0; i < 4; i++) {
+      const w = new THREE.Mesh(new THREE.PlaneGeometry(hole * 2, D), pit), a = i * Math.PI / 2;
+      w.position.set(-Math.sin(a) * hole, -D / 2, -Math.cos(a) * hole); w.rotation.y = a; st.add(w);
+    }
+  }
   // su birikintileri
   const puddles = [[-6, 0.6, 1.4], [3.2, 1.3, 1.1], [-3.2, 1.6, 0.8], [9, -0.6, 1.6], [-19, 1.0, 1.8], [-34, -1.5, 2.0], [-60.5, -12, 1.6], [-59, -26, 1.3], [-61.5, -55, 1.8], [-48, 2.0, 1.2]];
   for (const [x, z, r] of puddles) {
@@ -1714,7 +1816,7 @@ function buildStreet() {
       // cephe çıkıntısı (tente, tabela) kulübeye değmesin
       const out = key === "dukkan" ? f.line + f.face * B[1][2] : f.line;
       const q = f.h ? [a - w / 2, Math.min(f.line, out), a + w / 2, Math.max(f.line, out)] : [Math.min(f.line, out), a - w / 2, Math.max(f.line, out), a + w / 2];
-      const HUTZ = [-56.5, -46, -51.5, -34];
+      const HUTZ = [-56.5, -46 + HUT_DZ, -51.5, -34 + HUT_DZ];
       if (!free(r) || (B[1][2] > 0.6 && !(q[0] >= HUTZ[2] || q[2] <= HUTZ[0] || q[1] >= HUTZ[3] || q[3] <= HUTZ[1]))) return false;
       used.push(r);
       const b = buildModel(key, { only: part, tweak: { "*": { glow: key === "sokak" ? 0.09 : 0.11 } } });
@@ -1805,9 +1907,9 @@ function buildStreet() {
     const l = { head, light, glow, base: intensity }; lamps.push(l); return l;
   };
   const mainLamp = addLamp(1.5, -3.8, 0, 1, true, 2.4);
-  addLamp(-64.1, -36, 1, 0, true, 0); addLamp(-51.9, -42, -1, 0, true, 1.6);     // kulübe önü
+  addLamp(-64.1, -36 + HUT_DZ, 1, 0, true, 0); addLamp(-51.9, -42 + HUT_DZ, -1, 0, true, 1.6);     // kulübe önü
   addLamp(-55.9, -6, -1, 0, true, 1.4);                                          // kavşak
-  for (const [x, z, dx, dz, on] of [[-56.1, -70, -1, 0, true], [-63.9, -20, 1, 0, false], [-25, -3.9, 0, 1, true], [-40, 3.9, 0, -1, true], [-12, 3.9, 0, -1, false], [20, -3.9, 0, 1, true], [-85, 3.9, 0, -1, true], [-100, -3.9, 0, 1, false]])
+  for (const [x, z, dx, dz, on] of [[-56.1, -40, -1, 0, true], [-63.9, -20, 1, 0, false], [-25, -3.9, 0, 1, true], [-40, 3.9, 0, -1, true], [-12, 3.9, 0, -1, false], [20, -3.9, 0, 1, true], [-85, 3.9, 0, -1, true], [-100, -3.9, 0, 1, false]])
     addLamp(x, z, dx, dz, on, 0);
   // oluklu çöp kutuları: kaldırımlarda, kimi bordürde kimi duvar dibinde
   if (DK) {
@@ -2346,6 +2448,15 @@ function sfxThud(pos, vol = 0.9) {
   o.connect(g).connect(out); n.connect(nf).connect(ng).connect(out);
   o.start(t); o.stop(t + 0.6); n.start(t); n.stop(t + 0.2);
 }
+function sfxTapeTick(pos, k) {
+  if (!AU.ctx) return;
+  const ctx = AU.ctx, t = ctx.currentTime;
+  const n = ctx.createBufferSource(); n.buffer = AU.noise; n.playbackRate.value = rand(0.9, 1.1);
+  const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 3200; bp.Q.value = 1.4;
+  const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.05 * k * GFX.amb, t + 0.25); g.gain.linearRampToValueAtTime(0.0001, t + 0.9);
+  const p = ctx.createPanner(); p.panningModel = "HRTF"; p.refDistance = 2; p.rolloffFactor = 1; setPannerPos(p, pos.x, 0.2, pos.z);
+  n.connect(bp).connect(g).connect(p).connect(AU.master); n.start(t, rand(0, 1)); n.stop(t + 1);
+}
 function sfxClick(freq = 3200, vol = 0.12, dur = 0.025) {
   if (!AU.ctx) return;
   const ctx = AU.ctx, t = ctx.currentTime;
@@ -2483,12 +2594,12 @@ const S = {
   time: 0, playTime: 0,
   yaw: 0, pitch: 0, roll: 0,
   pos: new THREE.Vector3(),
-  stamina: CFG.staminaMax, exhausted: false,
+  stamina: CFG.staminaMax, exhausted: false, pant: 0, pantLineAt: -99, hasWalkman: false, pieces: [],
   bobPhase: 0, bobAmp: 0, lastRun: -99, stillFor: 0,
   battery: 100, lightOn: false,
   lamp: 1, lampTarget: 1, flicker: 0,
   darkness: 0,
-  interference: 0, interTest: false, showDbg: false, lockFailed: false,
+  interference: 0, showDbg: false, lockFailed: false,
   black: 0,
   lastTape: -1, tapesFound: 0,
   intro: null, surface: false,
@@ -2508,7 +2619,7 @@ function resetRun() {
   const [nx, ny] = n.length ? pick(n) : [G.start[0], G.start[1] - 1];
   S.yaw = G.startYaw ?? Math.atan2(-(nx - G.start[0]), -(ny - G.start[1]));
   S.pitch = 0; S.roll = 0;
-  S.stamina = CFG.staminaMax; S.exhausted = false;
+  S.stamina = CFG.staminaMax; S.exhausted = false; S.pant = 0; S.pantLineAt = -99; S.hasWalkman = false; S.pieces = []; MAPIMG.key = null;
   S.battery = 100; S.lightOn = false;
   S.lamp = 1; S.lampTarget = 1; S.interference = 0; S.black = 0;
   S.playTime = 0; S.lastRun = -99; S.stillFor = 0;
@@ -2563,7 +2674,7 @@ function pauseGame() {
   S.paused = true; PAUSE.confirm = null;
   for (const k in keys) keys[k] = false;
   if (VOICE.el) VOICE.el.pause();
-  if (MUSIC.on) MUSIC.el.pause();
+  if (MUSIC.on) { MUSIC.el?.pause(); stopSynthMusic(); }
   if ("speechSynthesis" in window) speechSynthesis.pause();
   if (RAIN.el && !RAIN.routed) RAIN.el.pause();
   if (AU.ctx) AU.ctx.suspend();
@@ -2575,7 +2686,7 @@ function resumeGame(relock = true) {
   S.paused = false; hide("pause");
   if (AU.ctx) AU.ctx.resume();
   if (VOICE.el && VOICE.el._resume) VOICE.el._resume();
-  if (MUSIC.on) MUSIC.el.play().catch(() => {});
+  if (MUSIC.on) { if (MUSIC.missing) startSynthMusic(); else MUSIC.el?.play().catch(() => {}); }
   if ("speechSynthesis" in window) speechSynthesis.resume();
   if (RAIN.el && !RAIN.routed && !RAIN.synth) RAIN.el.play().catch(() => {});
   for (const f of PAUSE_Q.splice(0)) f();
@@ -2645,7 +2756,6 @@ addEventListener("keydown", (e) => {
   if (e.code === "Tab") { e.preventDefault(); S.inv = !S.inv; if (S.inv) renderInv(); $("inv").classList.toggle("hidden", !S.inv); }
   if (S.inv && /^Digit[1-9]$/.test(e.code)) { const t = S.tapes[+e.code.slice(5) - 1]; if (t !== undefined) { S.inv = false; hide("inv"); playTape(t); } }
   if (e.code === "KeyT" && S.lastTape >= 0) playTape(S.lastTape);
-  if (e.code === "KeyI") { S.interTest = !S.interTest; toast(S.interTest ? "PARAZİT TESTİ: AÇIK" : "PARAZİT TESTİ: KAPALI"); }
   if (e.code === "KeyB") { S.showDbg = !S.showDbg; $("dbg").classList.toggle("hidden", !S.showDbg); }
 });
 addEventListener("keyup", (e) => { keys[e.code] = false; });
@@ -2663,26 +2773,101 @@ function renderInv() {
   let h = "<h3>ENVANTER</h3>";
   h += row(`FENER · %${Math.ceil(S.battery)}`, S.lightOn ? "açık" : "kapalı");
   h += row(`YEDEK PİL · ${S.batteries}`, S.batteries ? "R · tak" : "");
-  h += row("WALKMAN", MUSIC.on ? "çalıyor · M durdur" : "M · çal");
+  if (S.hasWalkman) h += row("WALKMAN", MUSIC.on ? "çalıyor · M durdur" : "M · çal");
   h += row(`RUH SAĞLIĞI · %${Math.round(S.sanity)}`, S.sanity < 30 ? "müzik dinle" : "");
   h += `<div class="row"><span>KASETLER · ${S.tapes.length}/${CFG.tapes}</span><span class="k">${S.tapes.length ? "numara · tekrar izle" : ""}</span></div>`;
   S.tapes.forEach((t, i) => { const T = TAPES[t]; h += row(`${i + 1} · ${T.who}`, T.date); });
+  h += `<div class="row"><span>HARİTA · ${S.pieces.length}/${CFG.pieces}</span><span class="k">${S.pieces.length >= CFG.pieces ? "tamam" : ""}</span></div>`;
+  if (S.pieces.length) h += `<img class="map" src="${mapImage()}">`;
   $("inv").innerHTML = h;
+}
+// toplanan parçalardan birleşen labirent haritası (kurşun kalem); X en uzak çıkmaz
+const MAPIMG = { key: null, url: "" };
+function mapImage() {
+  const key = S.pieces.slice().sort().join();
+  if (MAPIMG.key === key) return MAPIMG.url;
+  const W = G.W, H = G.H, cs = Math.floor(380 / Math.max(W, H)), pad = 14;
+  const c = document.createElement("canvas"); c.width = W * cs + pad * 2; c.height = H * cs + pad * 2;
+  const g = c.getContext("2d");
+  g.fillStyle = "#1a1913"; g.fillRect(0, 0, c.width, c.height);
+  const qOf = (x, y) => (x >= W / 2 ? 1 : 0) + (y >= H / 2 ? 2 : 0);
+  for (const q of S.pieces) {   // parça: yırtık kenarlı kâğıt
+    const x0 = q % 2 ? Math.floor(W / 2) : 0, x1 = q % 2 ? W : Math.floor(W / 2), y0 = q >= 2 ? Math.floor(H / 2) : 0, y1 = q >= 2 ? H : Math.floor(H / 2);
+    g.fillStyle = "#ddd5bb"; g.fillRect(pad + x0 * cs + rand(0, 2), pad + y0 * cs + rand(0, 2), (x1 - x0) * cs - rand(0, 3), (y1 - y0) * cs - rand(0, 3));
+  }
+  g.fillStyle = "rgba(45,44,48,0.82)";
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (G.grid[y][x] && S.pieces.includes(qOf(x, y))) g.fillRect(pad + x * cs, pad + y * cs, cs, cs);
+  if (G.mapX && S.pieces.includes(qOf(...G.mapX))) {
+    const cx = pad + (G.mapX[0] + 0.5) * cs, cy = pad + (G.mapX[1] + 0.5) * cs;
+    g.strokeStyle = "rgba(160,25,20,0.9)"; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(cx - 7, cy - 7); g.lineTo(cx + 7, cy + 7); g.moveTo(cx + 7, cy - 7); g.lineTo(cx - 7, cy + 7); g.stroke();
+    g.fillStyle = "rgba(160,25,20,0.9)"; g.font = 'bold 13px "Courier New", monospace'; g.textAlign = "center"; g.fillText("ÇIKIŞ", cx, cy - 11);
+  }
+  MAPIMG.key = key; MAPIMG.url = c.toDataURL();
+  return MAPIMG.url;
 }
 // walkman: tek parça müzik (ses/muzik.mp3). Dinlerken ruh sağlığı toparlanır.
 const MUSIC = { el: null, on: false, missing: false };
 function toggleMusic() {
   if (MUSIC.on) { stopMusic(); sfxClick(500, 0.2, 0.04); return; }
-  if (MUSIC.missing) { toast("WALKMAN BOŞ"); return; }
+  if (!S.hasWalkman) { toast("WALKMAN YOK"); return; }
+  if (MUSIC.missing) { MUSIC.on = true; startSynthMusic(); sfxClick(500, 0.2, 0.04); return; }
   if (!MUSIC.el) {
     MUSIC.el = new Audio("ses/muzik.mp3"); MUSIC.el.loop = true;
-    MUSIC.el.onerror = () => { MUSIC.missing = true; MUSIC.on = false; toast("WALKMAN BOŞ"); };
+    MUSIC.el.onerror = () => { MUSIC.missing = true; if (MUSIC.on) startSynthMusic(); };   // dosya yoksa walkman'deki eski kaset
   }
   MUSIC.el.volume = clamp(0.7 * GFX.vol, 0, 1);
   const pr = MUSIC.el.play(); if (pr && pr.catch) pr.catch(() => {});
   MUSIC.on = true; sfxClick(500, 0.2, 0.04);
 }
-function stopMusic() { if (MUSIC.el) MUSIC.el.pause(); MUSIC.on = false; }
+function stopMusic() { if (MUSIC.el) MUSIC.el.pause(); stopSynthMusic(); MUSIC.on = false; }
+// ses/muzik.mp3 gelene kadar: bandı esnemiş, yavaş bir ezgi (kaset titremesiyle)
+function startSynthMusic() {
+  if (!AU.ctx || MUSIC.synth) return;
+  const ctx = AU.ctx, out = ctx.createGain(); out.gain.value = 0.0001; out.gain.setTargetAtTime(0.06 * GFX.vol, ctx.currentTime, 0.4);
+  const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1500; lp.connect(out).connect(AU.master);
+  const wow = ctx.createOscillator(), wowG = ctx.createGain(); wow.frequency.value = 0.6; wowG.gain.value = 9; wow.connect(wowG); wow.start();
+  const notes = [57, 60, 64, 62, 60, 55, 57, 52, 53, 57, 60, 59, 57, 52, 55, 57], hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  let i = 0;
+  const step = () => {
+    const t = ctx.currentTime, m = notes[i++ % notes.length];
+    for (const [type, mul, v] of [["triangle", 1, 0.5], ["sine", 0.5, 0.35]]) {
+      const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.value = hz(m) * mul; wowG.connect(o.detune);
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.5);
+      o.connect(g).connect(lp); o.start(t); o.stop(t + 1.6);
+    }
+  };
+  step(); MUSIC.synth = { out, wow, timer: setInterval(step, 620) };
+}
+function stopSynthMusic() {
+  const M = MUSIC.synth; if (!M) return;
+  clearInterval(M.timer); M.out.gain.setTargetAtTime(0.0001, AU.ctx.currentTime, 0.15); M.wow.stop(AU.ctx.currentTime + 0.5); MUSIC.synth = null;
+}
+// koşu bitince nefes nefese: hırıltılı soluk, ara ara Selim'in repliği
+const PANT_LINES = [
+  { who: "SELİM", file: "selim_nefes_01", text: "Dur... dur biraz." },
+  { who: "SELİM", file: "selim_nefes_02", text: "Bu koridor... bitmiyor." },
+  { who: "SELİM", file: "selim_nefes_03", text: "Kalbim kulağımda atıyor." },
+  { who: "SELİM", file: "selim_nefes_04", text: "Kimse yok. Kimse yok..." },
+  { who: "SELİM", file: "selim_nefes_05", text: "Nereye koşuyorum ben?" },
+];
+function startPant() {
+  S.pant = CFG.pantTime; S.pantPhase = 0;
+  if (S.playTime - S.pantLineAt > 25 && Math.random() < 0.6) { S.pantLineAt = S.playTime; setTimeout(() => { if (S.mode === "play") sayLine(pick(PANT_LINES), null, 3200); }, 1400); }
+}
+function updatePant(dt) {
+  if (S.pant <= 0) return;
+  S.pant -= dt; S.pantPhase = (S.pantPhase || 0) - dt;
+  if (S.pantPhase <= 0 && AU.ctx) {
+    const k = clamp(S.pant / CFG.pantTime, 0.25, 1), inhale = (S.pantIn = !S.pantIn);
+    S.pantPhase = lerp(0.95, 0.5, k) * (inhale ? 0.8 : 1);
+    const ctx = AU.ctx, t = ctx.currentTime, n = ctx.createBufferSource(); n.buffer = AU.noise;
+    const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = inhale ? 1500 : 900; bp.Q.value = 0.9;
+    const g = ctx.createGain(), v = 0.16 * k * plainVol(1, GFX.voice), d = S.pantPhase * 0.85;
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v, t + d * 0.35); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    n.connect(bp).connect(g).connect(AU.master); n.start(t, rand(0, 1)); n.stop(t + d + 0.05);
+  }
+}
 function updateSanity(dt) {
   const maze = S.area === "maze";
   const near = maze ? clamp(1 - CR.pathDist / 8, 0, 1) : 0;
@@ -3176,30 +3361,31 @@ function updatePlayer(dt) {
   const f = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
   const s = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
   const moving = f !== 0 || s !== 0;
-  const wantRun = (keys.ShiftLeft || keys.ShiftRight) && moving && f >= 0;
-  if (S.exhausted && S.stamina >= CFG.staminaMinToRun) S.exhausted = false;
+  const walking = moving && !S.trans && !S.crouch;   // kapı geçişinde ve eğilirken yerinde durur (sallanma yok)
+  const wantRun = (keys.ShiftLeft || keys.ShiftRight) && walking && f >= 0;
+  if (S.exhausted && S.stamina >= CFG.staminaMinToRun && S.pant <= 0) S.exhausted = false;
   const running = wantRun && !S.exhausted && S.stamina > 0;
-  if (running) { S.stamina -= CFG.staminaDrain * dt; S.lastRun = S.playTime; if (S.stamina <= 0) { S.stamina = 0; S.exhausted = true; } }
-  else S.stamina = Math.min(CFG.staminaMax, S.stamina + CFG.staminaRegen * dt * (moving ? 0.6 : 1));
+  if (running) { S.stamina -= CFG.staminaDrain * dt; S.lastRun = S.playTime; if (S.stamina <= 0) { S.stamina = 0; S.exhausted = true; startPant(); } }
+  else S.stamina = Math.min(CFG.staminaMax, S.stamina + (S.exhausted ? CFG.staminaRegenTired : CFG.staminaRegen) * dt * (walking ? 0.6 : 1));
 
-  const speed = running ? CFG.runSpeed : CFG.walkSpeed;
+  const speed = running ? CFG.runSpeed : CFG.walkSpeed * (S.pant > 0 ? 0.8 : 1);
   let vx = 0, vz = 0;
-  if (moving && !S.trans && !S.crouch) {
+  if (walking) {
     const sy = Math.sin(S.yaw), cy = Math.cos(S.yaw);
     vx = -sy * f + cy * s; vz = -cy * f - sy * s;
     const len = Math.hypot(vx, vz); vx = vx / len * speed * dt; vz = vz / len * speed * dt;
     if (!blocked(S.pos.x + vx, S.pos.z)) S.pos.x += vx;
     if (!blocked(S.pos.x, S.pos.z + vz)) S.pos.z += vz;
   }
-  S.stillFor = moving ? 0 : S.stillFor + dt;
+  S.stillFor = walking ? 0 : S.stillFor + dt;
 
   // kafa sallanması
   const bob = running ? CFG.bobRun : CFG.bobWalk;
-  S.bobAmp = lerp(S.bobAmp, moving ? 1 : 0, Math.min(1, dt * 8));
+  S.bobAmp = lerp(S.bobAmp, walking ? 1 : 0, Math.min(1, dt * 8));
   const prevSin = Math.sin(S.bobPhase);
-  if (moving) S.bobPhase += dt * bob.freq;
-  if (moving && prevSin > 0 && Math.sin(S.bobPhase) <= 0) sfxStep(running);
-  if (moving && prevSin < 0 && Math.sin(S.bobPhase) >= 0) sfxStep(running);
+  if (walking) S.bobPhase += dt * bob.freq;
+  if (walking && prevSin > 0 && Math.sin(S.bobPhase) <= 0) sfxStep(running);
+  if (walking && prevSin < 0 && Math.sin(S.bobPhase) >= 0) sfxStep(running);
   S.bobOffY = Math.abs(Math.sin(S.bobPhase)) * bob.amp * S.bobAmp - bob.amp * 0.5 * S.bobAmp;
   S.bobOffX = Math.cos(S.bobPhase) * bob.sway * S.bobAmp;
 
@@ -3225,8 +3411,16 @@ function updatePlayer(dt) {
       if (p.type === "battery") {
         S.batteries++; sfxClick(1800, 0.2, 0.03);
         toast(S.battery < 60 ? "PİL ALINDI · R ile tak" : "PİL ALINDI · TAB envanter");
+      } else if (p.type === "piece") {
+        if (!S.pieces.includes(p.q)) S.pieces.push(p.q);
+        sfxClick(2400, 0.12, 0.05); setTimeout(() => sfxClick(1900, 0.1, 0.05), 90);
+        toast(S.pieces.length >= CFG.pieces ? "HARİTA TAMAMLANDI · TAB" : `HARİTA PARÇASI ${S.pieces.length}/${CFG.pieces} · TAB`, 2600);
+      } else if (p.type === "walkman") {
+        S.hasWalkman = true; sfxClick(1200, 0.2, 0.04);
+        toast("WALKMAN ALINDI · M ile dinle", 2800);
       } else {
         S.tapesFound++; S.lastTape = p.tape; if (!S.tapes.includes(p.tape)) S.tapes.push(p.tape);
+        p.mesh.parent?.remove(p.mesh);
         sfxClick(800, 0.3, 0.08); S.crouch = null;
         playTape(p.tape);
         return;
@@ -3241,6 +3435,8 @@ function updatePlayer(dt) {
     p.mesh.position.y = p.base + Math.sin(S.time * 2 + i) * 0.02;
     if (p.type === "battery") p.mesh.rotation.y += dt * 0.8;
     const d = Math.hypot(p.mesh.position.x - S.pos.x, p.mesh.position.z - S.pos.z);
+    // kasetler yakındayken hafifçe hışırdar (bant sesi), yerini kulakla bulmak için
+    if (p.type === "tape" && d < 9 && S.area === "maze" && (p.tick = (p.tick || rand(0, 2)) - dt) <= 0) { p.tick = rand(1.6, 2.6); sfxTapeTick(p.mesh.position, 1 - d / 9); }
     if (d < 1.1 && !S.crouch && !S.trans) { G.pickups.splice(i, 1); S.crouch = { t: 0, item: p, from: p.mesh.position.clone(), done: false }; }
   }
 }
@@ -3379,7 +3575,7 @@ function updateCreature(dt) {
   // yakınlık: parazit + nefes
   const prox = clamp(1 - CR.pathDist / 10, 0, 1);
   const inter = Math.pow(clamp(1 - (CR.pathDist - 1) / 6, 0, 1), 1.3) * 0.9;
-  S.interference = lerp(S.interference, Math.max(inter, CR.bo ? 0.25 : 0, S.interTest ? 1 : 0), Math.min(1, dt * 3));
+  S.interference = lerp(S.interference, Math.max(inter, CR.bo ? 0.25 : 0), Math.min(1, dt * 3));
   const cp = cellCenter(CR.x, CR.y);
   if (AU.ctx) {
     setPannerPos(AU.panner, cp.x, 1.4, cp.z);
@@ -3544,6 +3740,7 @@ function frame(now) {
     updatePlayer(dt);
     if (S.mode === "play") updateCreature(dt);
     if (S.mode === "play") updateSanity(dt);
+    if (S.mode === "play") updatePant(dt);
   } else if (S.mode === "tape") drawTapeNoise();
 
   if (G) {

@@ -67,7 +67,9 @@ Davranış:
 - [x] Gerçekçi birinci şahıs eller: fener tutan sağ el, yerden alan sol el, direksiyonda iki el
 - [ ] Gövde: Flow kıyafet dokuları
 - [ ] Elektrik panosu ve şifre
-- [ ] Harita parçası
+- [x] Harita parçası: 4 çeyrek, TAB'da birleşir; X en uzak çıkmazı gösterir, orada "BURADAYDIM" notu (1-8, 7'ye kadar çizik)
+- [x] Koşu ~20 sn, tükenince yavaş dolar ve nefes nefese kalır (Selim replikleri: SESLENDIRME.md)
+- [x] Walkman labirentte bulunur; muzik.mp3 yoksa kodla ezgi
 - [ ] Çıkış ve final
 - [x] Daha fazla kaset / bodycam kaydı (Halil, Zeynep, Selim)
 - [ ] İngilizce desteği
