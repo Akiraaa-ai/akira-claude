@@ -69,7 +69,7 @@ Davranış:
 - [x] Labirentte ofise açılan kapılar (E), ofis haritası, duvar notları ve resimler, ofiste gerilim olayları
 - [x] Oyuncunun giyimli gövdesi (aşağı bakınca görünür, yürürken bacak/kol hareketi)
 - [x] Envanter (TAB), yedek pil (R), eğilip alma, ruh sağlığı ve walkman müziği (M, ses/muzik.mp3); müzik çalarken ortam sesleri kısılır, ruh sağlığı yavaş dolar
-- [x] Gerçekçi birinci şahıs eller: Outlast tarzı iskeletli kol modeli (Matt Rafferty), fener tutan sağ el, yerden alan sol el, direksiyonda iki el, evde sigara
+- [x] Gerçekçi birinci şahıs eller: Outlast tarzı eldivenli, iskeletli kol modeli (alp'in gönderdiği), fener tutan sağ el, yerden alan sol el, direksiyonda iki el, evde sigara
 - [ ] Gövde: Flow kıyafet dokuları
 - [ ] Elektrik panosu ve şifre
 - [x] Harita parçası: 4 çeyrek, TAB'da birleşir; X en uzak çıkmazı gösterir, orada "BURADAYDIM" notu (1-8, 7'ye kadar çizik)

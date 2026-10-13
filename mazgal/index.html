@@ -175,7 +175,7 @@
     <div class="credits hidden" id="credits">
       <b>MAZGAL</b>Fikir, hikâye ve yönetim: alp
       <b>SES</b>Yağmur: liecio (Pixabay) · Radyo şarkısı ve anlatıcı: alp
-      <b>3D MODELLER (SKETCHFAB)</b>Bekçi kulübesi: castleonsandYT (CC BY 4.0)<br>Masa telefonu: R3indeer (CC BY-NC 4.0)<br>Tüplü TV: Timothy Ahene<br>Sokak: dasy444<br>Walkman ve kaset: heat_of_fusion<br>Pil: trashbinkr<br>Konserve ve katlanır sandalye: Antarct1c<br>Ofis: VTX<br>Eller: Matt Rafferty (CC BY 4.0)<br>Gövde: BlakkMato (CC BY 4.0)<br>Araba: amirbuilds2000
+      <b>3D MODELLER (SKETCHFAB)</b>Bekçi kulübesi: castleonsandYT (CC BY 4.0)<br>Masa telefonu: R3indeer (CC BY-NC 4.0)<br>Tüplü TV: Timothy Ahene<br>Sokak: dasy444<br>Walkman ve kaset: heat_of_fusion<br>Pil: trashbinkr<br>Konserve ve katlanır sandalye: Antarct1c<br>Ofis: VTX<br>Eller: Rigged FPS Arms<br>Gövde: BlakkMato (CC BY 4.0)<br>Araba: amirbuilds2000
       <b>MOTOR</b>three.js
     </div>
   </div>
@@ -1377,7 +1377,7 @@ function updateBody() {
   B.upperarmL.scale.setScalar(vm); B.upperarmR.scale.setScalar(vm);
 }
 // ============================================================
-// BİRİNCİ ŞAHIS ELLER (Sketchfab "(Animation) FPS Arms For Games", Matt Rafferty, CC BY 4.0)
+// BİRİNCİ ŞAHIS ELLER ("Rigged FPS Arms", eldivenli; alp'in gönderdiği dosya)
 // iskeletli eller kameraya bağlı; iki kemikli IK ile bilek hedefe, el yönü ve parmak bükümü kodla.
 // ceket kolu bake sırasında kolların dışa ötelenmiş kabuğu. ayrı katmanda (1) çizilir: duvara girmez.
 // ============================================================
@@ -1397,10 +1397,11 @@ function setupHands(gl) {
   let skin = null; model.traverse((o) => { if (o.isSkinnedMesh) skin = o; });
   if (!skin) return;
   skin.frustumCulled = false;
-  // duruş: modelin kendi animasyonundan sakin bir kare
-  const mix = new THREE.AnimationMixer(model); mix.clipAction(gl.animations[0]).play(); mix.setTime(14); mix.stopAllAction();
-  // model santimetre, ileri +z: kameranın -z'sine çevir; göz modelin kamerasında
-  model.scale.setScalar(0.01); model.rotation.y = Math.PI; model.position.set(0, -1.645, 0.033);
+  // oyun doğrusal çıkışla çiziliyor: doku sRGB sayılırsa eldiven simsiyah görünür
+  if (skin.material.map) { skin.material.map.encoding = THREE.LinearEncoding; skin.material.needsUpdate = true; }
+  // model ileri +z: kameranın -z'sine çevir; omuzlar gözün 18 cm altında
+  const C = HAND_MODEL;
+  model.scale.setScalar(C.scale); model.rotation.y = Math.PI; model.position.set(...C.pos);
   const rig = new THREE.Group(); rig.add(model); camera.add(rig);
   // ellerin kendi ışığı (yalnız el geçişinde): yumuşak ortam + sol üstten ana ışık
   const hemi = new THREE.HemisphereLight(0xfff1e2, 0x3a342e, 0.9), key = new THREE.DirectionalLight(0xfff0dc, 1.1);
@@ -1409,13 +1410,13 @@ function setupHands(gl) {
   HANDS.key = key; HANDS.hemi = hemi;
   rig.updateMatrixWorld(true);
   const bones = skin.skeleton.bones;
-  const j = (s, n) => bones.find((b) => b.name.startsWith("Character1_" + s + n + "_"));
+  const j = (n, k) => bones.find((b) => b.name === n + k);
   // kol, önkol, bilek (el kemiği iki kez: konum ve yön)
   HANDS.T = {};
-  for (const [k, s] of [["R", "Right"], ["L", "Left"]]) {
-    HANDS.B[k] = [j(s, "Arm"), j(s, "ForeArm"), j(s, "Hand"), j(s, "Hand")];
-    HANDS.F[k] = ["Pinky1", "Ring1", "Middle1", "Index1"].map((n) => j(s, "Hand" + n));   // parmak kökleri: serçe, yüzük, orta, işaret
-    HANDS.T[k] = j(s, "HandThumb1");
+  for (const k of ["R", "L"]) {
+    HANDS.B[k] = [j("upper_arm", k), j("forearm", k), j("hand", k), j("hand", k)];
+    HANDS.F[k] = ["f_pinky01", "f_ring01", "f_middle01", "f_index01"].map((n) => j(n, k));   // parmak kökleri: serçe, yüzük, orta, işaret
+    HANDS.T[k] = j("thumb01", k);
   }
   HANDS.bones = bones; HANDS.rest = bones.map((b) => b.quaternion.clone());
   // el feneri
@@ -1429,9 +1430,11 @@ function setupHands(gl) {
   rig.visible = false;
   HANDS.rig = rig;
 }
+// kol modeli: ölçek ve konum (model birimi ~0,43 cm, omuz y 466)
+const HAND_MODEL = { scale: 0.0034, pos: [0, -0.2 - 466 * 0.0034, 5.85 * 0.0034 + 0.08] };
 // el pozları (kamera yerel yönler): fener tutan sağ el ve direksiyondaki eller
 const HAND_TUNE = {
-  torch: { p: [0.14, -0.12, -0.3], gx: [0, 0.1, -1], gy: [1, -0.2, 0], curl: 1.2, th: 0.5, thAx: 1, ax: [0.03, 0.06, -1], off: 0.05 },
+  torch: { p: [0.17, -0.19, -0.36], gx: [0, 0.1, -1], gy: [0.9, 0.4, 0], curl: 1.2, th: 0.5, thAx: 1, ax: [0.05, 0.2, -1], off: 0.05 },
   wheel: { R: -1, L: -1, gyR: [0, 0, -1], gyL: [1, 0, -1], curl: 0.85, roll: 0.785 },
   rs: 1,
 };
@@ -1494,7 +1497,7 @@ function updateHands(dt) {
   H.rig.visible = !!show; if (!show) return;
   if (H.cig) H.cig.visible = false;
   H.bones.forEach((b, i) => b.quaternion.copy(H.rest[i]));
-  H.rig.position.set(0, carArms ? -0.04 : 0, carArms ? 0.22 : 0);   // koltukta omuzlar daha geride
+  H.rig.position.set(0, carArms ? -0.06 : 0, carArms ? 0.08 : 0);   // koltukta omuzlar daha geride
   camera.updateMatrixWorld(true); H.rig.updateMatrixWorld(true);
   const w = (x, y, z) => camera.localToWorld(new THREE.Vector3(x, y, z)), dv = (x, y, z) => new THREE.Vector3(x, y, z).transformDirection(camera.matrixWorld);
   H.torch.visible = !carArms && !smk && H.kl > 0.01;
