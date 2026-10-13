@@ -3162,7 +3162,21 @@ function leaveSplash() {
 }
 function openMenu() {
   MENU.on = true; MENU.panel = null; MENU.confirm = null; MENU.yaw = S.yaw;
+  // arka plan: gece, yağmur, açık mazgal ve titreyen lamba
+  if (!G.street) buildStreet();
+  S.surface = true; S.lightOn = false; startRain();
   renderMenu(); show("title");
+}
+function menuStreet(dt) {   // mazgalın başında yavaşça kayan, yağmurlu bir gece kaydı
+  const R = G.street, sc = cellCenter(G.start[0], G.start[1]), O = new THREE.Vector3(sc.x, STREET_Y, sc.z);
+  const u = Math.sin(S.time * 0.045), p = new THREE.Vector3(-2.3 + u * 0.7, 1.5 + Math.sin(S.time * 0.31) * 0.03, 4.2 - u * 0.4).add(O);
+  S.pos.copy(p); lookFrom(p, new THREE.Vector3(0.5 + u * 0.3, -0.15, -1.1).add(O)); S.roll = Math.sin(S.time * 0.7) * 0.008;
+  R.rain.visible = true; updateRain(dt); setRain(0.75, false, dt);
+  const L = R.mainLamp;   // lamba ara sıra titrer
+  if (Math.random() < dt * 0.35) MENU.flk = rand(0.15, 0.7);
+  const f = MENU.flk > 0 ? rand(0.05, 0.6) : 1; MENU.flk = (MENU.flk || 0) - dt;
+  L.light.intensity = L.base * 0.45 * f; L.head.material.color.setHex(f < 0.5 ? 0x5a3a20 : 0xffb46a); L.glow.material.opacity = 0.32 * f;   // kısık: ıslak asfaltta parlama yapmasın
+  S.interference = Math.max(0.03, (S.interference || 0) - dt * 1.5); if (Math.random() < dt * 0.12) S.interference = 0.4;
 }
 function renderMenu() {
   for (const b of $("mainNav").querySelectorAll("button")) {
@@ -3184,7 +3198,7 @@ function menuAction(m) {
   if (m === "quit") {
     if (MENU.confirm !== "quit") { MENU.confirm = "quit"; renderMenu(); return; }
     window.close();   // tarayıcı izin vermezse açılış ekranına dön
-    MENU.on = false; MENU.confirm = null; hide("title"); $("splash").classList.add("skip"); show("splash");
+    MENU.on = false; MENU.confirm = null; hide("title"); leaveStreet(); $("splash").classList.add("skip"); show("splash");
     return;
   }
   MENU.confirm = null;
@@ -4406,10 +4420,8 @@ function frame(now) {
 
   if (G) {
     if (S.mode !== "title") updateLights(dt);
-    else {   // ana menü arka planı: koridorda yavaşça etrafa bakan kayıt
-      S.yaw = (MENU.yaw ?? S.yaw) + Math.sin(S.time * 0.06) * 0.55; S.pitch = 0.04 * Math.sin(S.time * 0.13); S.roll = 0;
-      S.interference = Math.max(0.02, (S.interference || 0) - dt * 1.5); if (Math.random() < dt * 0.15) S.interference = 0.45;
-    }
+    else if (G.street && S.surface) menuStreet(dt);   // ana menü: yağmurlu sokak
+    else S.yaw = MENU.yaw ?? S.yaw;
     camera.position.copy(S.pos);
     if (S.mode === "play") {
       const sy = Math.sin(S.yaw), cy = Math.cos(S.yaw);
