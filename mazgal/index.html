@@ -1983,8 +1983,8 @@ function smokeCycle(I, dt, on) {
 // ------------------------------------------------------------
 const TV_LEN = 58.6;
 const TV_SHOTS = [
-  [0, 1.0, "on"], [1.0, 11.8, "video", 0], [11.8, 14.2, "foto1"], [14.2, 17.9, "foto2"], [17.9, 24.5, "street"],
-  [24.5, 30.0, "foto4"], [30.0, 34.4, "foto3"], [34.4, 41.0, "hole"], [41.0, 47.5, "video", 3.2], [47.5, 53.0, "lamp"], [53.0, 58.6, "room"],
+  [0, 1.0, "on"], [1.0, 11.8, "video", 0], [11.8, 16.0, "foto1"], [16.0, 20.5, "foto2"], [20.5, 25.5, "bars"],
+  [25.5, 31.0, "foto4"], [31.0, 36.5, "foto3"], [36.5, 43.5, "video", 3.2], [43.5, 48.0, "bars"], [48.0, 53.0, "snow"], [53.0, 58.6, "room"],
 ];
 const TVM = { media: null, noise: null };
 function tvMedia() {
@@ -2019,6 +2019,15 @@ function tvOverlay(I, t, sh) {
     const v = M.video;
     if (v.readyState >= 2) tvCover(c, w, h, v, v.videoWidth, v.videoHeight, u, 0.3, 0.1);
     else { c.fillStyle = "#000"; c.fillRect(0, 0, w, h); }
+  } else if (kind === "bars") {   // gece kuşağı kamu yayını: renk çubukları, kayan yazı
+    const cols = ["#c0c0c0", "#c0c000", "#00c0c0", "#00c000", "#c000c0", "#c00000", "#0000c0"];
+    cols.forEach((col, i) => { c.fillStyle = col; c.fillRect(i * w / 7, 0, w / 7 + 1, h * 0.68); });
+    c.fillStyle = "#111"; c.fillRect(0, h * 0.68, w, h * 0.32);
+    c.fillStyle = "#ddd"; c.font = `bold ${h * 0.07 | 0}px "Courier New", monospace`; c.textAlign = "center";
+    c.fillText("GECE KUŞAĞI · KAMU YAYINI", w / 2, h * 0.8);
+    c.font = `${h * 0.05 | 0}px "Courier New", monospace`; c.fillText("YAYINIMIZ BİRAZDAN DEVAM EDECEKTİR", w / 2 - (u - 0.5) * w * 0.15, h * 0.9);
+  } else if (kind === "snow") {
+    tvNoise(c, w, h, 1);
   } else if (!d3) {
     const im = M[kind];
     if (!(im.complete && tvCover(c, w, h, im, im.naturalWidth, im.naturalHeight, u, kind === "foto2" ? -0.5 : 0.4, 0.3))) { c.fillStyle = "#000"; c.fillRect(0, 0, w, h); }
