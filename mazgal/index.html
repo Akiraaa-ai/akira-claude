@@ -3300,7 +3300,7 @@ function menuStreet(dt) {   // mazgalın başında yavaşça kayan, yağmurlu bi
   const R = G.street, sc = cellCenter(G.start[0], G.start[1]), O = new THREE.Vector3(sc.x, STREET_Y, sc.z);
   const u = Math.sin(S.time * 0.045), p = new THREE.Vector3(-2.3 + u * 0.7, 1.5 + Math.sin(S.time * 0.31) * 0.03, 4.2 - u * 0.4).add(O);
   S.pos.copy(p); lookFrom(p, new THREE.Vector3(0.5 + u * 0.3, -0.15, -1.1).add(O)); S.roll = Math.sin(S.time * 0.7) * 0.008;
-  R.rain.visible = true; updateRain(dt); setRain(0.75, false, dt);
+  R.rain.visible = true; updateRain(dt); setRain(0.3, false, dt);
   const L = R.mainLamp;   // lamba ara sıra titrer
   if (Math.random() < dt * 0.35) MENU.flk = rand(0.15, 0.7);
   const f = MENU.flk > 0 ? rand(0.05, 0.6) : 1; MENU.flk = (MENU.flk || 0) - dt;
@@ -3794,7 +3794,7 @@ function introUpdate(dt) {
     const inHome = HOME_PH.has(I.phase);
     const inHut = I.phase === "hut" || I.phase === "call" || (I.phase === "exit" && I.t < 5.2);
     const inCar = I.phase === "drive" || I.phase === "park" || I.phase === "drive0" || I.phase === "park0" || ((I.phase === "getin" || I.phase === "getin0") && I.t > 0.7);
-    setRain(inHome ? (I.phase === "tv" ? 0.1 : 0.3) : inHut ? 0.4 : inCar ? 0.6 : 0.85, inHome || inHut || inCar, dt);
+    setRain(inHome ? (I.phase === "tv" ? 0.05 : 0.13) : inHut ? 0.2 : inCar ? 0.3 : 0.4, inHome || inHut || inCar, dt);   // yağmur arka planda kalsın
     if (!inHome) R.rain.visible = true;
     updateCarFx(dt, inCar);
     setGain(AU.wind, I.phase === "exit" || inHome ? 0 : 0.025, 0.5); AU.windFilter?.frequency.setTargetAtTime(220, AU.ctx.currentTime, 0.3);   // uzak şehir uğultusu (kulübeden çıkarken yalnız yağmur)
@@ -4086,7 +4086,7 @@ function introUpdate(dt) {
     S.black = smooth(clamp((t - 1.85) / 0.4, 0, 1));
     S.lamp = clamp(t / FALL, 0, 1);
     updateRain(dt);
-    setRain(0.85 * (1 - t / FALL), false, dt);
+    setRain(0.4 * (1 - t / FALL), false, dt);
     setGain(AU.wind, 0.05 + t / FALL * 0.4, 0.05); AU.windFilter?.frequency.setTargetAtTime(300 + t * 900, AU.ctx.currentTime, 0.05);
     setGain(AU.hum, 0.4 + 0.2 * t / FALL);
     if (I.t >= FALL) {
