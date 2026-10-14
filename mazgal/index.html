@@ -675,6 +675,7 @@ function disposeWorld() {
 
 function buildWorld() {
   disposeWorld();
+  disposeStreet();   // yeni labirentte sokak yeniden kurulur; eskisi sahnede kalırsa iki şehir üst üste biner
   const m = generateMaze();
   G = { ...m, world: new THREE.Group() };
   scene.add(G.world);
