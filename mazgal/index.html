@@ -625,7 +625,22 @@ function generateMaze() {
     const rx = randi(1, W - 1 - rw), ry = randi(1, H - 1 - rh);
     for (let y = ry; y < ry + rh; y++) for (let x = rx; x < rx + rw; x++) grid[y][x] = 0;
   }
-  return { grid, W, H };
+  // Selim'e ait alanlar: evinin odası (3x3) ve arabası (1x3 ya da 3x1); tek koordinattan başlar ki koridorlara bağlansın
+  const special = {}, busy = [];
+  const carve = (w, h) => {
+    for (let t = 0; t < 80; t++) {
+      const rx = 2 * randi(0, ((W - 1 - w) >> 1) - 1) + 1, ry = 2 * randi(0, ((H - 1 - h) >> 1) - 1) + 1;
+      if (rx < 1 || ry < 1 || rx + w > W - 1 || ry + h > H - 1) continue;
+      if (busy.some((b) => rx < b.x + b.w + 2 && b.x < rx + w + 2 && ry < b.y + b.h + 2 && b.y < ry + h + 2)) continue;
+      const r = { x: rx, y: ry, w, h }; busy.push(r);
+      for (let y = ry; y < ry + h; y++) for (let x = rx; x < rx + w; x++) grid[y][x] = 0;
+      return r;
+    }
+    return null;
+  };
+  special.oda = carve(3, 3);
+  special.garaj = Math.random() < 0.5 ? carve(1, 3) : carve(3, 1);
+  return { grid, W, H, special };
 }
 
 function isWall(gx, gy) {
@@ -731,9 +746,16 @@ const MAT = {
   shaft: new THREE.MeshLambertMaterial({ map: TEX.shaft, side: THREE.BackSide }),
   grate: new THREE.MeshBasicMaterial({ map: TEX.grate, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, fog: false }),
   sky: new THREE.MeshBasicMaterial({ color: 0x2c3442, fog: false }),
+  water: new THREE.MeshPhongMaterial({ color: 0x23241a, specular: 0x8a8a70, shininess: 120, transparent: true, opacity: 0.85, depthWrite: false }),
+  desk: new THREE.MeshLambertMaterial({ color: 0x6b5a44 }),
+  deskLeg: new THREE.MeshLambertMaterial({ color: 0x35383a }),
+  paper: new THREE.MeshLambertMaterial({ color: 0xd8d2c0, side: THREE.DoubleSide }),
+  glass: new THREE.MeshPhongMaterial({ color: 0xc8b090, transparent: true, opacity: 0.35, shininess: 100, side: THREE.DoubleSide }),
+  tea: new THREE.MeshBasicMaterial({ color: 0x3a1806 }),
 };
 
 function disposeWorld() {
+  for (const o of scene.children.filter((c) => c.name === "MAZGAL_DUNYA" && c !== G?.world)) { scene.remove(o); o.traverse((q) => q.geometry?.dispose()); }
   if (!G || !G.world) return;
   scene.remove(G.world);
   G.world.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
@@ -743,13 +765,15 @@ function buildWorld() {
   disposeWorld();
   disposeStreet();   // yeni labirentte sokak yeniden kurulur; eskisi sahnede kalırsa iki şehir üst üste biner
   const m = generateMaze();
-  G = { ...m, world: new THREE.Group() };
+  G = { ...m, world: new THREE.Group() }; G.world.name = "MAZGAL_DUNYA";
   scene.add(G.world);
   const Wm = G.W * C, Hm = G.H * C;
 
   // başlangıç: rastgele bir oda karesi
+  const inSpecial = (x, y) => Object.values(G.special || {}).some((r) => r && x >= r.x - 1 && x <= r.x + r.w && y >= r.y - 1 && y <= r.y + r.h);
   const rooms = openCells((x, y) => x % 2 === 1 && y % 2 === 1);
-  G.start = pick(rooms);
+  G.start = pick(rooms.filter(([x, y]) => !inSpecial(x, y))) || pick(rooms);
+  G.inSpecial = inSpecial; G.blockers = [];
   const distStart = bfs(G.start[0], G.start[1]);
 
   // karanlık bölgeler
@@ -758,7 +782,7 @@ function buildWorld() {
   const far = rooms.filter(([x, y]) => distStart[y][x] >= CFG.darkZones.minDistFromStart && distStart[y][x] < Infinity);
   for (let tries = 0; tries < 200 && G.darkCenters.length < CFG.darkZones.count && far.length; tries++) {
     const c = pick(far);
-    if (G.darkCenters.every(([x, y]) => Math.abs(x - c[0]) + Math.abs(y - c[1]) >= 8)) G.darkCenters.push(c);
+    if (!inSpecial(c[0], c[1]) && Math.abs(c[0] - (G.special?.oda?.x ?? -99)) + Math.abs(c[1] - (G.special?.oda?.y ?? -99)) > 5 && G.darkCenters.every(([x, y]) => Math.abs(x - c[0]) + Math.abs(y - c[1]) >= 8)) G.darkCenters.push(c);
   }
   const R = CFG.darkZones.radius;
   for (const [cx, cy] of G.darkCenters) for (let y = cy - R; y <= cy + R; y++) for (let x = cx - R; x <= cx + R; x++)
@@ -838,6 +862,9 @@ function buildWorld() {
   // toplanabilirler
   G.pickups = [];
   const used = new Set([G.start.join(), ...G.pillars.map((p) => p.cell.join())]);
+  for (const [x, y] of openCells((x, y) => inSpecial(x, y))) used.add(x + "," + y);
+  buildZones(distStart, used);
+  buildSelimThings();
   const freeCell = (pred) => {
     const cand = openCells((x, y) => !used.has(x + "," + y) && pred(x, y));
     if (!cand.length) return null;
@@ -1337,7 +1364,6 @@ function fillMap() {
 function enterMap(door) {
   if (S.mode !== "play" || !buildMap()) return;
   MAPL.from = door; S.area = "map"; MAPL.loops = 0;
-  if (!S.said?.kapi) setTimeout(() => sayEvent("kapi", 0), 600);
   MAPL.ev = { t: 0, next: rand(10, 18), bo: null, phone: null, slam: rand(15, 30), knock: null, kosma: null, breath: 0 };
   fillMap();
   G.world.visible = false; MAPL.group.visible = true;
@@ -1749,7 +1775,7 @@ Object.assign(MAT, {
 function buildPillars() {
   // geniş alanlarda (dört yanı açık karelerde) kolonlar
   const out = [];
-  const cand = openCells((x, y) => !isWall(x + 1, y) && !isWall(x - 1, y) && !isWall(x, y + 1) && !isWall(x, y - 1) && !(x === G.start[0] && y === G.start[1]));
+  const cand = openCells((x, y) => !isWall(x + 1, y) && !isWall(x - 1, y) && !isWall(x, y + 1) && !isWall(x, y - 1) && !(x === G.start[0] && y === G.start[1]) && !G.inSpecial(x, y));
   for (const [x, y] of cand) if (Math.random() < 0.35 * Q().props) {
     const p = cellCenter(x, y);
     out.push({ cell: [x, y], x: p.x, z: p.z, r: 0.4 });
@@ -1801,6 +1827,216 @@ function buildProps() {
   inst(new THREE.PlaneGeometry(1, 1), MAT.stain, openCells(() => Math.random() < 0.3 * dens).map(([x, y]) => ({
     p: cellCenter(x, y).add(new THREE.Vector3(rand(-1.2, 1.2), 0.008, rand(-1.2, 1.2))), rx: -Math.PI / 2, ry: 0, s: rand(1, 2.4),
   })));
+}
+
+// ============================================================
+// FARKLI BÖLGELER: su basmış oda, ışıkları bozuk koridor, bir çalışanın köşesi
+// ============================================================
+const ZONE = { fv: 1, ft: 0, drip: 3 };
+function buildZones(distStart, used) {
+  G.wet = new Set();
+  const ok = (x, y) => distStart[y]?.[x] < Infinity && !G.dark[y][x] && !(x === G.start[0] && y === G.start[1]);
+  const around = (cx, cy, r) => openCells((x, y) => Math.abs(x - cx) + Math.abs(y - cy) <= r && ok(x, y));
+  const rooms = openCells((x, y) => x % 2 === 1 && y % 2 === 1 && ok(x, y) && distStart[y][x] >= 6);
+  const taken = [];
+  const farFrom = (c) => taken.every((t) => Math.abs(t[0] - c[0]) + Math.abs(t[1] - c[1]) >= 7);
+
+  // 1) su basmış oda: bileğe kadar durgun, kirli su; içinden geçerken yavaşlarsın ve su sesi gelir
+  const fc = pick(rooms.filter(farFrom));
+  if (fc) {
+    taken.push(fc);
+    const cells = around(fc[0], fc[1], 2);
+    const water = new THREE.InstancedMesh(new THREE.PlaneGeometry(C, C).rotateX(-Math.PI / 2), MAT.water, cells.length);
+    const mtx = new THREE.Matrix4();
+    cells.forEach(([x, y], i) => { G.wet.add(x + "," + y); used.add(x + "," + y); const p = cellCenter(x, y); mtx.makeTranslation(p.x, 0.05, p.z); water.setMatrixAt(i, mtx); });
+    water.frustumCulled = false; water.renderOrder = 1; G.world.add(water);
+    G.wetCenter = cellCenter(fc[0], fc[1]);
+  }
+
+  // 2) ışıkları bozuk koridor: lambalar cızırdayıp sönük yanar
+  const kc = pick(rooms.filter(farFrom));
+  if (kc) {
+    taken.push(kc);
+    const set = new Set(around(kc[0], kc[1], 3).map((c) => c.join()));
+    G.lamps.forEach((l) => { if (set.has(l.x + "," + l.y)) l.flick = true; });
+    G.flickCenter = cellCenter(kc[0], kc[1]);
+  }
+
+  // 3) bir çalışanın köşesi: çıkmazda masa, devrik sandalye, dağınık evrak, soğumuş çay bardağı
+  const de = openCells((x, y) => neighbors(x, y).length === 1 && ok(x, y) && !used.has(x + "," + y) && distStart[y][x] >= 6).filter(farFrom);
+  const dc = de.length ? pick(de) : null;
+  if (dc) {
+    taken.push(dc); used.add(dc.join());
+    const [nx, ny] = neighbors(dc[0], dc[1])[0];
+    const bx = dc[0] - nx, by = dc[1] - ny;                 // arka duvar yönü
+    const grp = new THREE.Group(), p = cellCenter(dc[0], dc[1]);
+    grp.position.copy(p).add(new THREE.Vector3(bx, 0, by).multiplyScalar(C / 2 - 0.45));
+    grp.rotation.y = Math.atan2(bx, by);                      // grubun +z'si duvara bakar
+    const box = (w, h, d, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); grp.add(o); return o; };
+    box(1.5, 0.04, 0.72, MAT.desk, 0, 0.74, 0);
+    for (const sx of [-0.7, 0.7]) for (const sz of [-0.32, 0.32]) box(0.04, 0.72, 0.04, MAT.deskLeg, sx, 0.36, sz);
+    box(0.42, 0.62, 0.66, MAT.desk, 0.5, 0.33, 0.02);       // çekmece blok
+    for (const yy of [0.15, 0.36, 0.56]) box(0.3, 0.012, 0.01, MAT.deskLeg, 0.5, yy, -0.315);
+    // devrik sandalye
+    const ch = new THREE.Group();
+    const cb = (w, h, d, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), MAT.deskLeg); o.position.set(x, y, z); ch.add(o); };
+    cb(0.44, 0.05, 0.44, 0, 0.45, 0); cb(0.44, 0.45, 0.04, 0, 0.7, 0.2);
+    for (const sx of [-0.2, 0.2]) for (const sz of [-0.2, 0.2]) cb(0.03, 0.45, 0.03, sx, 0.225, sz);
+    ch.rotation.set(-Math.PI / 2 + 0.1, 0.6, 0); ch.position.set(-0.4, 0.22, -1.1); grp.add(ch);
+    // evrak: masada ve yerde
+    const paper = new THREE.PlaneGeometry(0.21, 0.297).rotateX(-Math.PI / 2);
+    for (let i = 0; i < 14; i++) {
+      const onDesk = i < 5, o = new THREE.Mesh(paper, MAT.paper);
+      o.position.set(onDesk ? rand(-0.6, 0.2) : rand(-1.2, 1.2), onDesk ? 0.762 + i * 0.002 : 0.006 + i * 0.0006, onDesk ? rand(-0.25, 0.25) : rand(-1.6, 0.1));
+      o.rotation.y = rand(0, 6); grp.add(o);
+    }
+    // çay bardağı ve tabağı
+    const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.022, 0.09, 12, 1, true), MAT.glass); glass.position.set(-0.45, 0.805, 0.1);
+    const tea = new THREE.Mesh(new THREE.CircleGeometry(0.026, 12).rotateX(-Math.PI / 2), MAT.tea); tea.position.set(-0.45, 0.79, 0.1);
+    const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.008, 16), MAT.paper); plate.position.set(-0.45, 0.764, 0.1);
+    grp.add(glass, tea, plate);
+    // masada sönük masa lambası
+    const lb = box(0.14, 0.02, 0.14, MAT.deskLeg, 0.55, 0.77, 0.2);
+    box(0.015, 0.35, 0.015, MAT.deskLeg, 0.55, 0.95, 0.2);
+    const sh = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.14, 12, 1, true), MAT.deskLeg); sh.position.set(0.55, 1.1, 0.12); sh.rotation.x = -0.6; grp.add(sh);
+    G.world.add(grp); blockFrom(grp);
+    G.desk = { p: p.clone(), cell: dc };
+  }
+}
+// bölgelerin her kare güncellemesi: bozuk lambaların titremesi ve suda damla sesi
+function zonesTick(dt) {
+  ZONE.ft -= dt;
+  if (ZONE.ft <= 0) {                                       // cızırtılı floresan: çoğunlukla sönük, ara sıra çakıp söner
+    const r = Math.random();
+    ZONE.fv = r < 0.55 ? rand(0.08, 0.25) : r < 0.85 ? rand(0.5, 0.9) : 0;
+    ZONE.ft = r < 0.55 ? rand(0.25, 1.4) : rand(0.03, 0.12);
+    if (r >= 0.55 && G.flickCenter && S.pos.distanceTo(G.flickCenter) < 14) sfxClick(rand(90, 140), 0.05, 0.05);
+  }
+  if (G.wetCenter && S.pos.distanceTo(G.wetCenter) < 12 && (ZONE.drip -= dt) <= 0) { ZONE.drip = rand(0.8, 2.6); sfxDrip(); }
+}
+function isWet() { const [x, y] = worldToCell(S.pos.x, S.pos.z); return !!G.wet?.has(x + "," + y); }
+function sfxDrip() {
+  if (!AU.ctx) return;
+  const ctx = AU.ctx, t = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = "sine"; const f = rand(900, 1500); o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 1.9, t + 0.06);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.07, t + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+  o.connect(g); g.connect(AU.master); o.start(t); o.stop(t + 0.15);
+}
+function sfxSplash(run) {
+  if (!AU.ctx) return;
+  const ctx = AU.ctx, t = ctx.currentTime, n = ctx.createBufferSource(); n.buffer = AU.noise; n.playbackRate.value = rand(0.8, 1.2);
+  const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.setValueAtTime(rand(700, 1000), t); bp.frequency.exponentialRampToValueAtTime(rand(1600, 2400), t + 0.18); bp.Q.value = 0.9;
+  const g = ctx.createGain(), v = run ? 0.42 : 0.28;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.04); g.gain.exponentialRampToValueAtTime(0.0001, t + (run ? 0.45 : 0.35));
+  n.connect(bp); bp.connect(g); g.connect(AU.master); n.start(t, rand(0, 1)); n.stop(t + 0.5);
+}
+
+// ============================================================
+// SELİM'E AİT ŞEYLER: evinin odası ve belediye arabası labirentin içinde çıkar
+// generateMaze bu iki alanı açar (G.special); burada içleri döşenir.
+// ============================================================
+let ODA_SCENE = null;
+function blockFrom(obj, pad = 0.05) {   // nesnenin parçalarından çarpışma kutuları (yerdeki ince parçalar hariç)
+  obj.updateMatrixWorld(true);
+  const b = new THREE.Box3();
+  obj.traverse((o) => {
+    if (!o.isMesh) return;
+    b.setFromObject(o);
+    if (b.max.y - b.min.y < 0.15 || b.min.y > 1.2 || b.max.y < 0.25) return;
+    (G.blockers ??= []).push({ x0: b.min.x - pad, x1: b.max.x + pad, z0: b.min.z - pad, z1: b.max.z + pad });
+  });
+}
+function specialCenter(r) { return new THREE.Vector3((r.x + r.w / 2) * C, 0, (r.y + r.h / 2) * C); }
+function buildSelimThings() {
+  const sp = G.special; if (!sp) return;
+  // 1) Selim'in odası: kanepe, sehpa, kül tablası; sanki evinden kopup buraya düşmüş
+  if (sp.oda) {
+    const g = new THREE.Group(); g.position.copy(specialCenter(sp.oda)); g.rotation.y = randi(0, 3) * Math.PI / 2; G.world.add(g);
+    const place = (m) => { if (g.userData.oda || !g.parent) return; g.userData.oda = true; m.name = "SELIM_ODA"; m.rotation.y = Math.PI / 2; m.position.set(0.55, 0, -0.5); g.add(m); blockFrom(m); };
+    if (ODA_SCENE) place(ODA_SCENE.clone());
+    else if (window.ODA_GLB && THREE.GLTFLoader) {
+      const bin = atob(window.ODA_GLB), u = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+      new THREE.GLTFLoader().parse(u.buffer, "", (gl) => {
+        ODA_SCENE = gl.scene;
+        ODA_SCENE.traverse((o) => {
+          if (!o.isMesh) return;
+          const mt = o.material; if (mt.map) mt.map.encoding = THREE.LinearEncoding;
+          mt.envMapIntensity = 0; mt.metalness = Math.min(mt.metalness ?? 0, 0.2);
+          if (mt.name === "Material.014") { mt.color.setHex(0x1a2030); mt.toneMapped = false; }
+        });
+        if (G.world.parent && g.parent) place(ODA_SCENE.clone());
+      }, (e) => console.warn("oda yüklenemedi", e));
+    }
+    // evdeki gibi sıcak, loş bir ampul: floresanların sarısından ayrılsın
+    const bulb = new THREE.PointLight(0xffb070, 0.9, 9, 1.4); bulb.position.set(0.2, CFG.wallH - 0.5, -0.2); g.add(bulb);
+    const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.4, 4), MAT.deskLeg); wire.position.set(0.2, CFG.wallH - 0.2, -0.2); g.add(wire);
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffd4a0 })); lamp.position.copy(bulb.position); g.add(lamp);
+    G.odaCenter = g.position.clone(); G.odaBulb = bulb;
+  }
+  // 2) Selim'in belediye arabası: farları yanık, motoru kapalı, sanki az önce park edilmiş
+  if (sp.garaj && window.MODELLER && window.MODELLER.araba) {
+    const P = window.MODELLER.araba, LIFT = 0.151;
+    const g = new THREE.Group(); g.position.copy(specialCenter(sp.garaj)); g.rotation.y = (sp.garaj.h > sp.garaj.w ? 0 : Math.PI / 2) + (Math.random() < 0.5 ? Math.PI : 0) + rand(-0.15, 0.15);
+    G.world.add(g);
+    const body = new THREE.Group(); body.position.y = LIFT; g.add(body);
+    const tweak = {
+      "*": { side: THREE.DoubleSide },
+      skin: { color: 0xd4d6d6, shininess: 70, specular: 0x666666 }, black: { color: 0x0d0d0e, shininess: 20 },
+      black_glass: { color: 0x07090b, transparent: true, opacity: 0.3, depthWrite: false, shininess: 90, specular: 0x777777 },
+      glass: { color: 0x8d9aa6, transparent: true, opacity: 0.16, depthWrite: false, shininess: 100, specular: 0x999999 },
+      chrome: { map: null, color: 0x4a4d50, shininess: 120, specular: 0xbbbbbb }, lights: { glow: 0.6 },
+    };
+    const part = (k, parent) => { const b = buildModel("araba", { only: k, tweak }); if (b) parent.add(b.group); return b; };
+    part("govde", body);
+    for (const k of ["tFL", "tFR", "tRL", "tRR"]) { const hub = new THREE.Group(); hub.position.set(...P.pivots[k]); body.add(hub); part(k, hub); if (k[1] === "F") part("k" + k.slice(1), hub); }
+    for (const k of ["dir", "hiz", "devir"]) { const m = new THREE.Group(); m.position.set(...P.pivots[k]); body.add(m); part(k, m); }
+    const heads = [-0.64, 0.64].map((sx) => {
+      const L = new THREE.SpotLight(0xfff0d0, 0.9, 14, 0.5, 0.6, 1.4); L.position.set(sx, 0.75, -2.3);
+      L.target.position.set(sx * 1.2, 0, -10); g.add(L, L.target); return L;
+    });
+    g.updateMatrixWorld(true);
+    const bb = new THREE.Box3().setFromObject(body);
+    (G.blockers ??= []).push({ x0: bb.min.x, x1: bb.max.x, z0: bb.min.z, z1: bb.max.z });
+    G.car = { group: g, heads, center: g.position.clone() };
+  }
+}
+function selimTick(dt) {
+  if (G.car) {   // farlar akü bitiyormuş gibi arada titrer
+    const near = S.pos.distanceTo(G.car.center) < 18, v = near && Math.random() < dt * 0.6 ? rand(0.1, 0.6) : 0.9;
+    G.car.heads.forEach((h) => { h.intensity = lerp(h.intensity, v, Math.min(1, dt * 20)); });
+  }
+  if (G.odaBulb) G.odaBulb.intensity = 0.9 * (0.4 + 0.6 * S.lamp);
+  // ilk görüşte Selim tepki verir
+  if (S.mode !== "play" || S.area !== "maze") return;
+  // uzakta bir telefon: dakikada bir çalar, 25 saniye çalıp susar (kimse açmaz)
+  const R = (G.ring ??= { next: S.playTime + rand(40, 60), until: -1, at: 0, pos: null });
+  if (R.until < 0 && S.playTime >= R.next) {
+    const far = openCells((x, y) => { const q = cellCenter(x, y), d = Math.hypot(q.x - S.pos.x, q.z - S.pos.z); return d > 10 && d < 22; });
+    if (far.length) { R.pos = cellCenter(...pick(far)).setY(1.0); R.until = S.playTime + 25; R.at = S.playTime; }
+    R.next = S.playTime + 60;
+  }
+  if (R.until >= 0) {
+    if (S.playTime >= R.until) R.until = -1;
+    else if (S.playTime >= R.at) { phoneRing(R.pos, Math.min(1.6, R.until - S.playTime)); R.at = S.playTime + 3.2; }
+  }
+  // ilk düşüş: "nereye düştüm", ardından "alo, kimse yok mu"
+  if (!S.said?.dus && S.playTime > 2.5) { (S.said ??= {}).dus = 1; S.said.kor = Math.max(S.said.kor || 0, 0); sayEvent("kor", 6); setTimeout(() => sayEvent("kor", 0), 6500); S.idleNext = S.playTime + 30; }
+  // kapıyı ilk görünce
+  if (!S.said?.kapi && !S.said?.kapiQ) for (const d of G.doors || []) {
+    const dx = d.pos.x - S.pos.x, dz = d.pos.z - S.pos.z, dd = Math.hypot(dx, dz);
+    if (dd > 7 || dd < 0.5 || (-Math.sin(S.yaw) * dx - Math.cos(S.yaw) * dz) / dd < 0.8) continue;
+    if (!tvInSight({ pos: d.pos.clone().setY(1.2).add(new THREE.Vector3(-d.dx * 0.3, 0, -d.dy * 0.3)) }, dd)) continue;
+    S.said.kapiQ = 1; sayEvent("kapi", 0, 20); break;
+  }
+  for (const [key, c, line, file] of [["oda", G.odaCenter, "Burası... benim evim? Nasıl...", "selim_ev"], ["araba", G.car?.center, "Arabam... Arabam ne arıyor burada?", "selim_araba"]]) {
+    if (!c || S.said?.["selim_" + key] || S.pos.distanceTo(c) > 9) continue;
+    const dx = c.x - S.pos.x, dz = c.z - S.pos.z, d = Math.hypot(dx, dz);
+    if ((-Math.sin(S.yaw) * dx - Math.cos(S.yaw) * dz) / d < 0.7) continue;
+    (S.said ??= {})["selim_" + key] = 1;
+    subtitle(`SELİM: ${line}`, 4500);   // kayıt gelene kadar yalnız altyazı (robot ses yok)
+    playVoice(`ses/${file}.mp3`, { onFail: () => {}, chain: voiceChain });
+  }
 }
 
 // PlaneGeometry/ShapeGeometry için UV'yi dünya x/z'den üret (doku tekrarı metre cinsinden)
@@ -2114,7 +2350,8 @@ function buildHome(st) {
         mt.envMapIntensity = 0; mt.metalness = Math.min(mt.metalness ?? 0, 0.2);
         if (mt.name === "Material.014") { mt.color.setHex(0x1a2030); mt.toneMapped = false; }   // pencere dışı: gece
       });
-      g.add(m);
+      if (!g.parent || g.userData.oda) return;   // sokak bu arada silindiyse ya da oda zaten kurulduysa ikinci kez eklenmez
+      g.userData.oda = true; m.name = "SELIM_ODA"; g.add(m);
     }, (e) => console.warn("oda yüklenemedi", e));
   } else {
     box(2.1, 0.42, 0.95, mat({ color: 0x3d342b }), 0, 0.21, 1.75); box(2.1, 0.62, 0.22, mat({ color: 0x3d342b }), 0, 0.62, 2.2);
@@ -2352,7 +2589,7 @@ function buildStreet() {
   disposeStreet();
   const M = streetAssets();
   const sc = cellCenter(G.start[0], G.start[1]);
-  const st = new THREE.Group(); st.position.set(sc.x, STREET_Y, sc.z);
+  const st = new THREE.Group(); st.position.set(sc.x, STREET_Y, sc.z); st.name = "MAZGAL_SOKAK";
   const box = (w, h, d, mat, x, y, z, parent = st) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); parent.add(m); return m; };
   const hole = 0.8;
 
@@ -2803,6 +3040,8 @@ function drawGauge(car) {
   car.gauge.tex.needsUpdate = true;
 }
 function disposeStreet() {
+  // tek sokak kuralı: adı MAZGAL_SOKAK olan her grup (sahipsiz kalmış eskiler dahil) silinir
+  for (const o of scene.children.filter((c) => c.name === "MAZGAL_SOKAK" && c !== G?.street?.group)) { scene.remove(o); o.traverse((q) => q.geometry?.dispose()); }
   if (!G || !G.street) return;
   scene.remove(G.street.group);
   G.street.group.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
@@ -3640,17 +3879,20 @@ const SELIM_SETS = {
   ],
 };
 // cat: olay; i: belirli replik (yoksa sıradaki). Ses meşgulse kısa aralıklarla birkaç kez yeniden dener.
+// labirentte her replik bir kez söylenir; yalnız "alo, kimse var mı" çağrıları tekrarlanabilir
+const ALO_FILES = new Set(["selim_kor_01", "selim_kor_05", "selim_kor_11"]);
+const lineFree = (l) => ALO_FILES.has(l.file) || !(S.said?.u || {})[l.file + l.text.length];
+const markSaid = (l) => { ((S.said ??= {}).u ??= {})[l.file + l.text.length] = 1; };
+function nextFree(L) { const f = L.filter(lineFree), fresh = f.filter((l) => !ALO_FILES.has(l.file)); return fresh[0] || (f.length ? pick(f) : null); }
 function sayEvent(cat, i, tries = 6) {
   const L = SELIM_SETS[cat]; if (!L || S.mode !== "play") return;
   if (VOICE.el || (typeof speechSynthesis !== "undefined" && speechSynthesis.speaking)) { if (tries > 0) setTimeout(() => sayEvent(cat, i, tries - 1), 1500); return; }
   S.said ??= {};
-  const n = S.said[cat] || 0; S.said[cat] = n + 1;
-  if (i == null) {
-    if (n < L.length) i = n; else { do i = Math.floor(Math.random() * L.length); while (L.length > 1 && i === S.saidLast?.[cat]); }
-  }
-  (S.saidLast ??= {})[cat] = i;
+  const line = i != null ? L[Math.min(i, L.length - 1)] : nextFree(L);
+  if (!line || !lineFree(line)) return;
+  S.said[cat] = (S.said[cat] || 0) + 1; markSaid(line);
   S.pantLineAt = S.playTime; S.idleNext = Math.max(S.idleNext || 0, S.playTime + 12);
-  sayLine(L[Math.min(i, L.length - 1)], null, 5200);
+  sayLine(line, null, 5200);
 }
 // koşu bitince nefes nefese: hırıltılı soluk, ara ara Selim'in repliği
 const PANT_LINES = [
@@ -3669,14 +3911,16 @@ function idleTalk(dt) {
   if (S.playTime < S.idleNext) return;
   if (VOICE.el || S.pant > 0 || (typeof speechSynthesis !== "undefined" && speechSynthesis.speaking)) { S.idleNext = S.playTime + 4; return; }
   S.idleNext = S.playTime + rand(30, 45);
-  let line; do line = pick(IDLE_LINES); while (IDLE_LINES.length > 1 && line === S.idleLast);
-  S.idleLast = line; S.pantLineAt = S.playTime;
-  if (S.sanity < 35 && Math.random() < 0.6) { sayEvent("kriz"); return; }   // kafayı yemeye başladı
-  sayLine(line, null, 5200);
+  S.pantLineAt = S.playTime;
+  if (S.sanity < 35 && Math.random() < 0.6 && SELIM_SETS.kriz.some(lineFree)) { sayEvent("kriz"); return; }   // kafayı yemeye başladı
+  const free = IDLE_LINES.filter(lineFree), fresh = free.filter((l) => !ALO_FILES.has(l.file));
+  const line = fresh.length ? pick(fresh) : free.length ? pick(free) : null;
+  if (!line) return;
+  markSaid(line); sayLine(line, null, 5200);
 }
 function startPant() {
   S.pant = CFG.pantTime; S.pantPhase = 0;
-  if (S.playTime - S.pantLineAt > 25 && Math.random() < 0.6) { S.pantLineAt = S.playTime; setTimeout(() => { if (S.mode === "play") sayLine(pick(PANT_LINES), null, 3200); }, 1400); }
+  if (S.playTime - S.pantLineAt > 25 && Math.random() < 0.6) { const free = PANT_LINES.filter(lineFree); if (!free.length) return; const l = pick(free); markSaid(l); S.pantLineAt = S.playTime; setTimeout(() => { if (S.mode === "play") sayLine(l, null, 3200); }, 1400); }
 }
 // kayıtlı nefes döngüsü (ses/selim_nefes_dongu.mp3); yüklenemezse eski sentez soluk
 const PANT_LOOP = { el: null, bad: false };
@@ -4367,6 +4611,7 @@ function blocked(x, z) {
   if (S.area === "map") return mapBlocked(x, z);
   for (const p of G.pillars) if (Math.abs(x - p.x) < p.r + PR && Math.abs(z - p.z) < p.r + PR) return true;
   for (const t of MTV.list) if (Math.abs(x - t.x) < 0.45 + PR && Math.abs(z - t.z) < 0.45 + PR) return true;
+  for (const b of G.blockers || []) if (x > b.x0 - PR && x < b.x1 + PR && z > b.z0 - PR && z < b.z1 + PR) return true;
   for (const [dx, dz] of [[-PR, -PR], [PR, -PR], [-PR, PR], [PR, PR]]) {
     const [gx, gy] = worldToCell(x + dx, z + dz);
     if (isWall(gx, gy)) return true;
@@ -4388,7 +4633,7 @@ function updatePlayer(dt) {
   if (running) { S.stamina -= CFG.staminaDrain * dt; S.lastRun = S.playTime; if (S.stamina <= 0) { S.stamina = 0; S.exhausted = true; startPant(); } }
   else S.stamina = Math.min(CFG.staminaMax, S.stamina + (S.exhausted ? CFG.staminaRegenTired : CFG.staminaRegen) * dt * (walking ? 0.6 : 1));
 
-  const speed = running ? CFG.runSpeed : CFG.walkSpeed * (S.pant > 0 ? 0.8 : 1);
+  const speed = running ? CFG.runSpeed : CFG.walkSpeed * (S.pant > 0 ? 0.8 : 1) * (S.area === "maze" && isWet() ? 0.75 : 1);
   let vx = 0, vz = 0;
   if (walking) {
     const sy = Math.sin(S.yaw), cy = Math.cos(S.yaw);
@@ -4404,8 +4649,8 @@ function updatePlayer(dt) {
   S.bobAmp = lerp(S.bobAmp, walking ? 1 : 0, Math.min(1, dt * 8));
   const prevSin = Math.sin(S.bobPhase);
   if (walking) S.bobPhase += dt * bob.freq;
-  if (walking && prevSin > 0 && Math.sin(S.bobPhase) <= 0) sfxStep(running);
-  if (walking && prevSin < 0 && Math.sin(S.bobPhase) >= 0) sfxStep(running);
+  if (walking && prevSin > 0 && Math.sin(S.bobPhase) <= 0) (S.area === "maze" && isWet() ? sfxSplash : sfxStep)(running);
+  if (walking && prevSin < 0 && Math.sin(S.bobPhase) >= 0) (S.area === "maze" && isWet() ? sfxSplash : sfxStep)(running);
   S.bobOffY = Math.abs(Math.sin(S.bobPhase)) * bob.amp * S.bobAmp - bob.amp * 0.5 * S.bobAmp;
   S.bobOffX = Math.cos(S.bobPhase) * bob.sway * S.bobAmp;
 
@@ -4537,7 +4782,7 @@ function updateLights(dt) {
   const inDark = G.dark[cy]?.[cx] ? 1 : 0;
   S.darkness = lerp(S.darkness, inDark, Math.min(1, dt * 1.5));
   const L = S.lamp, dk = S.darkness;
-  LIGHT_POOL.forEach((l) => { l.intensity = l.userData.lamp ? 1.0 * L : 0; });
+  LIGHT_POOL.forEach((l) => { const lp = l.userData.lamp; l.intensity = lp ? (lp.flick ? ZONE.fv : 1) * L : 0; });
   MAT.panelOn.color.setScalar(0.15 + 0.85 * L);
   ambient.intensity = (0.32 * L + 0.02) * (1 - dk * 0.95);
   hemi.intensity = 0.22 * L * (1 - dk);
@@ -4645,6 +4890,7 @@ let tapeRun = null;
 function playTape(idx) {
   const tape = TAPES[idx]; if (!tape || S.mode === "dead") return;
   S.mode = "tape";
+  stopVoice(); if ("speechSynthesis" in window) speechSynthesis.cancel();   // Selim konuşuyorsa sözü yarıda kesilir, kaldığı yerden devam etmez
   document.exitPointerLock?.();
   setGain(AU.breath, 0); setGain(AU.static, 0.03); setGain(AU.hum, 0.1);
   $("tapeName").textContent = `KASET ${idx + 1} · ${tape.who}`;
@@ -4816,7 +5062,7 @@ function frame(now) {
     updatePlayer(dt);
     if (S.mode === "play") updateCreature(dt);
     if (S.mode === "play") updateSanity(dt);
-    if (S.mode === "play") mazeTvTick(dt);
+    if (S.mode === "play") { mazeTvTick(dt); if (S.area === "maze") { zonesTick(dt); selimTick(dt); } }
     if (S.mode === "play" && S.area === "maze" && G.marks?.length) {   // duvar yazısına yaklaşıp bakınca
       const fx = -Math.sin(S.yaw), fz = -Math.cos(S.yaw);
       const m = G.marks.find((q) => { const dx = q.p.x + q.f.dx * C / 2 - S.pos.x, dz = q.p.z + q.f.dy * C / 2 - S.pos.z, d = Math.hypot(dx, dz); return d < 3.2 && (dx * fx + dz * fz) / d > 0.6; });
