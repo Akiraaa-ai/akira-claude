@@ -675,7 +675,6 @@ function disposeWorld() {
 
 function buildWorld() {
   disposeWorld();
-  disposeStreet();   // yeni labirentte sokak yeniden kurulur; eskisi sahnede kalırsa iki şehir üst üste biner
   const m = generateMaze();
   G = { ...m, world: new THREE.Group() };
   scene.add(G.world);
@@ -930,6 +929,8 @@ function mazeTvTick(dt) {
   if (!MTV.list.length || S.area !== "maze") { MTV.audio?.pause(); MTV.bed?.pause(); if (MTV.light) MTV.light.intensity = 0; return; }
   let near = null, nd = Infinity;
   for (const t of MTV.list) { const d = Math.hypot(t.x - S.pos.x, t.z - S.pos.z); if (d < nd) { nd = d; near = t; } }
+  // TV'yi ilk görüşte ve sonra her yeni TV'de (en az 25 sn arayla) Selim tepki verir
+  if (nd < 6 && !near.seen && S.mode === "play" && S.playTime - (MTV.saidAt ?? -99) > 25) { near.seen = true; MTV.saidAt = S.playTime; sayEvent("tv"); }
   const a = mtvAudio();
   if (a) {
     if (a.paused && nd < 30) a.play().catch(() => {});
@@ -999,7 +1000,7 @@ function buildWritings(distStart) {
     const side = new THREE.Vector3(f.dy, 0, -f.dx).multiplyScalar(rand(-0.6, 0.6));
     mesh.position.add(side);
     G.world.add(mesh);
-    placed.push(f);
+    placed.push(f); (G.marks ??= []).push(cellCenter(f.x, f.y));
     return mesh;
   };
   // uyanınca açık bir koridora bakar (başlangıçta yazı yok)
@@ -1015,7 +1016,7 @@ function buildWritings(distStart) {
       const tex = tallyTexture();
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.594), new THREE.MeshLambertMaterial({ map: tex, polygonOffset: true, polygonOffsetFactor: -2 }));
       mesh.position.copy(cellCenter(f.x, f.y).add(new THREE.Vector3(f.dx, 0, f.dy).multiplyScalar(C / 2 - 0.02))).setY(1.45);
-      mesh.rotation.y = Math.atan2(-f.dx, -f.dy); G.world.add(mesh); placed.push(f);
+      mesh.rotation.y = Math.atan2(-f.dx, -f.dy); G.world.add(mesh); placed.push(f); (G.marks ??= []).push(cellCenter(f.x, f.y));
     }
   }
   for (const text of rest) { const f = spot(); if (!f) break; place(f, text); }
@@ -1028,7 +1029,7 @@ function buildWritings(distStart) {
     mesh.position.copy(cellCenter(f.x, f.y).add(new THREE.Vector3(f.dx, 0, f.dy).multiplyScalar(C / 2 - 0.02))).setY(y + rand(-0.1, 0.1));
     mesh.rotation.y = Math.atan2(-f.dx, -f.dy);
     mesh.position.add(new THREE.Vector3(f.dy, 0, -f.dx).multiplyScalar(rand(-1, 1)));
-    G.world.add(mesh); placed.push(f);
+    G.world.add(mesh); placed.push(f); (G.marks ??= []).push(cellCenter(f.x, f.y));
   }
 }
 const MAZE_NOTES = [
@@ -1259,6 +1260,7 @@ function fillMap() {
 function enterMap(door) {
   if (S.mode !== "play" || !buildMap()) return;
   MAPL.from = door; S.area = "map"; MAPL.loops = 0;
+  if (!S.said?.kapi) setTimeout(() => sayEvent("kapi", 0), 600);
   MAPL.ev = { t: 0, next: rand(10, 18), bo: null, phone: null, slam: rand(15, 30), knock: null, kosma: null, breath: 0 };
   fillMap();
   G.world.visible = false; MAPL.group.visible = true;
@@ -3162,7 +3164,7 @@ function resetRun() {
   const [nx, ny] = n.length ? pick(n) : [G.start[0], G.start[1] - 1];
   S.yaw = G.startYaw ?? Math.atan2(-(nx - G.start[0]), -(ny - G.start[1]));
   S.pitch = 0; S.roll = 0;
-  S.stamina = CFG.staminaMax; S.exhausted = false; S.pant = 0; S.pantLineAt = -99; S.idleNext = null; S.idleLast = null; S.hasWalkman = false; S.pieces = []; MAPIMG.key = null;
+  S.stamina = CFG.staminaMax; S.exhausted = false; S.pant = 0; S.pantLineAt = -99; S.idleNext = null; S.idleLast = null; S.said = {}; S.saidLast = {}; S.yaziAt = -99; S.hasWalkman = false; S.pieces = []; MAPIMG.key = null;
   S.battery = 100; S.lightOn = false;
   S.lamp = 1; S.lampTarget = 1; S.interference = 0; S.black = 0;
   S.playTime = 0; S.lastRun = -99; S.stillFor = 0;
@@ -3497,6 +3499,82 @@ function stopSynthMusic() {
   const M = MUSIC.synth; if (!M) return;
   clearInterval(M.timer); M.out.gain.setTargetAtTime(0.0001, AU.ctx.currentTime, 0.15); M.wow.stop(AU.ctx.currentTime + 0.5); MUSIC.synth = null;
 }
+// Selim'in olaylara verdiği tepkiler (ses/selim_<olay>_NN.mp3). Önce sırayla, bitince rastgele.
+const SELIM_SETS = {
+  tv: [
+    {who: "SELİM", file: "selim_tv_01", text: "Bu... bu benim evdeki televizyonum değil mi lan? Üzerindeki çatlağa kadar aynı... Buraya nasıl geldi bu?"},
+    {who: "SELİM", file: "selim_tv_02", text: "Evdeydim az önce... Televizyon buradaysa ben... ben neredeyim amına koyim?"},
+    {who: "SELİM", file: "selim_tv_03", text: "Fişi... fişi takılı bile değil. Nasıl çalıyor bu müzik? Kapat şunu... lütfen kapansın artık..."},
+    {who: "SELİM", file: "selim_tv_04", text: "Yine mi sen? Her köşeden sen mi çıkacaksın lan? Biri benimle taşak mı geçiyor burada?!"},
+    {who: "SELİM", file: "selim_tv_05", text: "Sikicem, kapan artık! Sürekli aynı melodi, sürekli aynı boktan ses! Yeter!"},
+    {who: "SELİM", file: "selim_tv_06", text: "Kapatma düğmesi içine çökmüş... Basıyorum basıyorum susmuyor. Beynimin içinde çalıyor sanki."},
+    {who: "SELİM", file: "selim_tv_07", text: "Eskiden seni duyunca kafayı yiyecek gibi oluyordum. Şimdi susarsan ne yaparım onu da bilmiyorum..."},
+    {who: "SELİM", file: "selim_tv_08", text: "Piller bitiyor... Ama sen hiç susmuyorsun, değil mi? Bozuk pikselini sikeyim senin..."},
+    {who: "SELİM", file: "selim_tv_09", text: "Konuş bakalım. Dinliyorum. Zaten başka konuşacak kimse kalmadı."},
+  ],
+  kor: [
+    {who: "SELİM", file: "selim_kor_01", text: "Alooo! Kimse var mı lan orada?! Ses verin!"},
+    {who: "SELİM", file: "selim_kor_02", text: "Kafam patlayacak... Nereye baksam aynı sarı, her yer aynı sarı halı kokuyor..."},
+    {who: "SELİM", file: "selim_kor_03", text: "Allah’ım bana yardım et... Lütfen, sadece tek bir açık kapı göster kurban olayım."},
+    {who: "SELİM", file: "selim_kor_04", text: "Sikeyim böyle yeri! Ucu bucağı yok mu bu binanın? Nereden dönsem en başa çıkıyorum."},
+    {who: "SELİM", file: "selim_kor_05", text: "Hey! Biri var mı?! Kimse yok mu amına koyim burada?!"},
+    {who: "SELİM", file: "selim_kor_06", text: "Fener titremeye başladı yine. Hadi oğlum, bitme şimdi... Sırası değil, dayan biraz."},
+    {who: "SELİM", file: "selim_kor_07", text: "Burası neresi, nereye düştüm ben? Allah’ım sen yardım et... Ne olur sadece bir kabus olsun."},
+    {who: "SELİM", file: "selim_kor_08", text: "Bu floresanların vızıltısı susmuyor... Beynimin içine iğne batırıyorlar sanki. Bi susun lan artık!"},
+    {who: "SELİM", file: "selim_kor_09", text: "Alo? Bir adım sesi mi geldi az önce? Kim var orada... Ses ver!"},
+    {who: "SELİM", file: "selim_kor_10", text: "Su yok, saat kaç oldu onu bile bilmiyorum... Çıkışı geçtim, tek bir pencere bari olsaydı şurada."},
+    {who: "SELİM", file: "selim_kor_11", text: "Alooo! Buradayım, aşağıdayım! Kimse yok mu lan bu koca yerde?!"},
+    {who: "SELİM", file: "selim_kor_12", text: "Belediye binası dediler, yerin dibine gömdüler resmen... Bi çıkayım buradan, o amirin suratına tüküreceğim."},
+  ],
+  kaset: [
+    {who: "SELİM", file: "selim_kasettepki_01", text: "Bu... bu ses... Lan bu benim sesim? Ben böyle bir şey kaydetmedim ki..."},
+    {who: "SELİM", file: "selim_kasettepki_02", text: "Ben bunu ne zaman söyledim? Yoksa... kafayı mı yiyorum ben?"},
+  ],
+  pil: [
+    {who: "SELİM", file: "selim_pil_01", text: "Pil... Sonunda be. Hadi lütfen dolu ol, lütfen akmamış ol..."},
+    {who: "SELİM", file: "selim_pil_02", text: "Çabuk, çabuk... Bitmeden takmam lazım. Karanlıkta kalamam burada, hayır..."},
+    {who: "SELİM", file: "selim_pil_03", text: "İki tane dandik kalem pil için girdiğim hallere bak... Belediye bana bu kadar mesai yaptırmadı."},
+    {who: "SELİM", file: "selim_pil_04", text: "Çok şükür... Biraz daha zaman kazandık. Işık var, sorun yok... Sakin ol Selim, ışık var."},
+    {who: "SELİM", file: "selim_pil_05", text: "Tarihi geçmiş gibi duruyor ama... İdare eder. Mecbur idare edecek, başka bok yok zaten."},
+    {who: "SELİM", file: "selim_pil_06", text: "Hadi oğlum... Yan artık. Tamam, tamam yandı... Sakın beni yarı yolda bırakma."},
+  ],
+  harita: [
+    {who: "SELİM", file: "selim_harita_01", text: "Bir kağıt parçası bu... Üstünde karalamalar var. Koridorun krokisi mi lan bu? Biri burayı çizmeye çalışmış."},
+    {who: "SELİM", file: "selim_harita_02", text: "Dur bir dakika... Bu önceki parçanın devamı! Yan yana koyunca koridorlar oturuyor yerine. Yolu bulabilirim, bir yolu var..."},
+    {who: "SELİM", file: "selim_harita_03", text: "Üç oldu... Üç parça tamam. Şurada bir kapı işareti var, kırmızıyla çizilmiş. Son bir köşe kaldı, sadece son bir parça..."},
+    {who: "SELİM", file: "selim_harita_04", text: "Son parça! Tamamlandı... Çıkış merdiveni burada, yangın kapısının arkasında! Buradan çıkıyorum... Vallahi çıkıyorum buradan!"},
+  ],
+  yazi: [
+    {who: "SELİM", file: "selim_yazi_01", text: "Bu yazı... mürekkep değil bu. Kurumuş kan mı lan bu? Kafayı yemiş buradakiler... resmen kafayı yemişler."},
+    {who: "SELİM", file: "selim_yazi_02", text: "\"Arayan sendin\"... Ne demek arayan sendin? Neyi arayan? Telefonu mu? Kim kimi aramış oğlum, ne saçmalıyorsunuz siz?"},
+    {who: "SELİM", file: "selim_yazi_03", text: "Bütün duvarlar karalama dolu... Sanki herkes buradaymış da bir ben yalnız kalmışım gibi. Biri çıkıp açıklasın artık şu lanet yazıları!"},
+  ],
+  kapi: [
+    {who: "SELİM", file: "selim_kapi_01", text: "Kol dönüyor... Kilitli değil. Ne var lan içeride? Açıyorum... Hadi bismillah."},
+  ],
+  kriz: [
+    {who: "SELİM", file: "selim_kriz_01", text: "Çıkış yok değil mi lan? Yok lan yok! Oturup burada dosya mı doldurayım he? Mesaim bitti benim amına koyim, kartımı basın lan!"},
+    {who: "SELİM", file: "selim_kriz_02", text: "Işıklar... Kafamın içinde yanıp sönüyorlar. Kapatın şu floresanları! Beynimi kızarttınız lan, kapatın diyorum kapatın!"},
+    {who: "SELİM", file: "selim_kriz_03", text: "Kim fısıldıyor köşede?! Duydum lan, adımı söylediniz! Çıkın ortaya orospu çocukları, tek tek gelin! Çıkın lan!"},
+    {who: "SELİM", file: "selim_kriz_04", text: "Evde çaydanlığın altını açık unuttum ben... Çay yanacak, ev yanacak... Ama ben buradayım. Çok komik değil mi lan? Çok komik amına koyim..."},
+    {who: "SELİM", file: "selim_kriz_05", text: "Bu halı... Canlı bu halı! Ayaklarımın altından çekiliyor, yutacak beni! Bırak lan ayağımı, bırak!"},
+    {who: "SELİM", file: "selim_kriz_06", text: "Ben öldüm değil mi? Çoktan öldüm... Burası cehennem falan değil. Belediye personeli için özel sürgün yeri... Tabii ya, nasıl anlamadım?"},
+    {who: "SELİM", file: "selim_kriz_07", text: "YETER! SUSUN ARTIK! Cızırtınız da batsın, melodiniz de batsın! Kafamı duvara vurup patlatacağım şimdi, susun!"},
+  ],
+};
+// cat: olay; i: belirli replik (yoksa sıradaki). Ses meşgulse kısa aralıklarla birkaç kez yeniden dener.
+function sayEvent(cat, i, tries = 6) {
+  const L = SELIM_SETS[cat]; if (!L || S.mode !== "play") return;
+  if (VOICE.el || (typeof speechSynthesis !== "undefined" && speechSynthesis.speaking)) { if (tries > 0) setTimeout(() => sayEvent(cat, i, tries - 1), 1500); return; }
+  S.said ??= {};
+  const n = S.said[cat] || 0; S.said[cat] = n + 1;
+  if (i == null) {
+    if (n < L.length) i = n; else { do i = Math.floor(Math.random() * L.length); while (L.length > 1 && i === S.saidLast?.[cat]); }
+  }
+  (S.saidLast ??= {})[cat] = i;
+  S.pantLineAt = S.playTime; S.idleNext = Math.max(S.idleNext || 0, S.playTime + 12);
+  sayLine(L[Math.min(i, L.length - 1)], null, 5200);
+}
 // koşu bitince nefes nefese: hırıltılı soluk, ara ara Selim'in repliği
 const PANT_LINES = [
   { who: "SELİM", file: "selim_nefes_01", text: "Dur... dur bir saniye." },
@@ -3504,32 +3582,41 @@ const PANT_LINES = [
   { who: "SELİM", file: "selim_nefes_03", text: "Kalbim... kulağımda atıyor." },
   { who: "SELİM", file: "selim_nefes_04", text: "Kimse yok. Kimse yok... sakin ol." },
   { who: "SELİM", file: "selim_nefes_05", text: "Nereye kaçıyorum ben ya?" },
+  { who: "SELİM", file: "selim_yoruldum", text: "Yoruldum..." },
+  { who: "SELİM", file: "selim_yoruldum", text: "Yoruldum..." },
 ];
 // labirentte Selim kendi kendine konuşur: 25-40 saniyede bir, kayıtlı repliklerden rastgele (art arda aynısı gelmez)
-const IDLE_LINES = [
-  { who: "SELİM", file: "selim_neredeyim", text: "Ah... neresi burası?" },
-  { who: "SELİM", file: "selim_06", text: "Bu... bu ne sesi?" },
-  { who: "SELİM", file: "selim_nefes_02", text: "Bitmiyor bu koridor... bitmiyor!" },
-  { who: "SELİM", file: "selim_nefes_04", text: "Kimse yok. Kimse yok... sakin ol." },
-  { who: "SELİM", file: "selim_nefes_05", text: "Nereye kaçıyorum ben ya?" },
-  { who: "SELİM", file: "selim_nefes_03", text: "Kalbim... kulağımda atıyor." },
-];
+const IDLE_LINES = SELIM_SETS.kor;
 function idleTalk(dt) {
   if (S.idleNext == null || S.playTime < 3) S.idleNext = S.playTime + rand(14, 22);
   if (S.playTime < S.idleNext) return;
   if (VOICE.el || S.pant > 0 || (typeof speechSynthesis !== "undefined" && speechSynthesis.speaking)) { S.idleNext = S.playTime + 4; return; }
-  S.idleNext = S.playTime + rand(25, 40);
+  S.idleNext = S.playTime + rand(30, 45);
   let line; do line = pick(IDLE_LINES); while (IDLE_LINES.length > 1 && line === S.idleLast);
   S.idleLast = line; S.pantLineAt = S.playTime;
-  sayLine(line, null, 3200);
+  if (S.sanity < 35 && Math.random() < 0.6) { sayEvent("kriz"); return; }   // kafayı yemeye başladı
+  sayLine(line, null, 5200);
 }
 function startPant() {
   S.pant = CFG.pantTime; S.pantPhase = 0;
   if (S.playTime - S.pantLineAt > 25 && Math.random() < 0.6) { S.pantLineAt = S.playTime; setTimeout(() => { if (S.mode === "play") sayLine(pick(PANT_LINES), null, 3200); }, 1400); }
 }
+// kayıtlı nefes döngüsü (ses/selim_nefes_dongu.mp3); yüklenemezse eski sentez soluk
+const PANT_LOOP = { el: null, bad: false };
+function pantLoop(v) {
+  if (PANT_LOOP.bad) return false;
+  if (!PANT_LOOP.el) { const a = new Audio("ses/selim_nefes_dongu.mp3"); a.loop = true; a.volume = 0; a.onerror = () => { PANT_LOOP.bad = true; }; PANT_LOOP.el = a; }
+  const a = PANT_LOOP.el;
+  a.volume = clamp(v, 0, 1);
+  if (v > 0.01 && a.paused && !S.paused) a.play().catch(() => {});
+  if ((v <= 0.01 || S.paused) && !a.paused) a.pause();
+  return true;
+}
 function updatePant(dt) {
-  if (S.pant <= 0) return;
+  if (S.pant <= 0) { if (PANT_LOOP.el && !PANT_LOOP.el.paused) pantLoop(0); return; }
   S.pant -= dt; S.pantPhase = (S.pantPhase || 0) - dt;
+  // konuşurken nefes kısılır
+  if (pantLoop(plainVol(0.9 * clamp(S.pant / CFG.pantTime, 0.25, 1) * (VOICE.el ? 0.35 : 1), GFX.voice) * (S.pant > 0 ? 1 : 0))) return;
   if (S.pantPhase <= 0 && AU.ctx) {
     const k = clamp(S.pant / CFG.pantTime, 0.25, 1), inhale = (S.pantIn = !S.pantIn);
     S.pantPhase = lerp(0.95, 0.5, k) * (inhale ? 0.8 : 1);
@@ -4269,9 +4356,11 @@ function updatePlayer(dt) {
       K.done = true; if (!K.hand) p.mesh.parent?.remove(p.mesh);
       if (p.type === "battery") {
         S.batteries++; sfxClick(1800, 0.2, 0.03);
+        sayEvent("pil");
         toast(S.battery < 60 ? "PİL ALINDI · R ile tak" : "PİL ALINDI · TAB envanter");
       } else if (p.type === "piece") {
         if (!S.pieces.includes(p.q)) S.pieces.push(p.q);
+        sayEvent("harita", Math.min(S.pieces.length, 4) - 1);
         sfxClick(2400, 0.12, 0.05); setTimeout(() => sfxClick(1900, 0.1, 0.05), 90);
         toast(S.pieces.length >= CFG.pieces ? "HARİTA TAMAMLANDI · TAB" : `HARİTA PARÇASI ${S.pieces.length}/${CFG.pieces} · TAB`, 2600);
       } else if (p.type === "walkman") {
@@ -4611,6 +4700,7 @@ function endTape() {
   if (document.pointerLockElement !== canvas) lockPointer();
   setGain(AU.static, 0);
   toast(`KASET ${S.tapesFound}/${CFG.tapes} · T: tekrar izle`);
+  if ((S.said?.kaset || 0) < 2) setTimeout(() => sayEvent("kaset"), 900);   // kendi sesini duydu
 }
 // kaset ekranı gürültüsü
 const tn = $("tapeNoise"), tng = tn.getContext("2d"), tnImg = tng.createImageData(tn.width, tn.height);
@@ -4653,6 +4743,10 @@ function frame(now) {
     if (S.mode === "play") updateCreature(dt);
     if (S.mode === "play") updateSanity(dt);
     if (S.mode === "play") mazeTvTick(dt);
+    if (S.mode === "play" && S.area === "maze" && G.marks && (S.said?.yazi || 0) < 3 && S.playTime - (S.yaziAt ?? -99) > 40) {   // duvar yazısına yaklaşınca
+      const m = G.marks.find((q) => Math.hypot(q.x - S.pos.x, q.z - S.pos.z) < 2.6);
+      if (m) { G.marks.splice(G.marks.indexOf(m), 1); S.yaziAt = S.playTime; sayEvent("yazi"); }
+    }
     if (S.mode === "play") updatePant(dt);
     if (S.mode === "play") idleTalk(dt);
   } else if (S.mode === "tape") drawTapeNoise();
