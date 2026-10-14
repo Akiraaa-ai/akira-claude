@@ -208,7 +208,6 @@
   <div class="tl"><span style="color:#ff2b2b">● PLAY</span> &nbsp;<span id="tapeName"></span></div>
   <div class="tr"><div id="tapeDate"></div><div id="tapeClock">00:00:00</div></div>
   <div id="tapeSub"></div>
-  <div class="hint">BOŞLUK · kaydı atla</div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
@@ -3399,9 +3398,7 @@ addEventListener("keydown", (e) => {
   if (e.code === "Tab") e.preventDefault();
   if (e.code === "Space") {
     e.preventDefault();
-    if (S.mode === "tape") endTape();
-    else if (S.mode === "intro" && S.intro && HOME_PH.has(S.intro.phase)) startCarRide(S.intro);   // evdeki açılışı geç
-    return;
+    return;   // sahneler geçilemez
   }
   if (S.mode !== "play" || S.paused) return;
   if (e.code === "KeyF") toggleLight();
@@ -3688,7 +3685,7 @@ const UI = { tab: "goruntu" };
 const TABS = { goruntu: "GÖRÜNTÜ", ses: "SES", kontrol: "KONTROL", tuslar: "TUŞLAR" };
 const KEYMAP = [
   ["W A S D", "yürü"], ["SHIFT", "koş"], ["FARE / OK TUŞLARI", "etrafa bak"], ["F", "fener aç / kapat"], ["E", "kapıyı aç"], ["R", "yeni pil tak"], ["TAB", "envanter"], ["M", "walkman: müzik"], ["N", "walkman: sonraki parça"],
-  ["T", "son kaseti tekrar izle"], ["BOŞLUK", "sinematiği / kaseti geç"], ["ARABADA W / S", "gaz / fren"],
+  ["T", "son kaseti tekrar izle"], ["ARABADA W / S", "gaz / fren"],
   ["ARABADA A / D", "direksiyon"], ["ESC ya da P", "duraklat"],
 ];
 function renderSettings() {
@@ -3887,7 +3884,6 @@ function startIntro() {
   S.surface = true; S.black = 1; S.lightOn = false; S.cam = 0; S.camOn = false;
   tvMedia();
   show("hud"); $("hud").classList.add("cine", "nocam");
-  $("skip").textContent = "BOŞLUK · geç"; show("skip");
   startRain();
 }
 // evden çıkış: araba ana caddenin batı ucunda, doğuya bakıyor
