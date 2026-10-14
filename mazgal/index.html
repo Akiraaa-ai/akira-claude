@@ -175,7 +175,7 @@
     <div class="credits hidden" id="credits">
       <b>MAZGAL</b>Fikir, hikâye ve yönetim: alp
       <b>SES</b>Yağmur: liecio (Pixabay) · Radyo şarkısı, müzikler, Selim ve anlatıcı: alp
-      <b>3D MODELLER (SKETCHFAB)</b>Bekçi kulübesi: castleonsandYT (CC BY 4.0)<br>Masa telefonu: R3indeer (CC BY-NC 4.0)<br>Tüplü TV: Timothy Ahene<br>Sokak ve Selim'in odası: dasy444<br>Walkman ve kaset: heat_of_fusion<br>Pil: trashbinkr<br>Konserve ve katlanır sandalye: Antarct1c<br>Ofis: VTX<br>Eller: Rigged FPS Arms<br>Gövde: BlakkMato (CC BY 4.0)<br>Araba: amirbuilds2000
+      <b>3D MODELLER (SKETCHFAB)</b>Bekçi kulübesi: castleonsandYT (CC BY 4.0)<br>Masa telefonu: Peter Gatchev<br>Tüplü TV: Timothy Ahene<br>Sokak ve Selim'in odası: dasy444<br>Walkman ve kaset: heat_of_fusion<br>El feneri ve pil: suspensy<br>Konserve ve katlanır sandalye: Antarct1c<br>Ofis: VTX<br>Eller: Rigged FPS Arms<br>Gövde: BlakkMato (CC BY 4.0)<br>Araba: amirbuilds2000
       <b>MOTOR</b>three.js
     </div>
   </div>
@@ -213,7 +213,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
 <script src="dokular.js"></script>
-<script src="modeller.js?v=7"></script>
+<script src="modeller.js?v=8"></script>
 <script src="gltf.js"></script>
 <script src="eller.js"></script>
 <script src="oda.js"></script>
@@ -920,6 +920,9 @@ function mtvAudio() {
       MTV.pan = pn; MTV.routed = true;
     } catch (e) { MTV.routed = false; }
   }
+  if (!MTV.bed) {   // dosyaya çift tıklayınca (file://) ses düğümleri kurulamaz: müzik düz çalar, sesi mesafeyle kısılır
+    const bed = new Audio(TV_MUSIC); bed.loop = true; bed.preload = "auto"; bed.volume = 0; bed.onerror = () => { MTV.bed = null; }; MTV.bed = bed;
+  }
   a.src = "ses/anlatici.mp3"; MTV.audio = a; return a;
 }
 function mazeTvTick(dt) {
@@ -931,7 +934,7 @@ function mazeTvTick(dt) {
     if (a.paused && nd < 30) a.play().catch(() => {});
     if (MTV.bed && MTV.bed.paused && !a.paused) MTV.bed.play().catch(() => {});
     if (MTV.routed) { a.volume = 0.85; const P = MTV.pan; if (P.positionX) { P.positionX.value = near.pos.x; P.positionY.value = near.pos.y; P.positionZ.value = near.pos.z; } else P.setPosition(near.pos.x, near.pos.y, near.pos.z); }
-    else a.volume = plainVol(0.85 * Math.pow(clamp(1 - nd / 16, 0, 1), 2), GFX.voice);
+    else { a.volume = plainVol(0.85 * Math.pow(clamp(1 - nd / 16, 0, 1), 2), GFX.voice); if (MTV.bed) MTV.bed.volume = plainVol(0.3 * Math.pow(clamp(1 - nd / 16, 0, 1), 2), GFX.voice); }
   }
   // yayın sesle aynı yerde akar; ses yoksa saate göre
   const t = a && !a.paused && a.currentTime > 0 ? a.currentTime % TV_LEN : S.playTime % TV_LEN;
@@ -1424,11 +1427,18 @@ function setupHands(gl) {
   }
   HANDS.bones = bones; HANDS.rest = bones.map((b) => b.quaternion.clone());
   // el feneri
-  const t = new THREE.Group(), tm = new THREE.MeshStandardMaterial({ color: 0x1a1a1c, roughness: 0.45, metalness: 0.6 });
-  t.add(new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.17, 14), tm));
-  const head = new THREE.Mesh(new THREE.CylinderGeometry(0.023, 0.016, 0.05, 16), tm); head.position.y = 0.105; t.add(head);
+  // alp'in gönderdiği el feneri modeli (mercek +y'de); yoksa basit silindir
+  const t = new THREE.Group(), FM = buildModel("fener");
   HANDS.lensMat = new THREE.MeshBasicMaterial({ color: 0x302e2a });
-  const lens = new THREE.Mesh(new THREE.CircleGeometry(0.02, 16), HANDS.lensMat); lens.rotation.x = -Math.PI / 2; lens.position.y = 0.1305; t.add(lens);
+  if (FM) {
+    for (const m of FM.parts.mercek || []) m.material = HANDS.lensMat;
+    FM.group.position.y = 0.02; t.add(FM.group);
+  } else {
+    const tm = new THREE.MeshStandardMaterial({ color: 0x1a1a1c, roughness: 0.45, metalness: 0.6 });
+    t.add(new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.17, 14), tm));
+    const head = new THREE.Mesh(new THREE.CylinderGeometry(0.023, 0.016, 0.05, 16), tm); head.position.y = 0.105; t.add(head);
+    const lens = new THREE.Mesh(new THREE.CircleGeometry(0.02, 16), HANDS.lensMat); lens.rotation.x = -Math.PI / 2; lens.position.y = 0.1305; t.add(lens);
+  }
   t.scale.setScalar(HAND_TUNE.torch.size || 1);
   rig.add(t); HANDS.torch = t;
   rig.traverse((o) => o.layers.set(1));
@@ -2325,7 +2335,7 @@ function buildStreet() {
   };
   const DK = window.MODELLER && window.MODELLER.dukkan, SK = window.MODELLER && window.MODELLER.sokak;
   if (DK) {
-    const used = [[-68.5, Z0 - 1, -51.5, -8.5], [X0, -8.5, X1, 8.5]];   // kaplanan taban dikdörtgenleri [x0, z0, x1, z1]; çakışan bina konmaz. İlk ikisi yollar: ara sokak ve ana cadde hep açık kalır
+    const used = [[-68.5, Z0 - 1, -51.5, -8.5], [X0, -8.5, X1, 8.5], [-211.5, 8.4, -205.5, 30]];   // üçüncüsü: Selim'in apartmandan arabaya yürüdüğü yol   // kaplanan taban dikdörtgenleri [x0, z0, x1, z1]; çakışan bina konmaz. İlk ikisi yollar: ara sokak ve ana cadde hep açık kalır
     const free = (r) => used.every((u) => r[0] >= u[2] - 0.01 || r[2] <= u[0] + 0.01 || r[1] >= u[3] - 0.01 || r[3] <= u[1] + 0.01);
     // f: cephe sırası. h: x boyunca mı, line: cephe çizgisi, face: cephenin baktığı yön (+1/-1).
     // Modelde cephe +z'ye bakar, gövde -z'dedir; dönüş buna göre seçilir.
@@ -3945,6 +3955,8 @@ function introUpdate(dt) {
       I.thr = thr; driveCar(car, dt, thr, brk, st);
       if (!I.c1 && I.t >= 8) { I.c1 = true; sayLine(CAR_LINES[0], null, 2600); }
       if (!I.c2 && I.t >= 22) { I.c2 = true; sayLine(CAR_LINES[1], null, 2600); }
+      if (!I.hint && I.t >= 1) { I.hint = true; subtitle("W ile sür. Kulübe ara sokakta: ilk büyük kavşaktan sola dön.", 5500); }
+      if (!I.turn && car.x > -95 && car.x < -70) { I.turn = true; subtitle("Kavşaktan sola dön.", 3500); }
       if (!I.lost && car.x > -42) { I.lost = true; subtitle("Kulübe ara sokakta: kavşağa geri dön.", 5000); }
       // ara sokakta kulübeye yaklaşınca kendiliğinden yanaşır
       if (car.x > -63.5 && car.x < -56.5 && car.z < -82 - car.v * car.v / 16) { I.phase = "park0"; I.t = 0; clearSub(); }
@@ -4593,7 +4605,9 @@ function endTape() {
   stopVoice();
   const vid = $("tapeVideo"); vid.pause(); vid.removeAttribute("src");
   hide("tape");
-  S.mode = "play"; S.paused = false; pauseGame();
+  // kayıt bitince ya da atlanınca doğrudan oyuna dönülür; fare kilidi düştüyse yeniden alınır (alınamazsa menü açılır)
+  S.mode = "play"; S.paused = false;
+  if (document.pointerLockElement !== canvas) lockPointer();
   setGain(AU.static, 0);
   toast(`KASET ${S.tapesFound}/${CFG.tapes} · T: tekrar izle`);
 }
