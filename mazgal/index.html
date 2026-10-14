@@ -45,14 +45,34 @@
   #splash .sp small { display: block; max-width: 560px; margin-top: 18px; font-size: 13px; line-height: 1.8; letter-spacing: 1px; color: #8a8368; }
   #sp1 { font-size: 18px; letter-spacing: 8px; color: #d9cf9a; animation: spIn 4.2s ease forwards; }
   #sp1 svg { width: 64px; height: 64px; margin-bottom: 22px; stroke: #d9cf9a; fill: none; stroke-width: 1.6; }
-  #sp2 { animation: spIn2 3.2s ease 4.2s forwards; }
+  #sp2 { animation: spIn2 3.4s ease 12.6s forwards; }
+  /* arşiv uyarısı: daktilo satırları */
+  #spA { animation: spIn 5.4s ease 4.2s forwards; font-size: 12px; letter-spacing: 5px; color: #8a8368; }
+  #spA .hd { color: #d9cf9a; font-size: 15px; letter-spacing: 9px; margin-bottom: 26px; }
+  #spA .ln { max-width: 640px; font-size: 14px; letter-spacing: 1.5px; line-height: 2; color: #b9b294; overflow: hidden; white-space: nowrap; width: 0; margin: 0 auto; }
+  #spA .ln1 { animation: type 1.6s steps(52) 4.9s forwards; }
+  #spA .ln2 { animation: type 1.6s steps(52) 6.5s forwards; }
+  #spA .ln3 { animation: type 1.0s steps(30) 8.1s forwards; color: #ff3b30; letter-spacing: 4px; }
+  @keyframes type { to { width: 640px; } }
+  /* kamera zaman damgası */
+  #spB { animation: spIn 3.2s ease 9.6s forwards; font-size: 13px; letter-spacing: 6px; color: #e8e2c8; }
+  #spB .rec { font-size: 30px; letter-spacing: 10px; color: #f2ecd2; }
+  #spB .rec b { color: #ff2b2b; font-weight: normal; animation: blink 1s infinite; }
+  #spB small { color: #8a8368; }
+  /* logo: parazitle gelir, alttan çizgi açılır */
+  #sp2 .logo { animation: logoIn 2.4s steps(1) 12.6s both, logoFlk 7s 15s infinite; }
+  @keyframes logoIn { 0% { opacity: 0; } 8% { opacity: 1; transform: skewX(18deg) translateX(-30px); filter: blur(6px); } 12% { opacity: .2; } 16% { opacity: 1; transform: none; filter: blur(0); } 30% { transform: translateX(6px); } 32% { transform: none; } 55% { opacity: .5; } 57% { opacity: 1; } 100% { opacity: 1; } }
+  #sp2 .bar { width: 0; height: 1px; margin: 26px auto 0; background: linear-gradient(90deg, transparent, #d9cf9a, transparent); animation: barIn 2s ease 13.4s forwards; }
+  @keyframes barIn { to { width: 520px; } }
+  #sp2 .stu { position: absolute; bottom: 7%; font-size: 10px; letter-spacing: 6px; color: #5a5644; }
   #splash .logo { font-size: 120px; }
-  #spPress { position: absolute; bottom: 14%; width: 100%; font-size: 14px; letter-spacing: 6px; color: #e8e2c8; opacity: 0; animation: spPress 1.2s ease 6.6s forwards; }
+  #spPress { position: absolute; bottom: 14%; width: 100%; font-size: 14px; letter-spacing: 6px; color: #e8e2c8; opacity: 0; animation: spPress 1.2s ease 15.8s forwards; }
   #spPress span { animation: blink 1.8s infinite; }
   @keyframes spIn { 0% { opacity: 0; } 18% { opacity: 1; } 78% { opacity: 1; } 100% { opacity: 0; } }
   @keyframes spIn2 { 0% { opacity: 0; filter: blur(8px); } 40% { opacity: 1; filter: blur(0); } 100% { opacity: 1; } }
   @keyframes spPress { to { opacity: 1; } }
-  #splash.skip .sp, #splash.skip #spPress { animation: none; }
+  #splash.skip .sp, #splash.skip #spPress, #splash.skip .logo, #splash.skip .bar { animation: none; }
+  #splash.skip .bar { width: 520px; }
   #splash.skip #sp2, #splash.skip #spPress { opacity: 1; }
   .logo { font-size: 92px; letter-spacing: 30px; color: #d9cf9a; font-weight: normal; line-height: 1; text-shadow: 0 0 24px rgba(217,207,154,.25), 2px 0 rgba(255,60,40,.35), -2px 0 rgba(60,160,255,.25); animation: logoFlk 7s infinite; }
   @keyframes logoFlk { 0%, 41%, 44%, 79%, 100% { opacity: 1; } 42% { opacity: .35; } 43% { opacity: .9; } 80% { opacity: .55; } }
@@ -151,7 +171,14 @@
     KULAKLIK ÖNERİLİR
     <small>Bu oyun karanlık sahneler, titreyen ışıklar ve rahatsız edici sesler içerir.<br>En iyi deneyim için ışıkları kapatın.</small>
   </div>
-  <div class="sp" id="sp2"><div class="logo">MAZGAL</div><small>bir bodycam kaydı</small></div>
+  <div class="sp" id="spA">
+    <div class="hd">FEN İŞLERİ MÜDÜRLÜĞÜ · ARŞİV</div>
+    <div class="ln ln1">Aşağıdaki görüntüler bir görevlinin yaka kamerasından</div>
+    <div class="ln ln2">kurtarılmıştır. Kayıt eksik ve hasarlıdır.</div>
+    <div class="ln ln3">KAYIT 1 / 4 · SELİM</div>
+  </div>
+  <div class="sp" id="spB"><div class="rec"><b>●</b> REC&nbsp;&nbsp;14.10.2026&nbsp;&nbsp;03:17:44</div><small>BODYCAM · FEN İŞLERİ · BİRİM 07</small></div>
+  <div class="sp" id="sp2"><div class="logo">MAZGAL</div><div class="bar"></div><small>bir bodycam kaydı</small><div class="stu">BAĞIMSIZ BİR YAPIM · 2026</div></div>
   <div id="spPress"><span>[ HERHANGİ BİR TUŞA BAS ]</span></div>
 </div>
 
@@ -346,6 +373,8 @@ const QUALITY = {
   dusuk:  { label: "DÜŞÜK",  scale: 0.6,  lights: 4, bloom: false, props: 0.5 },
   orta:   { label: "ORTA",   scale: 0.85, lights: 6, bloom: true,  props: 1 },
   yuksek: { label: "YÜKSEK", scale: 1.0,  lights: 8, bloom: true,  props: 1 },
+  // ULTRA: 2x çözünürlük sınırı, 4x MSAA, fenerden gerçek gölge, 16x doku süzme, keskinleştirme + film tonu + halo
+  ultra:  { label: "ULTRA",  scale: 1.0,  lights: 8, bloom: true,  props: 1, ultra: true, cap: 2 },
 };
 const GFX_DEF = { quality: "orta", bright: 1.0, fx: 1.0, fov: 78, bob: 1.0, vol: 1.0, amb: 1.0, voice: 1.0, sens: 1.0, invY: false, subs: true, subSize: 1 };
 const GFX = Object.assign({}, GFX_DEF);
@@ -356,7 +385,8 @@ function saveGfx() { try { localStorage.setItem("mazgal.gfx", JSON.stringify(GFX
 
 const canvas = $("view");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5) * Q().scale);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, Q().cap || 1.5) * Q().scale);
+renderer.shadowMap.enabled = !!Q().ultra; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.setSize(innerWidth, innerHeight, false);
 
 const scene = new THREE.Scene();
@@ -397,12 +427,12 @@ const postMat = new THREE.ShaderMaterial({
     uFish: { value: CFG.fx.fisheye }, uChroma: { value: CFG.fx.chroma }, uGrain: { value: CFG.fx.grain },
     uScan: { value: CFG.fx.scan }, uVig: { value: CFG.fx.vignette }, uTint: { value: CFG.fx.tint },
     uRes: { value: new THREE.Vector2(1, 1) },
-    tBloom: { value: bloomB.texture }, uBloom: { value: 0 }, uBright: { value: 1 },
+    tBloom: { value: bloomB.texture }, uBloom: { value: 0 }, uBright: { value: 1 }, uUltra: { value: 0 },
   },
   vertexShader: "varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }",
   fragmentShader: `
     precision highp float;
-    uniform sampler2D tDiffuse, tBloom; uniform float uTime, uInter, uBlack, uFish, uChroma, uGrain, uScan, uVig, uTint, uBloom, uBright; uniform vec2 uRes;
+    uniform sampler2D tDiffuse, tBloom; uniform float uTime, uInter, uBlack, uFish, uChroma, uGrain, uScan, uVig, uTint, uBloom, uBright, uUltra; uniform vec2 uRes;
     varying vec2 vUv;
     float rnd(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     vec2 barrel(vec2 uv){ vec2 c = uv - 0.5; float r2 = dot(c, c); return 0.5 + c * (1.0 - uFish * 0.5 + uFish * r2 * 1.6) / (1.0 - uFish * 0.18); }
@@ -423,6 +453,16 @@ const postMat = new THREE.ShaderMaterial({
       col.g = texture2D(tDiffuse, uv).g;
       col.b = texture2D(tDiffuse, uv - c * ca).b;
       vec3 bl = texture2D(tBloom, uv).rgb;
+      if (uUltra > 0.0) {
+        // keskinleştirme: komşu piksellerle fark büyütülür
+        vec2 px = 1.0 / uRes;
+        vec3 nb = texture2D(tDiffuse, uv + vec2(px.x, 0.0)).rgb + texture2D(tDiffuse, uv - vec2(px.x, 0.0)).rgb + texture2D(tDiffuse, uv + vec2(0.0, px.y)).rgb + texture2D(tDiffuse, uv - vec2(0.0, px.y)).rgb;
+        col += (col - nb * 0.25) * 0.55 * uUltra;
+        // halo: parlak yerlerin çevresine kırmızımsı film sızması, geniş yumuşak parlama
+        vec3 wide = (texture2D(tBloom, uv + vec2(6.0, 0.0) * px * 4.0).rgb + texture2D(tBloom, uv - vec2(6.0, 0.0) * px * 4.0).rgb + texture2D(tBloom, uv + vec2(0.0, 6.0) * px * 4.0).rgb + texture2D(tBloom, uv - vec2(0.0, 6.0) * px * 4.0).rgb) * 0.25;
+        col += wide * vec3(0.5, 0.25, 0.12) * 0.16 * uUltra;
+        bl = bl * 1.05 + wide * 0.12;
+      }
       col += mix(bl, vec3(dot(bl, vec3(0.333))), 0.55) * uBloom;   // parlama hafif beyaza çeker
       col *= uBright;
       if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) col = vec3(0.0);
@@ -431,6 +471,12 @@ const postMat = new THREE.ShaderMaterial({
       col = mix(col, vec3(l), 0.22 + uInter * 0.35);
       col += vec3(0.02, 0.035, -0.01) * (uTint / 0.07);
       col = (col - 0.5) * 1.08 + 0.5;
+      if (uUltra > 0.0) {   // film tonu: gölgeler derin, parlaklar yumuşak omuz
+        vec3 x = max(col, 0.0) * 1.1;
+        vec3 fm = (x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14);
+        col = mix(col, fm, 0.6 * uUltra);
+        col *= 1.0 - 0.12 * uUltra * smoothstep(0.3, 0.95, length((vUv - 0.5) * vec2(1.3, 1.0)));
+      }
       // gren + parazit gürültüsü
       float g = rnd(vUv * uRes + fract(t * 61.0) * 100.0);
       col += (g - 0.5) * (uGrain + uInter * 0.3);
@@ -623,6 +669,27 @@ const flashlight = new THREE.SpotLight(0xfff1d6, 0, 24, 0.55, 0.75, 1.4);
 flashlight.position.set(0.15, -0.12, 0);
 flashlight.target.position.set(0.1, -0.1, -1);
 camera.add(flashlight, flashlight.target);
+// ULTRA grafik: fener gerçek gölge düşürür, dokular 16x süzülür, ana görüntü 4x örneklenir
+const ULTRA = { next: 0, on: null, aniso: renderer.capabilities.getMaxAnisotropy() };
+flashlight.shadow.mapSize.set(2048, 2048); flashlight.shadow.bias = -0.0006; flashlight.shadow.normalBias = 0.03; flashlight.shadow.camera.near = 0.2;
+function applyUltra(changed) {
+  const on = !!Q().ultra;
+  if (changed || ULTRA.on !== on) {
+    renderer.shadowMap.enabled = on; flashlight.castShadow = on;
+    if (rt.samples !== (on ? 4 : 0)) { rt.samples = on ? 4 : 0; rt.dispose(); }
+  }
+  const relink = changed && ULTRA.on !== null && ULTRA.on !== on; ULTRA.on = on;
+  scene.traverse((o) => {
+    if (!o.isMesh || o.layers.mask === 2) return;
+    if (o.castShadow !== on) { o.castShadow = o.receiveShadow = on; }
+    const ms = Array.isArray(o.material) ? o.material : [o.material];
+    for (const m of ms) {
+      if (!m) continue;
+      if (relink) m.needsUpdate = true;
+      for (const k of ["map", "normalMap", "roughnessMap", "emissiveMap"]) { const t = m[k]; if (t && t.isTexture) { const a = on ? ULTRA.aniso : 4; if (t.anisotropy !== a && t.image && t.image.complete !== false && !t.isVideoTexture) { t.anisotropy = a; t.needsUpdate = true; } } }
+    }
+  });
+}
 
 // Flow dokuları: duvar kağıdı sarıya çekilir, tavan görseli 2x2 karo olarak döşenir
 photoTex(TEX.wall, "duvar", 1024, 1024, (g, w, h) => {
@@ -3322,8 +3389,10 @@ $("pPanel").addEventListener("click", (e) => e.stopPropagation());
 // Açılış ekranı ve ana menü
 // ------------------------------------------------------------
 const MENU = { on: false, panel: null, confirm: null };
+const SPLASH_T0 = performance.now();
 function leaveSplash() {
   if (S.mode !== "title" || $("splash").classList.contains("hidden")) return;
+  if (!$("splash").classList.contains("skip") && performance.now() - SPLASH_T0 < 15800) return;   // açılış izlenir, geçilemez
   initAudio(); hide("splash"); sfxThud(null, 0.25); openMenu();
 }
 function openMenu() {
@@ -3758,7 +3827,8 @@ function applyView() {
 }
 function applyGfx() {
   saveGfx();
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5) * Q().scale);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, Q().cap || 1.5) * Q().scale);
+  applyUltra(true);
   onResize();
   applyAudio();
   applyView();
@@ -4815,6 +4885,8 @@ function frame(now) {
     renderer.setRenderTarget(bloomB); renderer.render(blurScene, postCam);
     u.uBloom.value = 0.55;
   } else u.uBloom.value = 0;
+  u.uUltra.value = Q().ultra ? 1 : 0;
+  if (Q().ultra && (ULTRA.next -= 1) <= 0) { ULTRA.next = 90; applyUltra(false); }   // yeni kurulan sahneler de gölge ve süzme alsın
   renderer.setRenderTarget(null); renderer.render(postScene, postCam);
   if (S.mode !== "title") updateHud();
 }
