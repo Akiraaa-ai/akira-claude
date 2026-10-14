@@ -2240,7 +2240,8 @@ let CITY_SCENE = null, CITY_WAIT = null;
 function loadCity() {
   if (CITY_SCENE || CITY_WAIT || !THREE.GLTFLoader) return CITY_WAIT;
   const L = new THREE.GLTFLoader(); if (window.MeshoptDecoder) L.setMeshoptDecoder(MeshoptDecoder);
-  const src = (ok, fail) => L.load("sehir.glb", ok, undefined, fail);   // alp'in orijinal dosyası, sıkıştırılmadan
+  // alp'in orijinal dosyası, sıkıştırılmadan: depoda sehir.glb, alp'in klasöründe dokular/source/Terrain Remaked.glb
+  const src = (ok, fail) => L.load("sehir.glb", ok, undefined, () => L.load("dokular/source/Terrain%20Remaked.glb", ok, undefined, fail));
   return (CITY_WAIT = new Promise((res) => src((gl) => {
     const holeU = { value: new THREE.Vector3(0, -999, 0) };
     gl.scene.traverse((o) => {
