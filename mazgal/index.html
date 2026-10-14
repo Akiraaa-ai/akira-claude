@@ -1952,7 +1952,12 @@ function buildSelimThings() {
   // 1) Selim'in odası: kanepe, sehpa, kül tablası; sanki evinden kopup buraya düşmüş
   if (sp.oda) {
     const g = new THREE.Group(); g.position.copy(specialCenter(sp.oda)); g.rotation.y = randi(0, 3) * Math.PI / 2; G.world.add(g);
-    const place = (m) => { if (g.userData.oda || !g.parent) return; g.userData.oda = true; m.name = "SELIM_ODA"; m.rotation.y = Math.PI / 2; m.position.set(0.55, 0, -0.5); g.add(m); blockFrom(m); };
+    const place = (m) => { if (g.userData.oda || !g.parent) return; g.userData.oda = true; m.name = "SELIM_ODA"; m.rotation.y = Math.PI / 2; m.position.set(0.55, 0, -0.5); g.add(m);
+      // labirentte yalnız eşyalar kalır: duvarlar, pencere manzarası ve dış bina gibi büyük parçalar labirent duvarlarına girer
+      m.updateMatrixWorld(true); const bb = new THREE.Box3(), sz = new THREE.Vector3(), drop = [];
+      m.traverse((o) => { if (!o.isMesh) return; bb.setFromObject(o).getSize(sz); if (Math.max(sz.x, sz.z) > 3.2 || sz.y > CFG.wallH - 0.2 || bb.min.y > 0.3 || o.material?.name === "Material.014") drop.push(o); });
+      drop.forEach((o) => o.parent.remove(o));
+      blockFrom(m); };
     if (ODA_SCENE) place(ODA_SCENE.clone());
     else if (window.ODA_GLB && THREE.GLTFLoader) {
       const bin = atob(window.ODA_GLB), u = new Uint8Array(bin.length);
@@ -2010,11 +2015,11 @@ function selimTick(dt) {
   // ilk görüşte Selim tepki verir
   if (S.mode !== "play" || S.area !== "maze") return;
   // uzakta bir telefon: dakikada bir çalar, 25 saniye çalıp susar (kimse açmaz)
-  const R = (G.ring ??= { next: S.playTime + rand(40, 60), until: -1, at: 0, pos: null });
+  const R = (G.ring ??= { next: S.playTime + rand(60, 120), until: -1, at: 0, pos: null });
   if (R.until < 0 && S.playTime >= R.next) {
     const far = openCells((x, y) => { const q = cellCenter(x, y), d = Math.hypot(q.x - S.pos.x, q.z - S.pos.z); return d > 10 && d < 22; });
     if (far.length) { R.pos = cellCenter(...pick(far)).setY(1.0); R.until = S.playTime + 25; R.at = S.playTime; }
-    R.next = S.playTime + 60;
+    R.next = S.playTime + 120;
   }
   if (R.until >= 0) {
     if (S.playTime >= R.until) R.until = -1;
@@ -3509,7 +3514,7 @@ document.addEventListener("pointerlockerror", lockError);
 document.addEventListener("pointerlockchange", () => {
   const locked = document.pointerLockElement === canvas;
   if (locked) { S.lockOk = true; S.lockFailed = false; }
-  if (!locked) pauseGame();
+  if (!locked && S.mode !== "dead" && S.mode !== "tape") pauseGame();
   else if (S.paused) resumeGame();
 });
 document.addEventListener("mousemove", (e) => {
@@ -4880,7 +4885,8 @@ function die() {
   sfxStaticBurst(0.8, 1.2);
   setGain(AU.breath, 0, 0.05); setGain(AU.hum, 0, 0.3);
   setTimeout(() => { if (S.mode === "dead") { S.black = 1; show("dead"); setGain(AU.static, 0, 0.3); } }, 900);
-  document.exitPointerLock?.();
+  // "KAYIT KESİLDİ" ekranından menüye düşmeden kendiliğinden yeniden başlar
+  setTimeout(() => { if (S.mode === "dead") { hide("dead"); resetRun(); startPlay(); lockPointer(); } }, 4200);
 }
 
 // ============================================================
@@ -4891,7 +4897,6 @@ function playTape(idx) {
   const tape = TAPES[idx]; if (!tape || S.mode === "dead") return;
   S.mode = "tape";
   stopVoice(); if ("speechSynthesis" in window) speechSynthesis.cancel();   // Selim konuşuyorsa sözü yarıda kesilir, kaldığı yerden devam etmez
-  document.exitPointerLock?.();
   setGain(AU.breath, 0); setGain(AU.static, 0.03); setGain(AU.hum, 0.1);
   $("tapeName").textContent = `KASET ${idx + 1} · ${tape.who}`;
   $("tapeDate").textContent = tape.date;
