@@ -312,7 +312,7 @@ const WALL_TEXTS = [
   "BURASI\nAYNI YER",
   "|||| |||| |||",
   "UYUMA",
-  "ARAYAN DA\nSENSİN",
+  "ARAYAN\nSENDİN",
   "PANO KAPI DEĞİL\nARKASI KAPI",
   "IŞIĞI KAPAT\nDİNLE",
   "ÇIKIŞ YOK DEMEDİM\nKAPI YOK DEDİM",
@@ -925,12 +925,21 @@ function mtvAudio() {
   }
   a.src = "ses/anlatici.mp3"; MTV.audio = a; return a;
 }
+// TV kameranın önünde mi ve arada duvar yok mu
+const TV_RAY = new THREE.Raycaster();
+function tvInSight(tv, d) {
+  const dx = tv.pos.x - S.pos.x, dz = tv.pos.z - S.pos.z;
+  if ((dx * -Math.sin(S.yaw) + dz * -Math.cos(S.yaw)) / d < 0.75) return false;
+  const from = new THREE.Vector3(S.pos.x, S.pos.y, S.pos.z), to = tv.pos.clone().sub(from), len = to.length();
+  TV_RAY.set(from, to.normalize()); TV_RAY.far = len - 0.6;
+  return !TV_RAY.intersectObjects(G.world.children, true).some((h) => h.object.isMesh && h.object.visible);
+}
 function mazeTvTick(dt) {
   if (!MTV.list.length || S.area !== "maze") { MTV.audio?.pause(); MTV.bed?.pause(); if (MTV.light) MTV.light.intensity = 0; return; }
   let near = null, nd = Infinity;
   for (const t of MTV.list) { const d = Math.hypot(t.x - S.pos.x, t.z - S.pos.z); if (d < nd) { nd = d; near = t; } }
   // TV'yi ilk görüşte ve sonra her yeni TV'de (en az 25 sn arayla) Selim tepki verir
-  if (nd < 6 && !near.seen && S.mode === "play" && S.playTime - (MTV.saidAt ?? -99) > 25) { near.seen = true; MTV.saidAt = S.playTime; sayEvent("tv"); }
+  if (nd < 7 && !near.seen && S.mode === "play" && S.playTime - (MTV.saidAt ?? -99) > 25 && tvInSight(near, nd)) { near.seen = true; MTV.saidAt = S.playTime; sayEvent("tv"); }
   const a = mtvAudio();
   if (a) {
     if (a.paused && nd < 30) a.play().catch(() => {});
@@ -1000,13 +1009,14 @@ function buildWritings(distStart) {
     const side = new THREE.Vector3(f.dy, 0, -f.dx).multiplyScalar(rand(-0.6, 0.6));
     mesh.position.add(side);
     G.world.add(mesh);
-    placed.push(f); (G.marks ??= []).push(cellCenter(f.x, f.y));
+    placed.push(f); (G.marks ??= []).push({ p: cellCenter(f.x, f.y), f, t: text });
     return mesh;
   };
   // uyanınca açık bir koridora bakar (başlangıçta yazı yok)
   const n0 = neighbors(G.start[0], G.start[1]);
   if (n0.length) { const [nx, ny] = pick(n0); G.startYaw = Math.atan2(-(nx - G.start[0]), -(ny - G.start[1])); }
   const rest = WALL_TEXTS.slice().sort(() => Math.random() - 0.5).slice(0, CFG.wallTexts);
+  if (!rest.includes("ARAYAN\nSENDİN")) rest[0] = "ARAYAN\nSENDİN";   // Selim'in repliği bu yazıya bağlı, hep bulunur
   const pool = faces.filter((f) => distStart[f.y][f.x] >= 5);
   const spot = () => { const ok = pool.filter((f) => placed.every((q) => Math.abs(q.x - f.x) + Math.abs(q.y - f.y) >= 5)); return ok.length ? pick(ok) : null; };
   // haritadaki X: en uzak çıkmazın dip duvarında "buradaydım" notu
@@ -1016,7 +1026,7 @@ function buildWritings(distStart) {
       const tex = tallyTexture();
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.594), new THREE.MeshLambertMaterial({ map: tex, polygonOffset: true, polygonOffsetFactor: -2 }));
       mesh.position.copy(cellCenter(f.x, f.y).add(new THREE.Vector3(f.dx, 0, f.dy).multiplyScalar(C / 2 - 0.02))).setY(1.45);
-      mesh.rotation.y = Math.atan2(-f.dx, -f.dy); G.world.add(mesh); placed.push(f); (G.marks ??= []).push(cellCenter(f.x, f.y));
+      mesh.rotation.y = Math.atan2(-f.dx, -f.dy); G.world.add(mesh); placed.push(f);
     }
   }
   for (const text of rest) { const f = spot(); if (!f) break; place(f, text); }
@@ -1029,7 +1039,7 @@ function buildWritings(distStart) {
     mesh.position.copy(cellCenter(f.x, f.y).add(new THREE.Vector3(f.dx, 0, f.dy).multiplyScalar(C / 2 - 0.02))).setY(y + rand(-0.1, 0.1));
     mesh.rotation.y = Math.atan2(-f.dx, -f.dy);
     mesh.position.add(new THREE.Vector3(f.dy, 0, -f.dx).multiplyScalar(rand(-1, 1)));
-    G.world.add(mesh); placed.push(f); (G.marks ??= []).push(cellCenter(f.x, f.y));
+    G.world.add(mesh); placed.push(f);
   }
 }
 const MAZE_NOTES = [
@@ -3164,7 +3174,7 @@ function resetRun() {
   const [nx, ny] = n.length ? pick(n) : [G.start[0], G.start[1] - 1];
   S.yaw = G.startYaw ?? Math.atan2(-(nx - G.start[0]), -(ny - G.start[1]));
   S.pitch = 0; S.roll = 0;
-  S.stamina = CFG.staminaMax; S.exhausted = false; S.pant = 0; S.pantLineAt = -99; S.idleNext = null; S.idleLast = null; S.said = {}; S.saidLast = {}; S.yaziAt = -99; S.hasWalkman = false; S.pieces = []; MAPIMG.key = null;
+  S.stamina = CFG.staminaMax; S.exhausted = false; S.pant = 0; S.pantLineAt = -99; S.idleNext = null; S.idleLast = null; S.said = {}; S.saidLast = {}; S.yaziAt = -99; S.yaziN = 0; S.hasWalkman = false; S.pieces = []; MAPIMG.key = null;
   S.battery = 100; S.lightOn = false;
   S.lamp = 1; S.lampTarget = 1; S.interference = 0; S.black = 0;
   S.playTime = 0; S.lastRun = -99; S.stillFor = 0;
@@ -3634,11 +3644,11 @@ function updateSanity(dt) {
   S.sanity = clamp(S.sanity - drain * dt * 0.55 + (MUSIC.on ? 1.2 : 0) * dt, 0, 100);   // müzik yavaş toparlar
   const low = clamp((35 - S.sanity) / 35, 0, 1);
   if (low > 0) {
-    S.interference = Math.max(S.interference, low * 0.3 + (Math.random() < dt * low * 2 ? 0.4 : 0));
+    if (Math.random() < dt * low * 0.5) S.interference = Math.max(S.interference, 0.35);   // ara ara kısa cızırtı, sürekli değil
     // yanlış adımlar: arkada, yakında
     if (Math.random() < dt * low * 0.12) { const a = S.yaw + rand(-0.6, 0.6); sfxThud(new THREE.Vector3(S.pos.x + Math.sin(a) * 3, 0, S.pos.z + Math.cos(a) * 3), 0.3); }
   }
-  if (S.sanity <= 0) { if (maze) CR.nextBlackout = Math.min(CR.nextBlackout, 1.5); else if (MAPL.ev) MAPL.ev.next = Math.min(MAPL.ev.next, 1.5); S.sanity = 8; }
+  if (S.sanity <= 0) { if (maze) CR.nextBlackout = Math.min(CR.nextBlackout, 1.5); else if (MAPL.ev) MAPL.ev.next = Math.min(MAPL.ev.next, 1.5); S.sanity = 25; }
 }
 function toggleLight() {
   if (S.battery <= 0) { sfxClick(900, 0.1, 0.04); toast("PİL BİTTİ"); return; }
@@ -3781,7 +3791,7 @@ const CAM_HUT = {
 // Sketchfab kulübe modeli varsa (modeller.js) kapı sağ duvarda, masa ön sol köşede durur
 const HUT_MODEL = !!(window.MODELLER && window.MODELLER.kulube);
 const CALL_W = [-14.2, 1.06, -3.45], CALL_D = [-14.45, 1.05, -3.6], CALL_P = [-14.28, 1.1, -3.92];
-const CALL_LOOK = [CALL_W, CALL_W, [-14.6, 1.6, -5.3], [-14.5, 1.55, -2.2], [-14.3, 1.5, -1.2], [-14.6, 1.6, -5.3], CALL_D, CALL_D, CALL_P];
+const CALL_LOOK = [CALL_W, CALL_W, [-14.6, 1.6, -5.3], [-14.5, 1.55, -2.2], CALL_D, CALL_P];
 // kulübeden çıkış ve kamyonete yürüyüş (kulübe çerçevesinde; son nokta kamyonetin kapısı)
 const CAM_EXIT = HUT_MODEL ? {
   // sandalyeden kalk, sağ duvardaki kapıya dön, dışarı çık, açık kanadın ucundan dolanıp kamyonete yürü
@@ -3799,15 +3809,12 @@ const CAM_EDGE = {
   look: [[0, 0, -0.4, 0], [1.2, 1.5, 5.4, -2.55], [2.4, 1.5, 5.0, -2.55], [3.6, 0.1, -2.5, 0], [5.2, 0.25, -7, 0]],
 };
 const INTRO_CALL = [
-  { who: "SELİM", file: "selim_01", text: "Alo?" },
-  { who: "AMİR", file: "amir_01", text: "Selim, uyumuyorsun değil mi?" },
-  { who: "SELİM", file: "selim_02", text: "Yok abi, yok. Uyanığım. Söyle." },
-  { who: "AMİR", file: "amir_02", text: "Köşedeki mazgalın kapağı açık kalmış. Biri aramış." },
-  { who: "AMİR", file: "amir_03", text: "Git bir bak, kapat şunu. Sabah çocuklar oradan geçiyor." },
-  { who: "SELİM", file: "selim_03", text: "Tamam abi, tamam. Çıkıyorum şimdi." },
-  { who: "AMİR", file: "amir_04", text: "Bir de... içinden ses geliyormuş. Öyle dedi kadın." },
-  { who: "SELİM", file: "selim_04", text: "Ne sesi abi?" },
-  { who: "AMİR", file: "amir_05", text: "Bilmiyorum. Git bak işte." },
+  { who: "AMİR", file: "amir_01", text: "Alo, Selim? Kulübede misin?" },
+  { who: "SELİM", file: "selim_01", text: "Buradayım abi, kulübeden ayrılmadım hiç." },
+  { who: "AMİR", file: "amir_02", text: "Santralden bağladılar demin... Biri aradı, mazgal açık kalmış diyor. Yalan yok, arayanın sesi de aynı sen ha, bir an 'bu herif benimle kafa mı buluyor' dedim." },
+  { who: "SELİM", file: "selim_02", text: "Kim dalga geçecek seninle, başkasıdır o." },
+  { who: "AMİR", file: "amir_03", text: "Çıkıver oradan iki adım, bakıver şuna. Çoluk çocuk geçiyor o yoldan, biri düşer eder Allah korusun, başımıza iş almayalım. Kapatıver kapağı da raporu düşelim sisteme." },
+  { who: "SELİM", file: "selim_03", text: "Tamam, anladım; iki dakikaya gidip oturturum kapağı yerine. Başımıza iş açılmasın, halledip haber veririm sana." },
 ];
 const INTRO_MUTTER = { who: "SELİM", file: "selim_05", text: "Kim açar ki bunu bu saatte..." };
 const INTRO_EDGE = { who: "SELİM", file: "selim_06", text: "Bu... bu ne sesi?" };
@@ -4743,9 +4750,14 @@ function frame(now) {
     if (S.mode === "play") updateCreature(dt);
     if (S.mode === "play") updateSanity(dt);
     if (S.mode === "play") mazeTvTick(dt);
-    if (S.mode === "play" && S.area === "maze" && G.marks && (S.said?.yazi || 0) < 3 && S.playTime - (S.yaziAt ?? -99) > 40) {   // duvar yazısına yaklaşınca
-      const m = G.marks.find((q) => Math.hypot(q.x - S.pos.x, q.z - S.pos.z) < 2.6);
-      if (m) { G.marks.splice(G.marks.indexOf(m), 1); S.yaziAt = S.playTime; sayEvent("yazi"); }
+    if (S.mode === "play" && S.area === "maze" && G.marks?.length) {   // duvar yazısına yaklaşıp bakınca
+      const fx = -Math.sin(S.yaw), fz = -Math.cos(S.yaw);
+      const m = G.marks.find((q) => { const dx = q.p.x + q.f.dx * C / 2 - S.pos.x, dz = q.p.z + q.f.dy * C / 2 - S.pos.z, d = Math.hypot(dx, dz); return d < 3.2 && (dx * fx + dz * fz) / d > 0.6; });
+      if (m) {
+        const arayan = /ARAYAN/.test(m.t);
+        if (arayan) { G.marks.splice(G.marks.indexOf(m), 1); S.yaziAt = S.playTime; sayEvent("yazi", 1); }
+        else if (S.playTime - (S.yaziAt ?? -99) > 40 && (S.yaziN || 0) < 2) { G.marks.splice(G.marks.indexOf(m), 1); S.yaziAt = S.playTime; sayEvent("yazi", S.yaziN ? 2 : 0); S.yaziN = (S.yaziN || 0) + 1; }
+      }
     }
     if (S.mode === "play") updatePant(dt);
     if (S.mode === "play") idleTalk(dt);
