@@ -2005,6 +2005,14 @@ function buildHome(st) {
   plane(BZ - RZ, H, wallM, RX, H / 2, (BZ + RZ) / 2, 0, -Math.PI / 2);          // sağ duvar (kapı burada)
   plane(RX - LX, H, wallM, (RX + LX) / 2, H / 2, RZ, 0, 0);                     // ön duvar (televizyonun arkası)
   plane(RX - LX, BZ - RZ, mat({ color: 0x3a3936, side: THREE.DoubleSide }), (RX + LX) / 2, H, (BZ + RZ) / 2, Math.PI / 2, 0);   // tavan
+  // modelin zemini kapı tarafına kadar uzanmıyor: altına odanın tamamını kaplayan koyu parke
+  const floorT = makeCanvas(256, 256, (c, w, h) => {
+    c.fillStyle = "#2a1f17"; c.fillRect(0, 0, w, h);
+    for (let y = 0; y < h; y += 32) { c.fillStyle = `rgba(${rand(30, 50) | 0},${rand(22, 34) | 0},${rand(14, 22) | 0},0.6)`; c.fillRect(0, y, w, 30); c.fillStyle = "rgba(0,0,0,0.5)"; c.fillRect(0, y + 30, w, 2); }
+    speckle(c, w, h, 900, "0,0,0", 0.05, 0.15, 1, 3);
+  });
+  floorT.repeat.set(3, 3);
+  plane(RX - LX + 0.2, BZ - RZ + 0.2, mat({ map: floorT }), (RX + LX) / 2, -0.012, (BZ + RZ) / 2, -Math.PI / 2, 0);
   if (window.ODA_GLB && THREE.GLTFLoader) {
     const bin = atob(window.ODA_GLB), u = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
@@ -2932,7 +2940,14 @@ function applyAudio() {
   AU.master.gain.value = 0.9 * GFX.vol; AU.amb.gain.value = GFX.amb * (AU.duck ?? 1); AU.voice.gain.value = GFX.voice;
 }
 const plainVol = (v, bus) => clamp(v * GFX.vol * (bus ?? 1), 0, 1);   // WebAudio'ya bağlanamayan (file://) ses öğeleri için
-function setGain(node, v, tc = 0.08) { if (AU.ctx) node.gain.setTargetAtTime(v, AU.ctx.currentTime, tc); }
+// her karede aynı hedef yeniden yazılınca ses zaman çizelgesi şişiyor, cızırtı takılıp çatırdıyordu: yalnızca hedef gerçekten değişince yaz
+function setGain(node, v, tc = 0.08) {
+  if (!AU.ctx || !node) return;
+  const now = AU.ctx.currentTime, p = node._g;
+  if (p && Math.abs(p.v - v) <= Math.max(0.0004, Math.abs(v) * 0.04) && p.tc === tc && now - p.t < 0.5) return;
+  node.gain.cancelScheduledValues(now); node.gain.setTargetAtTime(v, now, tc);
+  node._g = { v, tc, t: now };
+}
 function setPannerPos(p, x, y, z) {
   if (p.positionX) { p.positionX.value = x; p.positionY.value = y; p.positionZ.value = z; } else p.setPosition(x, y, z);
 }
@@ -3136,7 +3151,7 @@ function resetRun() {
   const [nx, ny] = n.length ? pick(n) : [G.start[0], G.start[1] - 1];
   S.yaw = G.startYaw ?? Math.atan2(-(nx - G.start[0]), -(ny - G.start[1]));
   S.pitch = 0; S.roll = 0;
-  S.stamina = CFG.staminaMax; S.exhausted = false; S.pant = 0; S.pantLineAt = -99; S.hasWalkman = false; S.pieces = []; MAPIMG.key = null;
+  S.stamina = CFG.staminaMax; S.exhausted = false; S.pant = 0; S.pantLineAt = -99; S.idleNext = null; S.idleLast = null; S.hasWalkman = false; S.pieces = []; MAPIMG.key = null;
   S.battery = 100; S.lightOn = false;
   S.lamp = 1; S.lampTarget = 1; S.interference = 0; S.black = 0;
   S.playTime = 0; S.lastRun = -99; S.stillFor = 0;
@@ -3479,6 +3494,24 @@ const PANT_LINES = [
   { who: "SELİM", file: "selim_nefes_04", text: "Kimse yok. Kimse yok... sakin ol." },
   { who: "SELİM", file: "selim_nefes_05", text: "Nereye kaçıyorum ben ya?" },
 ];
+// labirentte Selim kendi kendine konuşur: 25-40 saniyede bir, kayıtlı repliklerden rastgele (art arda aynısı gelmez)
+const IDLE_LINES = [
+  { who: "SELİM", file: "selim_neredeyim", text: "Ah... neresi burası?" },
+  { who: "SELİM", file: "selim_06", text: "Bu... bu ne sesi?" },
+  { who: "SELİM", file: "selim_nefes_02", text: "Bitmiyor bu koridor... bitmiyor!" },
+  { who: "SELİM", file: "selim_nefes_04", text: "Kimse yok. Kimse yok... sakin ol." },
+  { who: "SELİM", file: "selim_nefes_05", text: "Nereye kaçıyorum ben ya?" },
+  { who: "SELİM", file: "selim_nefes_03", text: "Kalbim... kulağımda atıyor." },
+];
+function idleTalk(dt) {
+  if (S.idleNext == null || S.playTime < 3) S.idleNext = S.playTime + rand(14, 22);
+  if (S.playTime < S.idleNext) return;
+  if (VOICE.el || S.pant > 0 || (typeof speechSynthesis !== "undefined" && speechSynthesis.speaking)) { S.idleNext = S.playTime + 4; return; }
+  S.idleNext = S.playTime + rand(25, 40);
+  let line; do line = pick(IDLE_LINES); while (IDLE_LINES.length > 1 && line === S.idleLast);
+  S.idleLast = line; S.pantLineAt = S.playTime;
+  sayLine(line, null, 3200);
+}
 function startPant() {
   S.pant = CFG.pantTime; S.pantPhase = 0;
   if (S.playTime - S.pantLineAt > 25 && Math.random() < 0.6) { S.pantLineAt = S.playTime; setTimeout(() => { if (S.mode === "play") sayLine(pick(PANT_LINES), null, 3200); }, 1400); }
@@ -3871,11 +3904,11 @@ function introUpdate(dt) {
     if (t > 8.4) walkFx(I, prev);
     if (!I.l1 && t >= 0.4) { I.l1 = true; sayLine(HOME_LINES[0], null, 2600); }
     if (!I.off && t >= 1.8) { I.off = true; T.mode = "off"; T.offT = 0; sfxClick(1200, 0.12, 0.03); setGain(AU.static, 0, 0.1); }
-    if (!I.l2 && t >= 3.0) { I.l2 = true; sayLine(HOME_LINES[1], null, 2400); }
+    if (!I.l2 && t >= 4.1 && (!VOICE.el || t >= 5.2)) { I.l2 = true; sayLine(HOME_LINES[1], null, 2400); }
     I.hand.reach = keyframes([[0, 0], [5.0, 0], [5.7, 1], [6.0, 1], [6.6, 0]], t);
     if (!I.stub && t >= 5.75) { I.stub = true; setEmber(R.home.ashCig, -1); sfxStaticBurst(0.03, 0.3); }
     if (!I.stub && R.home.ashCig.visible && (I.wisp = (I.wisp || 0) + dt) > 0.25) { I.wisp = 0; smokeAt(R.home.ashCig.userData.ember.getWorldPosition(new THREE.Vector3()), 0, 0.09, 0, 0.02, 0.1, 3.4, 0.12); }
-    if (!I.l3 && t >= 6.7) { I.l3 = true; sayLine(HOME_LINES[2], null, 2600); }
+    if (!I.l3 && t >= 6.8 && (!VOICE.el || t >= 7.6)) { I.l3 = true; sayLine(HOME_LINES[2], null, 2600); }
     S.black = keyframes([[0, 0], [9.6, 0], [10.4, 1]], t);
     if (!I.door && t >= 10.0) { I.door = true; sfxThud(null, 0.3); playSfxFile("kapi", 0.6); }
     if (t >= 10.9) startCarRide(I);
@@ -4259,6 +4292,28 @@ function updatePlayer(dt) {
 // ============================================================
 let lampPickTimer = 0;
 const MAP_FOG = new THREE.Color(0x4a4128);
+// Sokak, ev, kulübe ve arabada sahnede 40'tan fazla nokta ışığı oluyordu: her piksel hepsini hesaplıyor,
+// zayıf ekran kartlarında gölgelendirici derlenemiyor ya da sahne bozuk/kararmış çiziliyordu.
+// Yüzeyde yalnızca kameraya en yakın birkaç ışık açık kalır; sayı hep aynı tutulur ki gölgelendirici yeniden derlenmesin.
+const LC = { t: 0, list: null, n: 0 };
+function lightCull(dt, force) {
+  if (!force && (LC.t -= dt) > 0) return; LC.t = 0.25;
+  const surf = !!S.surface || S.mode === "intro" || S.mode === "title" && !!G.street;
+  for (const l of LIGHT_POOL) l.visible = !surf;
+  if (MTV.light) MTV.light.visible = !surf;
+  if (!LC.list || LC.n !== scene.children.length || (LC.age = (LC.age || 0) + 1) > 8) {
+    LC.list = []; LC.n = scene.children.length; LC.age = 0;
+    const walk = (o) => {
+      if (o.isPointLight) { if (!LIGHT_POOL.includes(o) && o !== MTV.light) LC.list.push(o); return; }
+      if (!o.visible) return;
+      for (const c of o.children) walk(c);
+    };
+    walk(scene);
+  }
+  const cp = camera.position, w = new THREE.Vector3(), budget = surf ? 8 : 0;
+  const ranked = LC.list.map((l) => { l.getWorldPosition(w); return { l, d: w.distanceToSquared(cp) - (l.distance || 20) ** 2 * 0.25 }; }).sort((a, b) => a.d - b.d);
+  ranked.forEach((r, i) => { r.l.visible = i < budget; });
+}
 function updateLights(dt) {
   // en yakın yanan lambalara ışık havuzunu ata
   lampPickTimer -= dt;
@@ -4468,19 +4523,16 @@ function stopVoice() {
 function voiceChain() {
   if (VOICE.fx || !AU.ctx) return VOICE.fx;
   const ctx = AU.ctx;
-  const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 320;
-  const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 3600;
-  const sh = ctx.createWaveShaper(); const curve = new Float32Array(1024);
-  for (let i = 0; i < curve.length; i++) { const x = i / 511.5 - 1; curve[i] = Math.tanh(x * 1.8) / Math.tanh(1.8); }
-  sh.curve = curve;
-  // küçük, sert bir odanın yankısı
-  const ir = ctx.createBuffer(2, ctx.sampleRate * 0.7, ctx.sampleRate);
-  for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3.2); }
+  const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 90;
+  const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 11000;
+  // çok hafif oda yankısı; ses temiz kalsın diye bozulma yok
+  const ir = ctx.createBuffer(2, ctx.sampleRate * 0.4, ctx.sampleRate);
+  for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 4); }
   const conv = ctx.createConvolver(); conv.buffer = ir;
-  const wet = ctx.createGain(); wet.gain.value = 0.22;
-  const dry = ctx.createGain(); dry.gain.value = 0.9;
-  hp.connect(lp).connect(sh);
-  sh.connect(dry).connect(AU.voice); sh.connect(conv).connect(wet).connect(AU.voice);
+  const wet = ctx.createGain(); wet.gain.value = 0.06;
+  const dry = ctx.createGain(); dry.gain.value = 1;
+  hp.connect(lp);
+  lp.connect(dry).connect(AU.voice); lp.connect(conv).connect(wet).connect(AU.voice);
   VOICE.fx = hp;
   return hp;
 }
@@ -4499,24 +4551,40 @@ function phoneChain() {
   VOICE.phone = hp;
   return hp;
 }
-function playVoice(file, { onEnd, onFail, vol = 1, chain = voiceChain } = {}) {
+function playVoice(file, { onEnd, onFail, vol = 1, chain = voiceChain } = {}, plain = false) {
   stopVoice();
+  if (AU.ctx && AU.ctx.state !== "running") AU.ctx.resume().catch(() => {});
   const a = new Audio(); a.preload = "auto"; a.volume = plainVol(vol, GFX.voice);
   VOICE.el = a;
-  let started = false, done = false, timer = 0;
-  const arm = () => { clearTimeout(timer); timer = setTimeout(() => fail(), 2500); };
+  let started = false, done = false, timer = 0, waits = 0;
+  // yavaş yüklemede hemen vazgeçme: dosya hiç gelmediyse ya da gerçek hata varsa düz çalmayı, en son tarayıcı sesini dene
+  const arm = () => { clearTimeout(timer); timer = setTimeout(check, 3000); };
+  function check() {
+    if (started || done || S.paused) return;
+    if (a.readyState >= 2 && !a.paused && a.currentTime > 0) { started = true; return; }
+    if (a.readyState === 0 && waits >= 2) return fail();
+    if (++waits > 3) return fail();
+    if (AU.ctx && AU.ctx.state !== "running") AU.ctx.resume().catch(() => {});
+    const p = a.play(); if (p && p.catch) p.catch(() => {});
+    arm();
+  }
   // menü açıkken gelen hata/zaman aşımı sayılmaz; devam edilince yeniden denenir
-  function fail() { if (started || done || S.paused) return; done = true; clearTimeout(timer); if (VOICE.el === a) stopVoice(); if (onFail) onFail(); }
+  function fail() {
+    if (started || done || S.paused) return; done = true; clearTimeout(timer); if (VOICE.el === a) stopVoice();
+    if (!plain && routed) return playVoice(file, { onEnd, onFail, vol, chain }, true);
+    if (onFail) onFail();
+  }
   a.onerror = fail;
   a.onplaying = () => { started = true; clearTimeout(timer); };
-  a.onended = () => { if (done) return; done = true; if (VOICE.el === a) VOICE.el = null; if (onEnd) onEnd(); };
-  a._resume = () => { if (done) return; if (!started) arm(); const p = a.play(); if (p && p.catch) p.catch(fail); };
-  if (location.protocol !== "file:" && AU.ctx) {
-    try { AU.ctx.createMediaElementSource(a).connect(chain ? chain() : AU.voice); a.volume = vol; } catch (e) { /* düz çal */ }
+  a.onended = () => { if (done) return; done = true; clearTimeout(timer); if (VOICE.el === a) VOICE.el = null; if (onEnd) onEnd(); };
+  a._resume = () => { if (done) return; if (!started) arm(); const p = a.play(); if (p && p.catch) p.catch(() => {}); };
+  let routed = false;
+  if (!plain && location.protocol !== "file:" && AU.ctx && AU.ctx.state === "running") {
+    try { AU.ctx.createMediaElementSource(a).connect(chain ? chain() : AU.voice); a.volume = vol; routed = true; } catch (e) { /* düz çal */ }
   }
   a.src = file;
   arm();
-  const pr = a.play(); if (pr && pr.catch) pr.catch(fail);
+  const pr = a.play(); if (pr && pr.catch) pr.catch((e) => { if (e && e.name === "NotSupportedError") fail(); });
 }
 function endTape() {
   if (!tapeRun) return;
@@ -4541,12 +4609,24 @@ function drawTapeNoise() {
 // ============================================================
 // ANA DÖNGÜ
 // ============================================================
+// kulaklık takılıp çıkarılınca tarayıcı ses bağlamını ya da oynatıcıları durdurabiliyor: geri aç
+let audioWatchT = 0;
+function audioWatch(dt, force) {
+  if (!force && (audioWatchT += dt) < 1) return; audioWatchT = 0;
+  if (!AU.ctx || S.paused || document.hidden) return;
+  if (AU.ctx.state !== "running") AU.ctx.resume().catch(() => {});
+  if (S.mode === "play" && S.area === "maze" && MTV.audio && !MTV.audio.paused && MTV.bed && MTV.bed.paused) MTV.bed.play().catch(() => {});
+  if (VOICE.el && VOICE.el.paused && !VOICE.el.ended && VOICE.el._resume) VOICE.el._resume();
+  if (S.mode === "play" && MUSIC.on && MUSIC.el && MUSIC.el.paused && !MUSIC.missing) MUSIC.el.play().catch(() => {});
+}
+if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener("devicechange", () => { setTimeout(() => audioWatch(0, true), 300); setTimeout(() => audioWatch(0, true), 1500); });
 let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   S.time += dt;
   radioTick(dt);
+  audioWatch(dt);
   if (S.mode !== "play" && MTV.audio && !MTV.audio.paused) { MTV.audio.pause(); MTV.bed?.pause(); }   // kaset, menü, ölüm: yayın susar
   // walkman çalarken ortam sesleri (vızıltı, rüzgâr, yağmur) kısılır
   if (AU.ctx) { const duck = MUSIC.on && S.mode === "play" && !S.paused ? 0.3 : 1; if (AU.duck !== duck) { AU.duck = duck; setGain(AU.amb, GFX.amb * duck, 0.4); } }
@@ -4559,9 +4639,11 @@ function frame(now) {
     if (S.mode === "play") updateSanity(dt);
     if (S.mode === "play") mazeTvTick(dt);
     if (S.mode === "play") updatePant(dt);
+    if (S.mode === "play") idleTalk(dt);
   } else if (S.mode === "tape") drawTapeNoise();
 
   if (G) {
+    lightCull(dt);
     if (S.mode !== "title") updateLights(dt);
     else if (G.street && S.surface) menuStreet(dt);   // ana menü: yağmurlu sokak
     else S.yaw = MENU.yaw ?? S.yaw;
