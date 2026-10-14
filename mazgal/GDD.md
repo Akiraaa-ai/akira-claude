@@ -68,7 +68,7 @@ Davranış:
 - [x] Duvar yazıları
 - [x] Labirentte ofise açılan kapılar (E), ofis haritası, duvar notları ve resimler, ofiste gerilim olayları
 - [x] Oyuncunun giyimli gövdesi (aşağı bakınca görünür, yürürken bacak/kol hareketi)
-- [x] Envanter (TAB), yedek pil (R), eğilip alma, ruh sağlığı ve walkman müziği (M, ses/muzik.mp3); müzik çalarken ortam sesleri kısılır, ruh sağlığı yavaş dolar
+- [x] Envanter (TAB), yedek pil (R), eğilip alma, ruh sağlığı ve walkman müziği (M, N sonraki parça; ses/muzik_1-5.mp3); müzik çalarken ortam sesleri kısılır, ruh sağlığı yavaş dolar
 - [x] Gerçekçi birinci şahıs eller: Outlast tarzı eldivenli, iskeletli kol modeli (alp'in gönderdiği), fener tutan sağ el, yerden alan sol el, direksiyonda iki el, evde sigara
 - [ ] Gövde: Flow kıyafet dokuları
 - [ ] Elektrik panosu ve şifre

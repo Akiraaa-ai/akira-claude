@@ -174,8 +174,8 @@
     <div class="settings" data-settings></div>
     <div class="credits hidden" id="credits">
       <b>MAZGAL</b>Fikir, hikâye ve yönetim: alp
-      <b>SES</b>Yağmur: liecio (Pixabay) · Radyo şarkısı ve anlatıcı: alp
-      <b>3D MODELLER (SKETCHFAB)</b>Bekçi kulübesi: castleonsandYT (CC BY 4.0)<br>Masa telefonu: R3indeer (CC BY-NC 4.0)<br>Tüplü TV: Timothy Ahene<br>Sokak: dasy444<br>Walkman ve kaset: heat_of_fusion<br>Pil: trashbinkr<br>Konserve ve katlanır sandalye: Antarct1c<br>Ofis: VTX<br>Eller: Rigged FPS Arms<br>Gövde: BlakkMato (CC BY 4.0)<br>Araba: amirbuilds2000
+      <b>SES</b>Yağmur: liecio (Pixabay) · Radyo şarkısı, müzikler, Selim ve anlatıcı: alp
+      <b>3D MODELLER (SKETCHFAB)</b>Bekçi kulübesi: castleonsandYT (CC BY 4.0)<br>Masa telefonu: R3indeer (CC BY-NC 4.0)<br>Tüplü TV: Timothy Ahene<br>Sokak ve Selim'in odası: dasy444<br>Walkman ve kaset: heat_of_fusion<br>Pil: trashbinkr<br>Konserve ve katlanır sandalye: Antarct1c<br>Ofis: VTX<br>Eller: Rigged FPS Arms<br>Gövde: BlakkMato (CC BY 4.0)<br>Araba: amirbuilds2000
       <b>MOTOR</b>three.js
     </div>
   </div>
@@ -216,6 +216,7 @@
 <script src="modeller.js?v=7"></script>
 <script src="gltf.js"></script>
 <script src="eller.js"></script>
+<script src="oda.js"></script>
 <script>
 "use strict";
 
@@ -293,10 +294,10 @@ const TAPES = [
     "Ben artık feneri yakmıyorum. Dinliyorum. Kapatınca daha iyi duyuluyor.",
   ]},
   { who: "SELİM", file: "selim_kaset", date: "14.10.2026", src: "", rate: 0.95, pitch: 0.9, lines: [
-    "Kaç kere düştüm bilmiyorum. Saat yine sıfırda.",
+    "Kaç kere düştüm... bilmiyorum artık. Saat yine sıfırda.",
     "Pano çıkışın yanında değil. Çıkış... panonun arkasında.",
-    "Şifreyi unutmayın. Kameraya bakın. Tarih hiç değişmiyor.",
-    "Telefon çalınca... açmayın.",
+    "Şifreyi unutmayın. Kameraya bakın... tarih hiç değişmiyor.",
+    "Telefon çalarsa... açmayın. Lütfen.",
   ]},
 ];
 
@@ -914,18 +915,21 @@ function mtvAudio() {
       const pn = AU.ctx.createPanner(); pn.panningModel = "HRTF"; pn.distanceModel = "inverse"; pn.refDistance = 1.6; pn.rolloffFactor = 1.4; pn.maxDistance = 40;
       const lp = AU.ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 3800;   // eski TV hoparlörü
       AU.ctx.createMediaElementSource(a).connect(lp).connect(pn).connect(AU.voice || AU.master);
+      const bed = new Audio(TV_MUSIC); bed.loop = true; bed.preload = "auto"; bed.volume = 0.3; bed.onerror = () => { MTV.bed = null; };
+      AU.ctx.createMediaElementSource(bed).connect(lp); MTV.bed = bed;   // yayının altındaki müzik, aynı TV hoparlöründen
       MTV.pan = pn; MTV.routed = true;
     } catch (e) { MTV.routed = false; }
   }
   a.src = "ses/anlatici.mp3"; MTV.audio = a; return a;
 }
 function mazeTvTick(dt) {
-  if (!MTV.list.length || S.area !== "maze") { MTV.audio?.pause(); if (MTV.light) MTV.light.intensity = 0; return; }
+  if (!MTV.list.length || S.area !== "maze") { MTV.audio?.pause(); MTV.bed?.pause(); if (MTV.light) MTV.light.intensity = 0; return; }
   let near = null, nd = Infinity;
   for (const t of MTV.list) { const d = Math.hypot(t.x - S.pos.x, t.z - S.pos.z); if (d < nd) { nd = d; near = t; } }
   const a = mtvAudio();
   if (a) {
     if (a.paused && nd < 30) a.play().catch(() => {});
+    if (MTV.bed && MTV.bed.paused && !a.paused) MTV.bed.play().catch(() => {});
     if (MTV.routed) { a.volume = 0.85; const P = MTV.pan; if (P.positionX) { P.positionX.value = near.pos.x; P.positionY.value = near.pos.y; P.positionZ.value = near.pos.z; } else P.setPosition(near.pos.x, near.pos.y, near.pos.z); }
     else a.volume = plainVol(0.85 * Math.pow(clamp(1 - nd / 16, 0, 1), 2), GFX.voice);
   }
@@ -1435,8 +1439,8 @@ function setupHands(gl) {
 const HAND_MODEL = { scale: 0.0034, pos: [0, -0.2 - 466 * 0.0034, 5.85 * 0.0034 + 0.08] };
 // el pozları (kamera yerel yönler): fener tutan sağ el ve direksiyondaki eller
 const HAND_TUNE = {
-  torch: { p: [0.22, -0.07, -0.4], gx: [-0.7, 0.1, -0.75], gy: [-0.658, -0.706, 0.261], curl: 1.2, th: 0.5, thAx: 1, ax: [-0.7, 0.1, -0.75], off: 0.07, size: 1.45 },
-  wheel: { R: -1, L: -1, gyR: [0, 0, -1], gyL: [1, 0, -1], curl: 0.85, roll: 1.57, off: [0.05, 0.07, 0] },
+  torch: { p: [0.44, -0.08, -0.5], gx: [-0.92, 0.05, -0.38], gy: [0.2, -0.5, -0.85], curl: 1.2, th: 0.5, thAx: 1, ax: [-0.92, 0.05, -0.38], off: 0.07, size: 1.45 },
+  wheel: { R: -1, L: -1, gyR: [0, 0, -1], gyL: [1, 0, -1], curl: 0.85, roll: 1.57, off: [-0.04, 0.1, 0], rig: [0, -0.08, 0], scale: 0.45, cam: [-1, 0.2, 0.3, 0.15, 1, -0.6] },
   rs: 1,
 };
 function boneWorldRot(bone, q) {   // kemiği dünya uzayında q kadar döndür
@@ -1498,7 +1502,7 @@ function updateHands(dt) {
   H.rig.visible = !!show; if (!show) return;
   if (H.cig) H.cig.visible = false;
   H.bones.forEach((b, i) => b.quaternion.copy(H.rest[i]));
-  H.rig.position.set(0, carArms ? -0.06 : 0, carArms ? 0.08 : 0);   // koltukta omuzlar daha geride
+  if (carArms) { H.rig.position.fromArray(HAND_TUNE.wheel.rig); H.rig.scale.setScalar(HAND_TUNE.wheel.scale || 1); } else { H.rig.position.set(0, 0, 0); H.rig.scale.setScalar(1); }   // direksiyon kameraya çok yakın: koltukta kollar küçülür, omuzlar aşağıda
   camera.updateMatrixWorld(true); H.rig.updateMatrixWorld(true);
   const w = (x, y, z) => camera.localToWorld(new THREE.Vector3(x, y, z)), dv = (x, y, z) => new THREE.Vector3(x, y, z).transformDirection(camera.matrixWorld);
   H.torch.visible = !carArms && !smk && H.kl > 0.01;
@@ -1511,7 +1515,9 @@ function updateHands(dt) {
       handIK(side, a.getWorldPosition(new THREE.Vector3()).add(w(WO[0] * sx, WO[1], WO[2]).sub(w(0, 0, 0))), w(sx * 0.7, -0.9, 0.2));
       ax.set(0, 1, 0).transformDirection(a.matrixWorld);
       const WT = HAND_TUNE.wheel;
-      handOrient(side, ax.clone().multiplyScalar(WT[side]), new THREE.Vector3(...(side === "R" ? WT.gyR : WT.gyL)).transformDirection(a.parent.matrixWorld).applyAxisAngle(ax, (WT.roll || 0) * (side === "R" ? 1 : -1)));
+      const K = WT.cam;   // kamera yönünde: el dik, parmaklar direksiyonun üstünden öne kıvrılır
+      if (K) handOrient(side, dv(K[0] * sx, K[1], K[2]), dv(K[3] * sx, K[4], K[5]));
+      else handOrient(side, ax.clone().multiplyScalar(WT[side]), new THREE.Vector3(...(side === "R" ? WT.gyR : WT.gyL)).transformDirection(a.parent.matrixWorld).applyAxisAngle(ax, (WT.roll || 0) * (side === "R" ? 1 : -1)));
       handCurl(side, WT.curl);
     }
     return;
@@ -1519,9 +1525,9 @@ function updateHands(dt) {
   if (smk) {   // evde: elde sigara; kaldırıp içer, kül tablasına uzanır
     const k = smooth(clamp(smk.k || 0, 0, 1)), r = smooth(clamp(smk.reach || 0, 0, 1));
     const tgt = w(0.2, -0.36, -0.5).lerp(w(0.04, -0.19, -0.12), k);
-    if (r > 0) tgt.lerp(homeW(HP.ash[0], HP.ash[1] + 0.09, HP.ash[2] + 0.06), r);
+    if (r > 0) tgt.lerp(homeW(HP.ash[0] + 0.05, HP.ash[1] + 0.15, HP.ash[2] + 0.12), r);
     handIK("R", tgt, w(0.7, -0.7, 0.1));
-    handOrient("R", dv(1, 0, -0.2).lerp(dv(-0.8, -0.5, 0), k).lerp(dv(1, 0, -0.3), r), dv(-0.2, -0.15, -1).lerp(dv(-0.5, 0.8, 0.1), k).lerp(dv(-0.1, -0.8, -0.6), r));
+    handOrient("R", dv(-0.9, 0, -0.3).lerp(dv(-0.8, -0.5, 0), k).lerp(dv(-1, 0, 0.15), r), dv(-0.3, 0.3, -0.9).lerp(dv(-0.5, 0.8, 0.1), k).lerp(dv(-0.2, 0.35, -0.9), r));   // elin sırtı yukarıda, sigara parmak arasında
     handCurl("R", 0.3);
     handIK("L", w(-0.25, -0.75, -0.05), w(-0.7, -0.6, 0.2));
     placeCig(smk);
@@ -1949,11 +1955,11 @@ function buildModel(key, { doorPivot = null, tweak = {}, only = null } = {}) {
 }
 
 // ============================================================
-// SELİM'İN EVİ (açılış): sokağın çok üstünde kapalı bir oda. Ev modeli gelince bunun yerini alacak.
-// Oda yerel: zemin ortası (0,0,0), kanepe +z'de, televizyon -z'de (oturan Selim -z'ye bakar).
+// SELİM'İN EVİ (açılış): sokağın çok üstünde kapalı bir oda (alp'in loft modeli, oda.js).
+// Oda yerel: kanepe +z'de, televizyon -z'de (oturan Selim -z'ye bakar), kapı sağ duvarda (+x).
 // ============================================================
 const HOME_O = new THREE.Vector3(-95, 40, 60);   // sokak grubuna göre
-const HP = { eye: [0.3, 1.12, 1.85], lean: [0.4, 0.86, 1.3], scr: [0, 0.93, -1.96], ash: [0.4, 0.47, 1.12], clock: [-2.28, 1.95, -1.0], door: [2.27, 1.3, -1.0] };
+const HP = { eye: [0.3, 1.12, 1.85], lean: [0.25, 0.86, 1.2], scr: [0.6, 0.93, -1.96], ash: [0.18, 0.46, 0.78], clock: [-2.29, 2.45, -0.3], door: [3.38, 1.3, -1.6] };
 let GLOW_TEX = null;
 function glowTex() {
   return GLOW_TEX || (GLOW_TEX = makeCanvas(64, 64, (c, w, h) => {
@@ -1983,41 +1989,50 @@ function setEmber(cig, e) {   // e: 0 sönük, 1 nefes çekerken
 }
 function buildHome(st) {
   const g = new THREE.Group(); g.position.copy(HOME_O); st.add(g);
-  const W = 4.6, D = 5.2, H = 2.6;
-  const tex = (w, h, rx, ry, draw) => { const t = makeCanvas(w, h, draw); t.repeat.set(rx, ry); return t; };
+  // oda: alp'in gönderdiği loft modeli (oda.js). Modelde yalnız iki duvar var; kalan iki duvarı ve tavanı biz ekliyoruz.
+  // Model oda yereline çevrilir: kanepesi +z'de, -z'ye (televizyona) bakar.
+  const RX = 3.41, RZ = -3.36, LX = -2.31, BZ = 2.36, H = 4.2;
   const mat = (o) => new THREE.MeshPhongMaterial(Object.assign({ shininess: 6, specular: 0x111111 }, o));
   const box = (w, h, d, m, x, y, z, ry = 0) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); b.rotation.y = ry; g.add(b); return b; };
-  // duvar kâğıdı, parke, tavan
-  const wall = mat({ side: THREE.BackSide, map: tex(256, 256, 3, 1, (c, w, h) => {
-    c.fillStyle = "#5f5741"; c.fillRect(0, 0, w, h);
-    for (let x = 0; x < w; x += 32) { c.fillStyle = "rgba(255,240,200,0.05)"; c.fillRect(x, 0, 14, h); }
-    for (let i = 0; i < 40; i++) { c.fillStyle = "rgba(90,70,40,0.18)"; c.beginPath(); c.arc((i % 8) * 32 + 16, Math.floor(i / 8) * 52 + 26, 5, 0, Math.PI * 2); c.fill(); }
-    for (let i = 0; i < 6; i++) stain(c, rand(0, w), rand(0, h), rand(30, 90), "50,38,18", rand(0.12, 0.3));
-    speckle(c, w, h, 600, "0,0,0", 0.03, 0.1, 1, 2);
-  }) });
-  const floor = mat({ side: THREE.BackSide, shininess: 18, map: tex(256, 256, 4, 4, (c, w, h) => {
-    c.fillStyle = "#4a3422"; c.fillRect(0, 0, w, h);
-    for (let y = 0; y < h; y += 32) { c.fillStyle = `rgba(${rand(20, 70) | 0},${rand(10, 35) | 0},0,0.35)`; c.fillRect(0, y, w, 31); c.fillStyle = "rgba(0,0,0,0.55)"; c.fillRect(0, y + 31, w, 1); c.fillRect(rand(0, w), y, 1, 32); }
-    speckle(c, w, h, 900, "0,0,0", 0.04, 0.14, 1, 3);
-  }) });
-  const ceil = mat({ side: THREE.BackSide, map: tex(128, 128, 2, 2, (c, w, h) => { c.fillStyle = "#7d776a"; c.fillRect(0, 0, w, h); for (let i = 0; i < 4; i++) stain(c, rand(0, w), rand(0, h), rand(20, 50), "70,55,30", 0.25); }) });
-  const room = new THREE.Mesh(new THREE.BoxGeometry(W, H, D), [wall, wall, ceil, floor, wall, wall]); room.position.y = H / 2; g.add(room);
-  box(W - 0.02, 0.1, 0.02, mat({ color: 0x2a1e14 }), 0, 0.05, -D / 2 + 0.01); box(0.02, 0.1, D - 0.02, mat({ color: 0x2a1e14 }), -W / 2 + 0.01, 0.05, 0); box(0.02, 0.1, D - 0.02, mat({ color: 0x2a1e14 }), W / 2 - 0.01, 0.05, 0);   // süpürgelik
-  // kanepe
-  const cm = mat({ map: tex(128, 128, 2, 2, (c, w, h) => { c.fillStyle = "#3d342b"; c.fillRect(0, 0, w, h); speckle(c, w, h, 1500, "0,0,0", 0.05, 0.2, 1, 2); speckle(c, w, h, 500, "255,230,200", 0.03, 0.08, 1, 2); }) });
-  box(2.1, 0.42, 0.95, cm, 0, 0.21, 1.75); box(2.1, 0.62, 0.22, cm, 0, 0.62, 2.2);
-  box(0.2, 0.62, 0.95, cm, -1.15, 0.31, 1.75); box(0.2, 0.62, 0.95, cm, 1.15, 0.31, 1.75);
-  box(0.62, 0.12, 0.8, cm, 0.3, 0.47, 1.72); box(0.62, 0.12, 0.8, cm, -0.35, 0.47, 1.72);   // minderler
-  // sehpa, kül tablası, konserve, kumanda
-  const wood = mat({ color: 0x3a2618, shininess: 22, specular: 0x222222 });
-  box(1.1, 0.04, 0.6, wood, 0.1, 0.43, 0.95);
-  for (const [x, z] of [[-0.4, 0.7], [0.6, 0.7], [-0.4, 1.2], [0.6, 1.2]]) box(0.04, 0.41, 0.04, wood, x, 0.205, z);
+  const concrete = makeCanvas(256, 256, (c, w, h) => {
+    c.fillStyle = "#6c6a66"; c.fillRect(0, 0, w, h);
+    for (let i = 0; i < 14; i++) stain(c, rand(0, w), rand(0, h), rand(20, 80), "40,38,34", rand(0.1, 0.3));
+    speckle(c, w, h, 1500, "0,0,0", 0.03, 0.12, 1, 2); speckle(c, w, h, 600, "255,255,255", 0.02, 0.06, 1, 2);
+  });
+  concrete.repeat.set(3, 2);
+  const wallM = mat({ map: concrete, side: THREE.DoubleSide });
+  const plane = (w, h, m, x, y, z, rx, ry) => { const p = new THREE.Mesh(new THREE.PlaneGeometry(w, h), m); p.position.set(x, y, z); p.rotation.set(rx, ry, 0); g.add(p); return p; };
+  plane(BZ - RZ, H, wallM, RX, H / 2, (BZ + RZ) / 2, 0, -Math.PI / 2);          // sağ duvar (kapı burada)
+  plane(RX - LX, H, wallM, (RX + LX) / 2, H / 2, RZ, 0, 0);                     // ön duvar (televizyonun arkası)
+  plane(RX - LX, BZ - RZ, mat({ color: 0x3a3936, side: THREE.DoubleSide }), (RX + LX) / 2, H, (BZ + RZ) / 2, Math.PI / 2, 0);   // tavan
+  if (window.ODA_GLB && THREE.GLTFLoader) {
+    const bin = atob(window.ODA_GLB), u = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+    new THREE.GLTFLoader().parse(u.buffer, "", (gl) => {
+      const m = gl.scene; m.rotation.y = Math.PI / 2; m.position.set(0.55, 0, -0.5);
+      m.traverse((o) => {
+        if (!o.isMesh) return;
+        const mt = o.material; if (mt.map) mt.map.encoding = THREE.LinearEncoding;   // çıktı doğrusal: sRGB doku kararır
+        mt.envMapIntensity = 0; mt.metalness = Math.min(mt.metalness ?? 0, 0.2);
+        if (mt.name === "Material.014") { mt.color.setHex(0x1a2030); mt.toneMapped = false; }   // pencere dışı: gece
+      });
+      g.add(m);
+    }, (e) => console.warn("oda yüklenemedi", e));
+  } else {
+    box(2.1, 0.42, 0.95, mat({ color: 0x3d342b }), 0, 0.21, 1.75); box(2.1, 0.62, 0.22, mat({ color: 0x3d342b }), 0, 0.62, 2.2);
+    box(1.2, 0.04, 0.66, mat({ color: 0x1c1a18 }), -0.27, 0.42, 0.67);
+    plane(RX - LX, BZ - RZ, mat({ color: 0x3a2a1c, side: THREE.DoubleSide }), (RX + LX) / 2, 0, (BZ + RZ) / 2, -Math.PI / 2, 0);
+    plane(BZ - RZ, H, wallM, LX, H / 2, (BZ + RZ) / 2, 0, Math.PI / 2); plane(RX - LX, H, wallM, (RX + LX) / 2, H / 2, BZ, 0, Math.PI);
+  }
+  const roomLight = new THREE.PointLight(0xc8b8a0, 0.35, 9, 1.2); roomLight.position.set(0.2, 3.2, -0.2); g.add(roomLight);   // odanın loş genel ışığı
+  // kül tablası (sehpanın sağ ucunda, Selim'in eline yakın)
+  const TY = HP.ash[1] - 0.02;
   const ashM = mat({ color: 0x3c4246, shininess: 60, specular: 0x555555 });
   // metal kül tablası: kenarlı sığ kase, içinde kül yığını, izmaritler; masaya dökülmüş kül ve iki izmarit
   const prof = [[0, 0], [0.05, 0], [0.058, 0.004], [0.066, 0.022], [0.07, 0.026], [0.064, 0.027], [0.054, 0.008], [0, 0.008]].map(([x, y]) => new THREE.Vector2(x, y));
-  const ash = new THREE.Mesh(new THREE.LatheGeometry(prof, 28), ashM); ash.position.set(HP.ash[0], 0.45, HP.ash[2]); g.add(ash);
+  const ash = new THREE.Mesh(new THREE.LatheGeometry(prof, 28), ashM); ash.position.set(HP.ash[0], TY, HP.ash[2]); g.add(ash);
   const pile = new THREE.Mesh(new THREE.SphereGeometry(0.045, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat({ color: 0x2b2826, shininess: 2 }));
-  pile.scale.set(1, 0.18, 1); pile.position.set(HP.ash[0], 0.458, HP.ash[2]); g.add(pile);
+  pile.scale.set(1, 0.18, 1); pile.position.set(HP.ash[0], TY + 0.008, HP.ash[2]); g.add(pile);
   const paperM = mat({ color: 0xd9d3c6, shininess: 4 }), filtM = mat({ color: 0xc98a4a, shininess: 6 }), burntM = mat({ color: 0x1d1a18 });
   const stub = (x, y, z, ry, tilt, len) => {   // izmarit: filtre + kısa, ucu yanmış kağıt
     const b = new THREE.Group();
@@ -2026,50 +2041,38 @@ function buildHome(st) {
     const e = new THREE.Mesh(new THREE.CylinderGeometry(0.0038, 0.0041, 0.003, 8), burntM); e.position.y = 0.02 + len; b.add(e);
     b.rotation.set(0, ry, Math.PI / 2 - tilt); b.position.set(x, y, z); g.add(b);
   };
-  for (let i = 0; i < 5; i++) { const a2 = rand(0, Math.PI * 2), r = rand(0.012, 0.04); stub(HP.ash[0] + Math.cos(a2) * r, 0.468, HP.ash[2] + Math.sin(a2) * r, rand(0, 6.3), rand(0.1, 0.35), rand(0.008, 0.02)); }
-  stub(HP.ash[0] - 0.11, 0.454, HP.ash[2] + 0.06, 0.8, 0, 0.012); stub(HP.ash[0] + 0.09, 0.454, HP.ash[2] + 0.09, 2.2, 0, 0.018);
+  for (let i = 0; i < 5; i++) { const a2 = rand(0, Math.PI * 2), r = rand(0.012, 0.04); stub(HP.ash[0] + Math.cos(a2) * r, TY + 0.018, HP.ash[2] + Math.sin(a2) * r, rand(0, 6.3), rand(0.1, 0.35), rand(0.008, 0.02)); }
+  stub(HP.ash[0] - 0.11, TY + 0.004, HP.ash[2] + 0.06, 0.8, 0, 0.012); stub(HP.ash[0] - 0.09, TY + 0.004, HP.ash[2] - 0.1, 2.2, 0, 0.018);
   const specks = new THREE.InstancedMesh(new THREE.BoxGeometry(0.004, 0.0015, 0.004), mat({ color: 0x3a3632 }), 60), dm = new THREE.Object3D();
-  for (let i = 0; i < 60; i++) { const a2 = rand(0, Math.PI * 2), r = 0.07 + Math.pow(rand(0, 1), 2) * 0.09; dm.position.set(HP.ash[0] + Math.cos(a2) * r, 0.4505, HP.ash[2] + Math.sin(a2) * r); dm.rotation.y = rand(0, 3); dm.scale.setScalar(rand(0.5, 1.8)); dm.updateMatrix(); specks.setMatrixAt(i, dm.matrix); }
+  for (let i = 0; i < 60; i++) { const a2 = rand(0, Math.PI * 2), r = 0.07 + Math.pow(rand(0, 1), 2) * 0.09; dm.position.set(HP.ash[0] + Math.cos(a2) * r, TY + 0.0005, HP.ash[2] + Math.sin(a2) * r); dm.rotation.y = rand(0, 3); dm.scale.setScalar(rand(0.5, 1.8)); dm.updateMatrix(); specks.setMatrixAt(i, dm.matrix); }
   g.add(specks);
-  const ashCig = cigMesh(0); ashCig.rotation.set(0, 0.6, Math.PI / 2 - 0.12); ashCig.position.set(HP.ash[0] - 0.035, 0.486, HP.ash[2] + 0.01); ashCig.visible = false; g.add(ashCig);
-  const can = buildModel("can", { only: "can0" }); if (can) { can.group.position.set(-0.15, 0.45, 0.88); can.group.rotation.y = 1.2; g.add(can.group); }
-  box(0.05, 0.022, 0.17, mat({ color: 0x111111, shininess: 30 }), -0.3, 0.461, 1.06, 0.3);
+  // tablada duran sigara: filtre kenarda ve dışarıda, yanan uç kasenin ortasında
+  const ashCig = cigMesh(0); ashCig.rotation.set(0, 0.6, Math.PI / 2 + 0.15);
+  const cd = new THREE.Vector3(0, 1, 0).applyEuler(ashCig.rotation);   // filtreden köze: içeri ve hafif aşağı
+  ashCig.position.set(HP.ash[0], 0, HP.ash[2]).addScaledVector(cd, -0.05); ashCig.position.y = TY + 0.03; ashCig.visible = false; g.add(ashCig);
+  const can = buildModel("can", { only: "can0" }); if (can) { can.group.position.set(-0.6, TY, 0.6); can.group.rotation.y = 1.2; g.add(can.group); }
+  box(0.05, 0.022, 0.17, mat({ color: 0x111111, shininess: 30 }), -0.15, TY + 0.011, 0.85, 0.3);   // kumanda
   // televizyon sehpası ve tüplü TV
-  box(1.3, 0.5, 0.45, mat({ color: 0x2c1d12, shininess: 14 }), 0, 0.25, -2.3);
+  box(1.3, 0.5, 0.45, mat({ color: 0x2c1d12, shininess: 14 }), HP.scr[0], 0.25, -2.3);
   const c = document.createElement("canvas"); c.width = 128; c.height = 96;
   const ttex = new THREE.CanvasTexture(c); ttex.magFilter = THREE.LinearFilter;
   const scrMat = new THREE.MeshPhongMaterial({ map: ttex, color: 0x222222, emissive: 0xffffff, emissiveMap: ttex, emissiveIntensity: 0.9, shininess: 80, specular: 0x444444 });
   const TVK = buildModel("tv", { only: "kasa" }), TVE = TVK && buildModel("tv", { only: "ekran" });
   if (TVK) {
-    for (const b of [TVK, TVE]) { b.group.scale.setScalar(1.6); b.group.rotation.y = Math.PI; b.group.position.set(0, 0.5, -2.25); g.add(b.group); }
+    for (const b of [TVK, TVE]) { b.group.scale.setScalar(1.6); b.group.rotation.y = Math.PI; b.group.position.set(HP.scr[0], 0.5, -2.25); g.add(b.group); }
     TVE.group.traverse((o) => { if (o.isMesh) o.material = scrMat; });
   } else {
-    box(0.75, 0.72, 0.62, mat({ color: 0x1a1a1a }), 0, 0.86, -2.25);
+    box(0.75, 0.72, 0.62, mat({ color: 0x1a1a1a }), HP.scr[0], 0.86, -2.25);
     const p = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.48), scrMat); p.position.set(...HP.scr); p.position.z += 0.005; g.add(p);
   }
-  const tvLight = new THREE.PointLight(0x9fb2d8, 0.5, 7, 1.5); tvLight.position.set(0, 1.0, -1.5); g.add(tvLight);
-  // pencere: dışarıda yağmur, sokak lambası
-  const win = makeCanvas(256, 256, (c, w, h) => {
-    const sky = c.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, "#0b1020"); sky.addColorStop(1, "#18161a"); c.fillStyle = sky; c.fillRect(0, 0, w, h);
-    stain(c, 190, 120, 70, "255,170,80", 0.55); stain(c, 60, 150, 40, "255,180,90", 0.3);
-    c.fillStyle = "#07080c"; c.fillRect(0, 140, 90, 116); c.fillRect(120, 110, 70, 146); c.fillRect(200, 160, 56, 96);
-    c.fillStyle = "rgba(255,200,120,0.5)"; for (const [x, y] of [[20, 160], [50, 190], [140, 130], [160, 200], [220, 180]]) c.fillRect(x, y, 8, 10);
-    c.strokeStyle = "rgba(200,210,230,0.18)"; for (let i = 0; i < 70; i++) { const x = rand(0, w), y = rand(0, h); c.beginPath(); c.moveTo(x, y); c.lineTo(x - 1, y + rand(6, 22)); c.stroke(); }
-    c.fillStyle = "rgba(220,230,255,0.25)"; for (let i = 0; i < 90; i++) { c.beginPath(); c.arc(rand(0, w), rand(0, h), rand(0.8, 2.4), 0, Math.PI * 2); c.fill(); }
-    c.fillStyle = "#1c140e"; c.fillRect(124, 0, 8, h); c.fillRect(0, 124, w, 8);
-  });
-  const wp = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.25), new THREE.MeshBasicMaterial({ map: win, color: 0x8a8a8a })); wp.rotation.y = Math.PI / 2; wp.position.set(-W / 2 + 0.012, 1.55, 0.3); g.add(wp);
-  const frame = mat({ color: 0x2a1e14 });
-  box(0.06, 0.06, 1.32, frame, -W / 2 + 0.03, 2.2, 0.3); box(0.06, 0.06, 1.32, frame, -W / 2 + 0.03, 0.9, 0.3);
-  const cur = mat({ color: 0x4a2a22, map: cm.map });
-  box(0.08, 1.9, 0.45, cur, -W / 2 + 0.06, 1.35, -0.55); box(0.08, 1.9, 0.45, cur, -W / 2 + 0.06, 1.35, 1.15);
+  const tvLight = new THREE.PointLight(0x9fb2d8, 0.5, 7, 1.5); tvLight.position.set(HP.scr[0], 1.0, -1.5); g.add(tvLight);
   // köşede abajur
-  const lampLight = new THREE.PointLight(0xffb070, 0.75, 7, 1.6); lampLight.position.set(1.9, 1.45, 2.15); g.add(lampLight);
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 1.5, 8), mat({ color: 0x222222 })); pole.position.set(1.9, 0.75, 2.15); g.add(pole);
-  const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.24, 0.3, 16, 1, true), new THREE.MeshPhongMaterial({ color: 0x6a4a2a, emissive: 0xffa060, emissiveIntensity: 0.5, side: THREE.DoubleSide })); shade.position.set(1.9, 1.55, 2.15); g.add(shade);
+  const lampLight = new THREE.PointLight(0xffb070, 0.75, 7, 1.6); lampLight.position.set(1.75, 1.45, 1.95); g.add(lampLight);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 1.5, 8), mat({ color: 0x222222 })); pole.position.set(1.75, 0.75, 1.95); g.add(pole);
+  const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.24, 0.3, 16, 1, true), new THREE.MeshPhongMaterial({ color: 0x6a4a2a, emissive: 0xffa060, emissiveIntensity: 0.5, side: THREE.DoubleSide })); shade.position.set(1.75, 1.55, 1.95); g.add(shade);
   // kapı, duvar saati, çerçeve
-  box(0.06, 2.05, 0.9, mat({ color: 0x3b2a1c, shininess: 12 }), W / 2 - 0.03, 1.025, -1.0);
-  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 8), mat({ color: 0x8a7a50, shininess: 60 })); knob.position.set(W / 2 - 0.08, 1.0, -0.65); g.add(knob);
+  box(0.06, 2.05, 0.9, mat({ color: 0x3b2a1c, shininess: 12 }), RX - 0.03, 1.025, HP.door[2]);
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 8), mat({ color: 0x8a7a50, shininess: 60 })); knob.position.set(RX - 0.08, 1.0, HP.door[2] + 0.35); g.add(knob);
   const clk = makeCanvas(128, 128, (c, w, h) => {
     c.fillStyle = "#d8d0b8"; c.beginPath(); c.arc(64, 64, 62, 0, Math.PI * 2); c.fill(); c.lineWidth = 5; c.strokeStyle = "#2a2018"; c.stroke();
     c.fillStyle = "#2a2018"; for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; c.fillRect(64 + Math.sin(a) * 50 - 2, 64 - Math.cos(a) * 50 - 2, 4, 4); }
@@ -2077,9 +2080,6 @@ function buildHome(st) {
     hand((23 + 35 / 60) / 12 * Math.PI * 2, 30, 5); hand(35 / 60 * Math.PI * 2, 46, 3);
   });
   const cl = new THREE.Mesh(new THREE.CircleGeometry(0.16, 24), mat({ map: clk })); cl.rotation.y = Math.PI / 2; cl.position.set(...HP.clock); cl.position.x += 0.012; g.add(cl);
-  box(0.03, 0.5, 0.65, frame, W / 2 - 0.02, 1.55, 1.0);
-  const ph = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.4), mat({ map: makeCanvas(64, 48, (c, w, h) => { c.fillStyle = "#4a4436"; c.fillRect(0, 0, w, h); stain(c, 22, 26, 16, "190,170,140", 0.6); stain(c, 42, 24, 14, "180,160,130", 0.5); }) }));
-  ph.rotation.y = -Math.PI / 2; ph.position.set(W / 2 - 0.04, 1.55, 1.0); g.add(ph);
   // duman parçacıkları
   const smoke = [];
   for (let i = 0; i < 48; i++) {
@@ -2317,7 +2317,7 @@ function buildStreet() {
   };
   const DK = window.MODELLER && window.MODELLER.dukkan, SK = window.MODELLER && window.MODELLER.sokak;
   if (DK) {
-    const used = [];   // kaplanan taban dikdörtgenleri [x0, z0, x1, z1]; çakışan bina konmaz
+    const used = [[-68.5, Z0 - 1, -51.5, -8.5], [X0, -8.5, X1, 8.5]];   // kaplanan taban dikdörtgenleri [x0, z0, x1, z1]; çakışan bina konmaz. İlk ikisi yollar: ara sokak ve ana cadde hep açık kalır
     const free = (r) => used.every((u) => r[0] >= u[2] - 0.01 || r[2] <= u[0] + 0.01 || r[1] >= u[3] - 0.01 || r[3] <= u[1] + 0.01);
     // f: cephe sırası. h: x boyunca mı, line: cephe çizgisi, face: cephenin baktığı yön (+1/-1).
     // Modelde cephe +z'ye bakar, gövde -z'dedir; dönüş buna göre seçilir.
@@ -3191,17 +3191,29 @@ const PAUSE_Q = [];   // menü açıkken biten işler (replik sonu vb.), devamda
 const RADIO = { el: null, want: 0, cur: 0 };
 function radioTick(dt) {
   const I = S.intro, inCar = S.mode === "intro" && I && !I.doorOut && (["drive", "park", "drive0", "park0"].includes(I.phase) || ((I.phase === "getin" || I.phase === "getin0") && I.ign));
-  RADIO.want = S.paused && (S.mode === "play" || S.mode === "intro") ? 0.55 : inCar ? 0.35 : S.mode === "title" && MENU.on ? 0.4 : 0;
+  RADIO.want = S.paused && (S.mode === "play" || S.mode === "intro") ? 0.55 : inCar ? 0.8 : S.mode === "title" && MENU.on ? 0.95 : 0;
   if (!RADIO.el) { if (!RADIO.want) return; const a = new Audio("ses/radyo.mp3"); a.loop = true; a.volume = 0; a.onerror = () => { RADIO.bad = true; }; RADIO.el = a; }
   const a = RADIO.el; if (RADIO.bad) return;
   RADIO.cur += clamp(RADIO.want - RADIO.cur, -dt * 0.8, dt * 1.5);
   a.volume = plainVol(RADIO.cur, GFX.amb);
   if (RADIO.want > 0 && a.paused) a.play().catch(() => {});
   else if (RADIO.cur <= 0.002 && !RADIO.want && !a.paused) a.pause();
+  tvBedTick(dt, I);
+}
+// açılıştaki TV yayınının altında müzik (ses/muzik_5.mp3, "Channel 4 Test Card")
+const TVBED = { el: null, cur: 0 };
+function tvBedTick(dt, I) {
+  const want = S.mode === "intro" && I && I.phase === "tv" && !S.paused ? 0.32 : 0;
+  if (!TVBED.el) { if (!want) return; TVBED.el = new Audio(TV_MUSIC); TVBED.el.loop = true; TVBED.el.volume = 0; TVBED.el.onerror = () => { TVBED.bad = true; }; }
+  const a = TVBED.el; if (TVBED.bad) return;
+  TVBED.cur += clamp(want - TVBED.cur, -dt * 0.6, dt * 1.2);
+  a.volume = plainVol(TVBED.cur, GFX.amb);
+  if (want > 0 && a.paused) a.play().catch(() => {});
+  else if (TVBED.cur <= 0.002 && !want && !a.paused) a.pause();
 }
 function pauseGame() {
   if (S.paused || (S.mode !== "play" && S.mode !== "intro")) return;
-  MTV.audio?.pause();
+  MTV.audio?.pause(); MTV.bed?.pause();
   S.paused = true; PAUSE.confirm = null; PAUSE.panel = false;
   for (const k in keys) keys[k] = false;
   if (VOICE.el) VOICE.el.pause();
@@ -3358,6 +3370,7 @@ addEventListener("keydown", (e) => {
   if (e.code === "KeyE") interact();
   if (e.code === "KeyR") useBattery();
   if (e.code === "KeyM") toggleMusic();
+  if (e.code === "KeyN") nextTrack();
   if (e.code === "Tab") { e.preventDefault(); S.inv = !S.inv; if (S.inv) renderInv(); $("inv").classList.toggle("hidden", !S.inv); }
   if (S.inv && /^Digit[1-9]$/.test(e.code)) { const t = S.tapes[+e.code.slice(5) - 1]; if (t !== undefined) { S.inv = false; hide("inv"); playTape(t); } }
   if (e.code === "KeyT" && S.lastTape >= 0) playTape(S.lastTape);
@@ -3411,20 +3424,30 @@ function mapImage() {
   MAPIMG.key = key; MAPIMG.url = c.toDataURL();
   return MAPIMG.url;
 }
-// walkman: tek parça müzik (ses/muzik.mp3). Dinlerken ruh sağlığı toparlanır.
-const MUSIC = { el: null, on: false, missing: false };
+// walkman: oyunun müzikleri sırayla çalar (M aç/kapat, N sonraki parça). Dinlerken ruh sağlığı toparlanır.
+const MUSIC_LIST = [["muzik_1", "LEVEL 0"], ["muzik_2", "FLUORESCENT CORRIDORS"], ["muzik_3", "DETUNED NIGHT"], ["muzik_4", "DETUNED NIGHT II"], ["muzik_5", "CHANNEL 4 TEST CARD"]];
+const TV_MUSIC = "ses/muzik_5.mp3";
+const MUSIC = { el: null, on: false, missing: false, i: 0 };
+function musicTrack(i) {
+  MUSIC.i = (i + MUSIC_LIST.length) % MUSIC_LIST.length;
+  const [f, name] = MUSIC_LIST[MUSIC.i];
+  if (!MUSIC.el) {
+    MUSIC.el = new Audio(); MUSIC.el.onended = () => { if (MUSIC.on) musicTrack(MUSIC.i + 1); };
+    MUSIC.el.onerror = () => { MUSIC.missing = true; if (MUSIC.on) startSynthMusic(); };   // dosya yoksa walkman'deki eski kaset
+  }
+  MUSIC.el.src = `ses/${f}.mp3`; MUSIC.el.volume = clamp(0.7 * GFX.vol, 0, 1);
+  const pr = MUSIC.el.play(); if (pr && pr.catch) pr.catch(() => {});
+  toast(`▶ ${name}`);
+}
 function toggleMusic() {
   if (MUSIC.on) { stopMusic(); sfxClick(500, 0.2, 0.04); return; }
   if (!S.hasWalkman) { toast("WALKMAN YOK"); return; }
-  if (MUSIC.missing) { MUSIC.on = true; startSynthMusic(); sfxClick(500, 0.2, 0.04); return; }
-  if (!MUSIC.el) {
-    MUSIC.el = new Audio("ses/muzik.mp3"); MUSIC.el.loop = true;
-    MUSIC.el.onerror = () => { MUSIC.missing = true; if (MUSIC.on) startSynthMusic(); };   // dosya yoksa walkman'deki eski kaset
-  }
-  MUSIC.el.volume = clamp(0.7 * GFX.vol, 0, 1);
-  const pr = MUSIC.el.play(); if (pr && pr.catch) pr.catch(() => {});
   MUSIC.on = true; sfxClick(500, 0.2, 0.04);
+  if (MUSIC.missing) { startSynthMusic(); return; }
+  if (MUSIC.el && MUSIC.el.src) { const pr = MUSIC.el.play(); if (pr && pr.catch) pr.catch(() => {}); toast(`▶ ${MUSIC_LIST[MUSIC.i][1]}`); }
+  else musicTrack(MUSIC.i);
 }
+function nextTrack() { if (!MUSIC.on || MUSIC.missing) return; sfxClick(700, 0.15, 0.03); musicTrack(MUSIC.i + 1); }
 function stopMusic() { if (MUSIC.el) MUSIC.el.pause(); stopSynthMusic(); MUSIC.on = false; }
 // ses/muzik.mp3 gelene kadar: bandı esnemiş, yavaş bir ezgi (kaset titremesiyle)
 function startSynthMusic() {
@@ -3450,11 +3473,11 @@ function stopSynthMusic() {
 }
 // koşu bitince nefes nefese: hırıltılı soluk, ara ara Selim'in repliği
 const PANT_LINES = [
-  { who: "SELİM", file: "selim_nefes_01", text: "Dur... dur biraz." },
-  { who: "SELİM", file: "selim_nefes_02", text: "Bu koridor... bitmiyor." },
-  { who: "SELİM", file: "selim_nefes_03", text: "Kalbim kulağımda atıyor." },
-  { who: "SELİM", file: "selim_nefes_04", text: "Kimse yok. Kimse yok..." },
-  { who: "SELİM", file: "selim_nefes_05", text: "Nereye koşuyorum ben?" },
+  { who: "SELİM", file: "selim_nefes_01", text: "Dur... dur bir saniye." },
+  { who: "SELİM", file: "selim_nefes_02", text: "Bitmiyor bu koridor... bitmiyor!" },
+  { who: "SELİM", file: "selim_nefes_03", text: "Kalbim... kulağımda atıyor." },
+  { who: "SELİM", file: "selim_nefes_04", text: "Kimse yok. Kimse yok... sakin ol." },
+  { who: "SELİM", file: "selim_nefes_05", text: "Nereye kaçıyorum ben ya?" },
 ];
 function startPant() {
   S.pant = CFG.pantTime; S.pantPhase = 0;
@@ -3523,7 +3546,7 @@ function updateHud() {
 const UI = { tab: "goruntu" };
 const TABS = { goruntu: "GÖRÜNTÜ", ses: "SES", kontrol: "KONTROL", tuslar: "TUŞLAR" };
 const KEYMAP = [
-  ["W A S D", "yürü"], ["SHIFT", "koş"], ["FARE / OK TUŞLARI", "etrafa bak"], ["F", "fener aç / kapat"], ["E", "kapıyı aç"], ["R", "yeni pil tak"], ["TAB", "envanter"], ["M", "walkman: müzik"],
+  ["W A S D", "yürü"], ["SHIFT", "koş"], ["FARE / OK TUŞLARI", "etrafa bak"], ["F", "fener aç / kapat"], ["E", "kapıyı aç"], ["R", "yeni pil tak"], ["TAB", "envanter"], ["M", "walkman: müzik"], ["N", "walkman: sonraki parça"],
   ["T", "son kaseti tekrar izle"], ["BOŞLUK", "sinematiği / kaseti geç"], ["ARABADA W / S", "gaz / fren"],
   ["ARABADA A / D", "direksiyon"], ["ESC ya da P", "duraklat"],
 ];
@@ -3645,26 +3668,26 @@ const CAM_EDGE = {
   look: [[0, 0, -0.4, 0], [1.2, 1.5, 5.4, -2.55], [2.4, 1.5, 5.0, -2.55], [3.6, 0.1, -2.5, 0], [5.2, 0.25, -7, 0]],
 };
 const INTRO_CALL = [
-  { who: "SELİM", file: "selim_01", text: "Alo." },
+  { who: "SELİM", file: "selim_01", text: "Alo?" },
   { who: "AMİR", file: "amir_01", text: "Selim, uyumuyorsun değil mi?" },
-  { who: "SELİM", file: "selim_02", text: "Yok abi. Söyle." },
+  { who: "SELİM", file: "selim_02", text: "Yok abi, yok. Uyanığım. Söyle." },
   { who: "AMİR", file: "amir_02", text: "Köşedeki mazgalın kapağı açık kalmış. Biri aramış." },
   { who: "AMİR", file: "amir_03", text: "Git bir bak, kapat şunu. Sabah çocuklar oradan geçiyor." },
-  { who: "SELİM", file: "selim_03", text: "Tamam abi, çıkıyorum." },
+  { who: "SELİM", file: "selim_03", text: "Tamam abi, tamam. Çıkıyorum şimdi." },
   { who: "AMİR", file: "amir_04", text: "Bir de... içinden ses geliyormuş. Öyle dedi kadın." },
-  { who: "SELİM", file: "selim_04", text: "Ne sesi?" },
+  { who: "SELİM", file: "selim_04", text: "Ne sesi abi?" },
   { who: "AMİR", file: "amir_05", text: "Bilmiyorum. Git bak işte." },
 ];
-const INTRO_MUTTER = { who: "SELİM", file: "selim_05", text: "Kim açar bunu bu saatte..." };
-const INTRO_EDGE = { who: "SELİM", file: "selim_06", text: "...bu ses ne?" };
+const INTRO_MUTTER = { who: "SELİM", file: "selim_05", text: "Kim açar ki bunu bu saatte..." };
+const INTRO_EDGE = { who: "SELİM", file: "selim_06", text: "Bu... bu ne sesi?" };
 const HOME_LINES = [
-  { who: "SELİM", file: "selim_ev_01", text: "Yine bu saçmalıklar..." },
-  { who: "SELİM", file: "selim_ev_02", text: "Saat kaç olmuş..." },
-  { who: "SELİM", file: "selim_ev_03", text: "Nöbet. Kalk bakalım Selim." },
+  { who: "SELİM", file: "selim_ev_01", text: "Of... yine aynı saçmalık." },
+  { who: "SELİM", file: "selim_ev_02", text: "Saat kaç olmuş ya..." },
+  { who: "SELİM", file: "selim_ev_03", text: "Hadi bakalım Selim. Nöbet var." },
 ];
 const CAR_LINES = [
-  { who: "SELİM", file: "selim_araba_01", text: "Her gece aynı yol..." },
-  { who: "SELİM", file: "selim_araba_02", text: "Bir gün de bir şey olsun be." },
+  { who: "SELİM", file: "selim_araba_01", text: "Her gece aynı yol... aynı lambalar." },
+  { who: "SELİM", file: "selim_araba_02", text: "Bir şey olsun be. Bir şey..." },
 ];
 const HOME_PH = new Set(["home", "tv", "back", "getup"]);
 // evden çıkış: apartman kapısından ana caddenin batı ucunda park edilmiş arabaya yürür (sokak yerel)
@@ -3843,8 +3866,8 @@ function introUpdate(dt) {
   // ---------- söylenir, TV'yi kapatır, sigarayı söndürür, kalkar ----------
   if (I.phase === "getup") {
     const t = I.t, prev = S.pos.clone(), T = R.home.tv;
-    placeHome({ pos: [hk(0, HP.eye), hk(4.4, HP.eye), hk(5.1, HP.lean), hk(6.3, HP.lean), hk(7.0, HP.eye), hk(8.4, [0.7, 1.62, 1.15]), hk(10.6, [1.85, 1.62, -0.75])],
-      look: [hk(0, HP.scr), hk(2.0, HP.scr), hk(2.8, HP.clock), hk(4.0, HP.clock), hk(5.0, HP.ash), hk(6.3, HP.ash), hk(7.0, [0.3, 0.9, 0]), hk(8.4, [2.27, 1.45, -0.6]), hk(10.6, [2.6, 1.4, -1.0])] }, t);
+    placeHome({ pos: [hk(0, HP.eye), hk(4.4, HP.eye), hk(5.1, HP.lean), hk(6.3, HP.lean), hk(7.0, HP.eye), hk(8.2, [0.7, 1.62, 1.05]), hk(9.4, [0.85, 1.62, -0.5]), hk(10.6, [2.75, 1.62, -1.45])],
+      look: [hk(0, HP.scr), hk(2.0, HP.scr), hk(2.8, HP.clock), hk(4.0, HP.clock), hk(5.0, HP.ash), hk(6.3, HP.ash), hk(7.0, [0.6, 0.9, 0.2]), hk(8.2, [1.6, 1.45, -1.1]), hk(10.6, [HP.door[0], 1.4, HP.door[2]])] }, t);
     if (t > 8.4) walkFx(I, prev);
     if (!I.l1 && t >= 0.4) { I.l1 = true; sayLine(HOME_LINES[0], null, 2600); }
     if (!I.off && t >= 1.8) { I.off = true; T.mode = "off"; T.offT = 0; sfxClick(1200, 0.12, 0.03); setGain(AU.static, 0, 0.1); }
@@ -4095,7 +4118,7 @@ function introUpdate(dt) {
     S.lamp = 1;
     setGain(AU.hum, lerp(0, 1, clamp(t / 4, 0, 1)) * 0.9, 0.2);
     setGain(AU.ring, 0);
-    if (t > 3.4 && !I.said2) { I.said2 = true; subtitle("...neredeyim?", 2800); playVoice("ses/selim_neredeyim.mp3", { vol: 0.55 }); }
+    if (t > 3.4 && !I.said2) { I.said2 = true; subtitle("SELİM: Ah... neresi burası?", 2800); playVoice("ses/selim_neredeyim.mp3", { vol: 0.55 }); }
     if (t >= D) finishIntro(true);
   }
 }
@@ -4524,7 +4547,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   S.time += dt;
   radioTick(dt);
-  if (S.mode !== "play" && MTV.audio && !MTV.audio.paused) MTV.audio.pause();   // kaset, menü, ölüm: yayın susar
+  if (S.mode !== "play" && MTV.audio && !MTV.audio.paused) { MTV.audio.pause(); MTV.bed?.pause(); }   // kaset, menü, ölüm: yayın susar
   // walkman çalarken ortam sesleri (vızıltı, rüzgâr, yağmur) kısılır
   if (AU.ctx) { const duck = MUSIC.on && S.mode === "play" && !S.paused ? 0.3 : 1; if (AU.duck !== duck) { AU.duck = duck; setGain(AU.amb, GFX.amb * duck, 0.4); } }
 

@@ -18,11 +18,11 @@ Oyun Selim'in evinde başlar: kanepede sigara içip boş boş TV izler, ekranda 
 | Dosya | Kim | Replik |
 | --- | --- | --- |
 | `anlatici.mp3` | Anlatıcı | (TV yayını, hazır) |
-| `selim_ev_01.mp3` | Selim | Yine bu saçmalıklar... (TV'ye, bıkkın) |
-| `selim_ev_02.mp3` | Selim | Saat kaç olmuş... (duvar saatine bakarken) |
-| `selim_ev_03.mp3` | Selim | Nöbet. Kalk bakalım Selim. (kendi kendine, kalkarken) |
-| `selim_araba_01.mp3` | Selim | Her gece aynı yol... (arabada, mırıldanarak) |
-| `selim_araba_02.mp3` | Selim | Bir gün de bir şey olsun be. (arabada, iç çekerek) |
+| `selim_ev_01.mp3` | Selim | Of... yine aynı saçmalık. |
+| `selim_ev_02.mp3` | Selim | Saat kaç olmuş ya... |
+| `selim_ev_03.mp3` | Selim | Hadi bakalım Selim. Nöbet var. |
+| `selim_araba_01.mp3` | Selim | Her gece aynı yol... aynı lambalar. |
+| `selim_araba_02.mp3` | Selim | Bir şey olsun be. Bir şey... |
 
 ## Giriş sahnesi: Selim ve Amir
 
@@ -34,18 +34,18 @@ Gece, belediyenin Fen İşleri kulübesinde nöbetteki Selim'e amiri telefon ede
 
 | Dosya | Kim | Replik |
 | --- | --- | --- |
-| `selim_01.mp3` | Selim | Alo. |
+| `selim_01.mp3` | Selim | Alo? |
 | `amir_01.mp3` | Amir | Selim, uyumuyorsun değil mi? |
-| `selim_02.mp3` | Selim | Yok abi. Söyle. |
+| `selim_02.mp3` | Selim | Yok abi, yok. Uyanığım. Söyle. |
 | `amir_02.mp3` | Amir | Köşedeki mazgalın kapağı açık kalmış. Biri aramış. |
 | `amir_03.mp3` | Amir | Git bir bak, kapat şunu. Sabah çocuklar oradan geçiyor. |
-| `selim_03.mp3` | Selim | Tamam abi, çıkıyorum. |
+| `selim_03.mp3` | Selim | Tamam abi, tamam. Çıkıyorum şimdi. |
 | `amir_04.mp3` | Amir | Bir de... içinden ses geliyormuş. Öyle dedi kadın. |
-| `selim_04.mp3` | Selim | Ne sesi? |
+| `selim_04.mp3` | Selim | Ne sesi abi? |
 | `amir_05.mp3` | Amir | Bilmiyorum. Git bak işte. |
-| `selim_05.mp3` | Selim | Kim açar bunu bu saatte... (yürürken kendi kendine, mırıldanarak) |
-| `selim_06.mp3` | Selim | ...bu ses ne? (mazgalın başında, fısıltı) |
-| `selim_neredeyim.mp3` | Selim | ...neredeyim? (düşüşten sonra) |
+| `selim_05.mp3` | Selim | Kim açar ki bunu bu saatte... |
+| `selim_06.mp3` | Selim | Bu... bu ne sesi? |
+| `selim_neredeyim.mp3` | Selim | Ah... neresi burası? |
 
 ## Koşu sonrası: Selim nefes nefese
 
@@ -53,11 +53,11 @@ Koşu bitince ara ara biri rastgele çalar. Kısık, soluk soluğa, kesik kesik.
 
 | Dosya | Kim | Replik |
 |---|---|---|
-| `selim_nefes_01.mp3` | Selim | Dur... dur biraz. |
-| `selim_nefes_02.mp3` | Selim | Bu koridor... bitmiyor. |
-| `selim_nefes_03.mp3` | Selim | Kalbim kulağımda atıyor. |
-| `selim_nefes_04.mp3` | Selim | Kimse yok. Kimse yok... |
-| `selim_nefes_05.mp3` | Selim | Nereye koşuyorum ben? |
+| `selim_nefes_01.mp3` | Selim | Dur... dur bir saniye. |
+| `selim_nefes_02.mp3` | Selim | Bitmiyor bu koridor... bitmiyor! |
+| `selim_nefes_03.mp3` | Selim | Kalbim... kulağımda atıyor. |
+| `selim_nefes_04.mp3` | Selim | Kimse yok. Kimse yok... sakin ol. |
+| `selim_nefes_05.mp3` | Selim | Nereye kaçıyorum ben ya? |
 
 ## Efekt sesleri (isteğe bağlı)
 
@@ -131,9 +131,9 @@ Oyuncunun kendisi. Açılıştaki Selim'in sesiyle aynı kişi, ama çok yorgun,
 
 | Dosya | Replik |
 | --- | --- |
-| `selim_kaset_01.mp3` | Kaç kere düştüm bilmiyorum. Saat yine sıfırda. |
+| `selim_kaset_01.mp3` | Kaç kere düştüm... bilmiyorum artık. Saat yine sıfırda. |
 | `selim_kaset_02.mp3` | Pano çıkışın yanında değil. Çıkış... panonun arkasında. |
-| `selim_kaset_03.mp3` | Şifreyi unutmayın. Kameraya bakın. Tarih hiç değişmiyor. |
-| `selim_kaset_04.mp3` | Telefon çalınca... açmayın. |
+| `selim_kaset_03.mp3` | Şifreyi unutmayın. Kameraya bakın... tarih hiç değişmiyor. |
+| `selim_kaset_04.mp3` | Telefon çalarsa... açmayın. Lütfen. |
 
 Metni değiştirirseniz `index.html` içindeki `TAPES` ve `INTRO_CALL` listelerini de güncelleyin, altyazılar oradan gelir.
