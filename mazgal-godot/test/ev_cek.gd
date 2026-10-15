@@ -10,6 +10,7 @@ func _init() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("faz:"):
 			ev._gec(a.substr(4))
+			ev.karartma = 0.0
 			bas = ev.T
 		else:
 			anlar.append(float(a))
