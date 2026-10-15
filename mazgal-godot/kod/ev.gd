@@ -42,7 +42,7 @@ const DOLAP := Vector3(24.38, 1.9, -3.1)            # mutfağın üst dolabı (N
 const BUZDOLABI_MODELI := "res://modeller2/seliminevi/buzdolabi.glb"   # alp gönderince
 const BUZDOLABI_YERI := Vector3(24.2, 1.0, 2.4)
 # Oyuncunun dolaşabileceği alanlar (odalar ve kapının önündeki koridor)
-const BANYO_ALAN := [AABB(Vector3(10.95, 0, -3.4), Vector3(2.1, 3, 5.6))]
+const BANYO_ALAN := [AABB(Vector3(11.08, 0, -3.35), Vector3(0.84, 3, 1.95)), AABB(Vector3(10.95, 0, -1.5), Vector3(2.1, 3, 3.7))]   # kapı önündeki dar koridor + banyo
 const MUTFAK_ALAN := [AABB(Vector3(23.7, 0, -3.6), Vector3(4.6, 3, 6.9)), AABB(Vector3(28.2, 0, 1.95), Vector3(1.6, 3, 1.2))]
 const SALON_ALAN := [AABB(Vector3(33.3, 0, -2.7), Vector3(5.4, 3, 5.5)), AABB(Vector3(36.0, 0, 2.7), Vector3(1.2, 3, 1.55))]
 const YURUME := 1.7
@@ -392,8 +392,12 @@ func _etkiles(ad: String) -> void:
 			_zaman["banyo_isik"] = T
 			_ses_cal("floresan_tik", -6.0)
 			_esya("lavabo", LAVABO, 1.7)
+			# duşa lavaboyu beklemeden de girilebilir
+			_esya("dus", DUS_KAPI, 2.6)
 		"lavabo": _sahne("s_lavabo")
-		"dus": _sahne("s_dus")
+		"dus":
+			_esya_kaldir("lavabo")
+			_sahne("s_dus")
 		"banyo_cikis": _sahne("s_banyo_cikis")
 		"mutfak_kapi":
 			_zaman["mutfak_kapi"] = T
@@ -439,7 +443,7 @@ func _s_lavabo() -> void:
 	ayna_bugu = clampf((ft - 6.0) / 5.0, 0.0, 0.85) if ft > 6.0 else ayna_bugu
 	if ft >= 11.0:
 		_oyuna_don()
-		_esya("dus", DUS_KAPI, 2.0)
+		_esya("dus", DUS_KAPI, 2.6)
 
 
 func _s_dus() -> void:
