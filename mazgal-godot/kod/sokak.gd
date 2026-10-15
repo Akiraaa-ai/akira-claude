@@ -2,7 +2,7 @@ extends Node3D
 ## Açılış sokağı: alp'in şehir modeli (orijinal, sıkıştırılmamış), gece, yağmur.
 
 # şehir dosyası bu adlardan biriyle modeller/ klasöründe olabilir
-const SEHIR_DOSYALARI := ["res://modeller/sehir.glb", "res://modeller/Terrain Remaked.glb"]
+const SEHIR_DOSYALARI := ["res://modeller/sehir.glb", "res://modeller/Terrain Remaked.glb", "res://dokular/source/Terrain Remaked.glb"]
 
 @onready var sehir: Node3D = $Sehir
 
