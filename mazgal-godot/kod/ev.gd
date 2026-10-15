@@ -29,7 +29,7 @@ const KASE := Vector3(27.4, 0.875, 1.18)            # Nesquik kâsesi
 @onready var kamera: Camera3D = $Kamera
 @onready var telefon: Node3D = $Kamera/Telefon
 @onready var tv: Node3D = $TV
-@onready var tv_isigi: OmniLight3D = $Isiklar/TVIsigi
+@onready var tv_isigi: SpotLight3D = $Isiklar/TVIsigi
 
 var faz := ""
 var ft := 0.0          # fazın içindeki süre
@@ -68,6 +68,7 @@ var tv_foto: TextureRect
 var tv_cubuk: Control
 var tv_oda_kamera: Camera3D
 var tv_ust: ColorRect
+var tv_zemin: ColorRect
 var tv_acik := false
 var tv_t := 0.0
 var _tv_kare: Array = []
@@ -773,10 +774,10 @@ func _tv_kur() -> void:
 	tv_vp.size = Vector2i(640, 480)
 	tv_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(tv_vp)
-	var zemin := ColorRect.new()
-	zemin.color = Color.BLACK
-	zemin.size = Vector2(640, 480)
-	tv_vp.add_child(zemin)
+	tv_zemin = ColorRect.new()
+	tv_zemin.color = Color.BLACK
+	tv_zemin.size = Vector2(640, 480)
+	tv_vp.add_child(tv_zemin)
 	tv_video = VideoStreamPlayer.new()
 	if ResourceLoader.exists("res://tv/video1.ogv"):
 		tv_video.stream = load("res://tv/video1.ogv")
@@ -907,6 +908,7 @@ func _tv_guncelle(dt: float) -> void:
 		tv_foto.visible = tur.begins_with("foto")
 		tv_cubuk.visible = tur == "cubuk"
 		tv_oda_kamera.current = tur == "oda"
+		tv_zemin.visible = tur != "oda"   # siyah zemin 3B görüntünün üstünü örtmesin
 		if tur == "video":
 			tv_video.play()
 		else:
@@ -936,7 +938,7 @@ func _tv_guncelle(dt: float) -> void:
 	if faz != "yayin": kar_hedef *= 0.5
 	# TV ışığı salona vurur, kareye göre titrer
 	var guc := 0.55 if tur == "kar" else (0.9 if tur == "cubuk" else 0.65)
-	tv_isigi.light_energy = guc * (0.85 + randf() * 0.3) * (acilis if tur == "ac" else 1.0)
+	tv_isigi.light_energy = 3.0 * guc * (0.85 + randf() * 0.3) * (acilis if tur == "ac" else 1.0)
 	tv_isigi.light_color = Color(0.7, 0.75, 0.95) if tur != "cubuk" else Color(0.85, 0.8, 0.85)
 
 
