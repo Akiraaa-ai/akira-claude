@@ -32,8 +32,10 @@ const FENER := [
 
 func _ready() -> void:
 	var parilti := _parilti_malzemesi()
-	for p in KOLLU: _lamba(p + Vector3(0, -0.12, 0), parilti, 0.5)
-	for p in FENER: _lamba(p + Vector3(0, -0.25, 0), parilti, 0.65)
+	# şehrin ikinci kopyası kuzeyde (sokak.gd SEHIR_BOY); lambaları da aynı kaymayla kopyalanır
+	for kayma in [Vector3.ZERO, Vector3(0, 0, -164.7771)]:
+		for p in KOLLU: _lamba(p + kayma + Vector3(0, -0.12, 0), parilti, 0.5)
+		for p in FENER: _lamba(p + kayma + Vector3(0, -0.25, 0), parilti, 0.65)
 
 func _lamba(bas: Vector3, parilti: Material, boy: float) -> void:
 	var l := SpotLight3D.new()

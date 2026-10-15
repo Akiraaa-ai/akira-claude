@@ -43,7 +43,7 @@ const BUZDOLABI_MODELI := "res://modeller2/seliminevi/buzdolabi.glb"   # alp gö
 const BUZDOLABI_YERI := Vector3(24.2, 1.0, 2.4)
 # Oyuncunun dolaşabileceği alanlar (odalar ve kapının önündeki koridor)
 const BANYO_ALAN := [AABB(Vector3(11.08, 0, -3.35), Vector3(0.84, 3, 1.95)), AABB(Vector3(10.95, 0, -1.5), Vector3(2.1, 3, 3.7))]   # kapı önündeki dar koridor + banyo
-const MUTFAK_ALAN := [AABB(Vector3(23.7, 0, -3.6), Vector3(4.6, 3, 6.9)), AABB(Vector3(28.2, 0, 1.95), Vector3(1.6, 3, 1.2))]
+const MUTFAK_ALAN := [AABB(Vector3(23.7, 0, -3.6), Vector3(4.25, 3, 6.9)), AABB(Vector3(27.9, 0, 2.15), Vector3(1.9, 3, 0.8))]
 const SALON_ALAN := [AABB(Vector3(33.3, 0, -2.7), Vector3(5.4, 3, 5.5)), AABB(Vector3(36.0, 0, 2.7), Vector3(1.2, 3, 1.55))]
 const YURUME := 1.7
 const GOZ := 1.48
@@ -140,6 +140,7 @@ var _banyo_mentese := Vector3.ZERO
 var ses_kapi: AudioStreamPlayer
 var dakika := 20.0 * 60.0 + 10.0
 var _saat_bas := 20.0 * 60.0 + 10.0
+var _salon_giris := 0.0
 var _son_tik := 0.0
 var _kapi_kokleri: Array[Node] = []
 var su: GPUParticles3D
@@ -255,7 +256,7 @@ func _gec(ad: String) -> void:
 		"salon_kapisi": _salon_basla()
 		"salon": Input.mouse_mode = Input.MOUSE_MODE_HIDDEN
 		"saat":
-			_saat_bas = 20.0 * 60.0 + 10.0 + T / 60.0
+			_saat_bas = 20.0 * 60.0 + (T - _salon_giris) / 60.0
 			dakika = _saat_bas
 		"yayin":
 			tv_acik = true
@@ -374,7 +375,7 @@ func _banyo_basla() -> void:
 	$Isiklar/BanyoLamba.light_energy = 0.0
 	_gorev("Duş al")
 	_esya("banyo_kapi", Vector3(11.48, 1.05, -1.47), 2.1)
-	get_tree().create_timer(2.0).timeout.connect(func() -> void: if not _soylendi("ic01"): _soyle("ic01"))
+	get_tree().create_timer(2.0, false).timeout.connect(func() -> void: if not _soylendi("ic01"): _soyle("ic01"))
 
 
 ## Mutfak: kapının önünden başlar.
@@ -382,7 +383,7 @@ func _mutfak_basla() -> void:
 	_saat_goster("19:05")
 	_oyuncu_yerlestir(Vector3(29.25, 0.0, 2.5), PI * 0.5, MUTFAK_ALAN)
 	_gorev("Bir şeyler ye")
-	get_tree().create_timer(2.5).timeout.connect(func() -> void: if not _soylendi("ic02"): _soyle("ic02"))
+	get_tree().create_timer(2.5, false).timeout.connect(func() -> void: if not _soylendi("ic02"): _soyle("ic02"))
 	_esya("mutfak_kapi", KAPI_MUTFAK[0] + Vector3(0, 1.05, 0), 2.0)
 	# telefon masada, ekranı kapalı
 	telefon.visible = true
@@ -394,6 +395,7 @@ func _mutfak_basla() -> void:
 
 ## Salon: kapının önünden başlar, koltuğa oturunca TV sinematiği başlar.
 func _salon_basla() -> void:
+	_salon_giris = T   # duvar saati salona girince 20:00'ı gösterir
 	_saat_goster("20:00")
 	$Aksam.visible = false   # gece: güneş artık pencereden vurmaz
 	($Ortam as WorldEnvironment).environment.ambient_light_energy = 0.2
@@ -466,14 +468,16 @@ func _s_lavabo() -> void:
 		_eylem["l_birak"] = true
 		eller.birak("sag", 0.6); eller.birak("sol", 0.6)
 		su_hedef = 0.0
-	# aynada kendine bakar, ayna buğulanır
-	ayna_bugu = clampf((ft - 6.0) / 5.0, 0.0, 0.85) if ft > 6.0 else ayna_bugu
+	# aynada kendine bakar; soğuk suyla ayna yalnızca biraz buğulanır
+	ayna_bugu = maxf(ayna_bugu, clampf((ft - 6.0) / 5.0, 0.0, 0.3)) if ft > 6.0 else ayna_bugu
 	if ft >= 11.0:
 		_oyuna_don()
 		_esya("dus", DUS_KAPI, 2.6)
 
 
 func _s_dus() -> void:
+	# sıcak su: buhar aynayı buğular
+	if ft > 6.0: ayna_bugu = maxf(ayna_bugu, clampf((ft - 6.0) / 8.0, 0.0, 0.85))
 	_yol([
 		[0.0, _bas_konum, _bas_bakis],
 		[1.4, Vector3(12.3, 1.62, 0.55), Vector3(12.58, 1.5, 2.1)],
@@ -567,13 +571,13 @@ func _gecis_oyna() -> void:
 	_yol(b_yol, t)
 	var bitis: float = b_yol[b_yol.size() - 1][0]
 	_kapi_ac(b_kapi, t, bitis + 0.6, bitis - 0.2)
-	_adim_say(0.55)
+	if t < bitis: _adim_say(0.55)
 	if t >= bitis + 0.6:
 		_gec(g["sonraki"])
 
 
 func _s_buzdolabi() -> void:
-	_yol([[0.0, _bas_konum, _bas_bakis], [1.0, BUZDOLABI_YERI + Vector3(1.0, 0.5, 0), BUZDOLABI_YERI], [5.0, BUZDOLABI_YERI + Vector3(1.0, 0.5, 0), BUZDOLABI_YERI + Vector3(0, -0.2, 0)]], ft)
+	_yol([[0.0, _bas_konum, _bas_bakis], [1.0, BUZDOLABI_YERI + Vector3(1.0, 0.5, 0), BUZDOLABI_YERI], [5.0, BUZDOLABI_YERI + Vector3(1.0, 0.62, 0), BUZDOLABI_YERI + Vector3(0, -0.2, 0)]], ft)
 	if ft > 0.8 and not _eylem.has("b_el"):
 		_eylem["b_el"] = true
 		eller.uzan("sag", BUZDOLABI_YERI + Vector3(0.35, 0.0, 0.0), 0.8)
@@ -606,7 +610,7 @@ func _s_masa() -> void:
 	_yol([[0.0, _bas_konum, _bas_bakis], [1.6, Vector3(27.5, 1.6, 2.2), KASE], [2.6, otur, KASE], [9.0, otur, KASE + Vector3(0.05, 0, 0)]], ft)
 	if ft > 1.8 and not _eylem.has("m_sandalye"):
 		_eylem["m_sandalye"] = true; _ses_cal("sandalye", -8.0)
-	if ft > 9.2 and not _soylendi("ic03"): _soyle("ic03")
+	if ft > 8.7 and not _soylendi("ic03"): _soyle("ic03")
 	if ft > 3.0 and not _eylem.has("m_dok"):
 		_eylem["m_dok"] = true; _ses_cal("dokme", -6.0)
 	# kaşıkla yer: el kâseyle ağız arasında gidip gelir
@@ -663,7 +667,7 @@ func _tel_kaydir() -> void:
 	if (_kaydirilan >= 4 or ft > 16.0) and not tel_bildirim.visible:
 		tel_bildirim.visible = true
 		_ses_cal("bildirim", -10.0)
-		get_tree().create_timer(2.2).timeout.connect(func() -> void: if not _soylendi("ic04"): _soyle("ic04"))
+		get_tree().create_timer(2.2, false).timeout.connect(func() -> void: if not _soylendi("ic04"): _soyle("ic04"))
 		_zaman["bildirim"] = T
 		_gorev("Q  Telefonu bırak")
 	if tel_bildirim.visible:
@@ -707,7 +711,7 @@ func _s_koltuk() -> void:
 	if ft >= 3.2:
 		# kapı arkasından kapanır, TV sinematiği başlar
 		_zaman.erase("salon_kapi")
-		_kapi_ac(kapi_salon, 0.0, 0.0, 1.0)
+		_zaman["salon_kapa"] = T
 		_gec("salon")
 
 
@@ -762,7 +766,7 @@ func _saat() -> void:
 	if ft > 13.05 and not _eylem.has("gong"):
 		_eylem["gong"] = true
 		for i in 3:
-			get_tree().create_timer(i * 1.15).timeout.connect(func() -> void: _ses_cal("saat_gong", -6.0))
+			get_tree().create_timer(i * 1.15, false).timeout.connect(func() -> void: _ses_cal("saat_gong", -6.0))
 	if ft >= 16.0: _gec("cikis")
 
 
@@ -799,7 +803,7 @@ func _cikis() -> void:
 	if ft > 7.3 and not _eylem.has("kilit"):
 		_eylem["kilit"] = true
 		_ses_cal("anahtar", -10.0)
-		get_tree().create_timer(0.5).timeout.connect(func() -> void: _ses_cal("kilit", -6.0))
+		get_tree().create_timer(0.5, false).timeout.connect(func() -> void: _ses_cal("kilit", -6.0))
 	if ft > 8.6 and not _eylem.has("otomat"):
 		_eylem["otomat"] = true
 		_ses_cal("otomat", -8.0)
@@ -1117,7 +1121,7 @@ func _saat_kur() -> void:
 func _saat_ibreleri() -> void:
 	var gercek := dakika
 	if faz != "saat" and faz != "cikis":
-		gercek = 20.0 * 60.0 + 10.0 + T / 60.0
+		gercek = 20.0 * 60.0 + (T - _salon_giris) / 60.0
 	_ibre_koy(yelkovan, TAU * fmod(gercek, 60.0) / 60.0)
 	_ibre_koy(akrep, TAU * fmod(gercek / 60.0, 12.0) / 12.0)
 	# tik sesi: saat akarken sıklaşır, sonra yine saniyede bire iner
@@ -1521,6 +1525,11 @@ func _tv_guncelle(dt: float) -> void:
 	var um := tv_ust.material as ShaderMaterial
 	um.set_shader_parameter("zaman", T)
 	if not tv_acik:
+		# kapatılınca ekran söner: görüntü, video ve odayı çeken kamera durur
+		um.set_shader_parameter("acilis", move_toward(float(um.get_shader_parameter("acilis")), 0.0, dt * 5.0))
+		if tv_video and tv_video.is_playing(): tv_video.stop()
+		if tv_oda_kamera: tv_oda_kamera.current = false
+		_tv_kare = []
 		tv_isigi.light_energy = 0.0
 		kar_hedef = 0.0
 		return
@@ -1759,6 +1768,10 @@ func _physics_process(dt: float) -> void:
 		if _icerde(px): p = px
 		elif _icerde(pz): p = pz
 		else: p = Vector3(once.x, 0.0, once.z)
+		# görünmez sınıra yaslanınca adım sesi ve sallantı olmasın: hız gerçek harekete eşitlenir
+		if dt > 0.0:
+			oyuncu.velocity.x = (p.x - once.x) / dt
+			oyuncu.velocity.z = (p.z - once.z) / dt
 	oyuncu.global_position = p
 
 
@@ -1863,6 +1876,7 @@ func _ev_guncelle(dt: float) -> void:
 	if _zaman.has("banyo_kapi"): _banyo_kapisi(T - float(_zaman["banyo_kapi"]) + 0.5)
 	if _zaman.has("mutfak_kapi"): _kapi_ac(kapi_mutfak, T - float(_zaman["mutfak_kapi"]), 0.0, 1.1)
 	if _zaman.has("salon_kapi"): _kapi_ac(kapi_salon, T - float(_zaman["salon_kapi"]), 0.0, 1.1)
+	if _zaman.has("salon_kapa"): _kapi_ac(kapi_salon, T - float(_zaman["salon_kapa"]), 1.0, 0.0)
 	if _zaman.has("banyo_isik"):
 		# floresan: birkaç kez çakıp söner, sonra yanar
 		var t := T - float(_zaman["banyo_isik"])
