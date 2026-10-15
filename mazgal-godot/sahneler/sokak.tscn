@@ -1,7 +1,6 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://kod/sokak.gd" id="1"]
-[ext_resource type="PackedScene" path="res://modeller/sehir.glb" id="2"]
 [ext_resource type="Script" path="res://kod/oyuncu.gd" id="3"]
 [ext_resource type="Script" path="res://kod/yagmur.gd" id="4"]
 [ext_resource type="Script" path="res://kod/lambalar.gd" id="5"]
@@ -59,7 +58,7 @@ light_color = Color(0.55, 0.62, 0.85, 1)
 light_energy = 0.12
 shadow_enabled = true
 
-[node name="Sehir" parent="." instance=ExtResource("2")]
+[node name="Sehir" type="Node3D" parent="."]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -14.5, 0, -43.75)
 
 [node name="Lambalar" type="Node3D" parent="."]
