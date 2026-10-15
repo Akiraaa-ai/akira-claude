@@ -7,6 +7,7 @@ extends CanvasLayer
 const ANA_MENU := "res://sahneler/baslangic.tscn"
 const ILK_SAHNE := "res://sahneler/ev.tscn"
 const DOSYA := "user://ayarlar.cfg"
+const KAYIT := "user://kayit.cfg"
 const Ceviri := preload("res://kod/ceviri.gd")
 const KALITELER := ["DÜŞÜK", "ORTA", "YÜKSEK", "ULTRA"]
 const DILLER := ["tr", "en"]
@@ -31,6 +32,14 @@ var _onceki_fare := Input.MOUSE_MODE_CAPTURED
 var _oynaticilar: Array[Node] = []
 var _bus_sayac := 0.0
 var _en: Translation
+## Kayıttan devam edilince sahnenin başlayacağı nokta; sahne okuyup boşaltır.
+var baslangic_noktasi := ""
+var _kayit_ikon: Control
+var _kayit_ikon_t := 0.0
+var _yukleme: Control
+var _yukleme_cubuk: ColorRect
+var _yukleme_yazi: Label
+var _yuklenen := ""
 
 signal ayarlar_degisti
 
@@ -43,6 +52,7 @@ func _ready() -> void:
 	_uygula()
 	_kur()
 	_kok.visible = false
+	_kayit_arayuzu_kur()
 	get_tree().node_added.connect(_dugum_eklendi)
 	# bu menüden önce yüklenmiş ses çalarlar da kanallara atansın
 	for n in get_tree().root.find_children("*", "AudioStreamPlayer*", true, false):
@@ -92,7 +102,11 @@ func y_carpani() -> float:
 # ---------------- ayarlar ----------------
 func _yukle() -> void:
 	var c := ConfigFile.new()
-	if c.load(DOSYA) != OK: return
+	if c.load(DOSYA) != OK:
+		# ilk açılış: dizüstü bilgisayarların tümleşik ekran kartında (Intel Iris Xe gibi) düşük ayarla başlar
+		var kart := RenderingServer.get_video_adapter_name().to_lower()
+		if "intel" in kart or "llvmpipe" in kart: kalite = 0
+		return
 	ses = c.get_value("ayar", "ses", ses)
 	muzik = c.get_value("ayar", "muzik", muzik)
 	efekt = c.get_value("ayar", "efekt", efekt)
@@ -153,6 +167,7 @@ func _kanal(akis: AudioStream) -> String:
 	return "Efekt"
 
 func _process(dt: float) -> void:
+	_kayit_guncelle(dt)
 	_bus_sayac -= dt
 	if _bus_sayac > 0.0: return
 	_bus_sayac = 0.3
@@ -172,6 +187,19 @@ func _dugum_eklendi(n: Node) -> void:
 		_oynaticilar.append(n)
 	if n == get_tree().current_scene or n is WorldEnvironment:
 		_kaliteyi_uygula.call_deferred(n)
+	elif n is Light3D or n is GPUParticles3D:
+		_dugum_kalitesi.call_deferred(n)
+
+## Düşük ayarda (zayıf ekran kartları için) ikincil ışıkların gölgesi kapanır, yağmur damlası azalır.
+func _dugum_kalitesi(n: Node) -> void:
+	if not is_instance_valid(n): return
+	if n is Light3D and not n is DirectionalLight3D:
+		var l := n as Light3D
+		if not l.has_meta("asil_golge"): l.set_meta("asil_golge", l.shadow_enabled)
+		var onemli := l.name == "Fener" or l.name == "Ampul" or l.name == "TVIsigi"
+		l.shadow_enabled = bool(l.get_meta("asil_golge")) and (kalite >= 1 or onemli)
+	elif n is GPUParticles3D:
+		(n as GPUParticles3D).amount_ratio = [0.35, 0.6, 1.0, 1.0][kalite]
 
 func _kaliteyi_uygula(kok: Node) -> void:
 	if not is_instance_valid(kok): return
@@ -189,6 +217,14 @@ func _kaliteyi_uygula(kok: Node) -> void:
 		env.volumetric_fog_enabled = env.get_meta("asil_hacim") and kalite >= 1
 		env.glow_enabled = env.get_meta("asil_glow")
 		env.ssil_enabled = env.get_meta("asil_ssil") or kalite >= 3
+		# hacimli sis kapanınca yerine ucuz derinlik sisi gelir; gece havası kaybolmasın
+		if not env.has_meta("asil_sis"): env.set_meta("asil_sis", env.fog_enabled)
+		env.fog_enabled = env.get_meta("asil_sis") or (env.get_meta("asil_hacim") and kalite == 0)
+		if kalite == 0 and env.get_meta("asil_hacim"):
+			env.fog_density = maxf(env.fog_density, env.volumetric_fog_density * 0.6)
+			env.fog_light_color = env.volumetric_fog_albedo * 0.12
+	for n in kok.find_children("*", "Light3D", true, false) + kok.find_children("*", "GPUParticles3D", true, false):
+		_dugum_kalitesi(n)
 	var vp := get_viewport()
 	vp.msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X, Viewport.MSAA_8X][kalite]
 	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if kalite <= 1 else Viewport.SCALING_3D_MODE_BILINEAR
@@ -333,3 +369,104 @@ func _secim(ad: String, secenekler: Array, deger: int, ne: Callable) -> VBoxCont
 	h.add_child(sol); h.add_child(yazi); h.add_child(sag)
 	v.add_child(h)
 	return v
+
+
+# ---------------- kayıt ve yükleme ----------------
+## Oyun kendiliğinden kaydeder: hangi sahne ve sahnenin hangi noktası. Sağ altta kayıt simgesi döner.
+func kayit_noktasi(sahne: String, nokta: String) -> void:
+	var c := ConfigFile.new()
+	c.set_value("kayit", "sahne", sahne)
+	c.set_value("kayit", "nokta", nokta)
+	c.set_value("kayit", "zaman", Time.get_datetime_string_from_system())
+	c.save(KAYIT)
+	_kayit_ikon_t = 2.6
+
+func kayit_var() -> bool:
+	var c := ConfigFile.new()
+	return c.load(KAYIT) == OK and ResourceLoader.exists(str(c.get_value("kayit", "sahne", "")))
+
+## Ana menüdeki "Devam Et": kayıt yükleme ekranıyla son noktadan açar.
+func kayittan_devam() -> void:
+	var c := ConfigFile.new()
+	if c.load(KAYIT) != OK: return
+	baslangic_noktasi = str(c.get_value("kayit", "nokta", ""))
+	yukle(str(c.get_value("kayit", "sahne", ILK_SAHNE)), "KAYIT YÜKLENİYOR...")
+
+func yeni_oyun() -> void:
+	baslangic_noktasi = ""
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(KAYIT))
+
+## Sahneyi arkada yükler; bu sırada siyah ekranda yazı ve ince bir çubuk görünür.
+func yukle(sahne: String, yazi := "YÜKLENİYOR...") -> void:
+	_yuklenen = sahne
+	_yukleme_yazi.text = yazi
+	_yukleme_cubuk.size.x = 0.0
+	_yukleme.visible = true
+	get_tree().paused = false
+	ResourceLoader.load_threaded_request(sahne)
+
+func yukleniyor_mu() -> bool:
+	return _yuklenen != ""
+
+func _kayit_guncelle(dt: float) -> void:
+	_kayit_ikon_t = maxf(0.0, _kayit_ikon_t - dt)
+	_kayit_ikon.visible = _kayit_ikon_t > 0.0
+	if _kayit_ikon.visible:
+		_kayit_ikon.modulate.a = minf(1.0, _kayit_ikon_t) * (0.6 + 0.4 * sin(Time.get_ticks_msec() / 160.0))
+		(_kayit_ikon.get_child(0) as Control).rotation += dt * 5.0
+	if _yuklenen == "": return
+	var ilerleme := []
+	var d := ResourceLoader.load_threaded_get_status(_yuklenen, ilerleme)
+	if ilerleme.size() > 0: _yukleme_cubuk.size.x = lerpf(_yukleme_cubuk.size.x, 520.0 * float(ilerleme[0]), 0.2)
+	_yukleme_yazi.modulate.a = 0.55 + 0.45 * sin(Time.get_ticks_msec() / 300.0)
+	if d == ResourceLoader.THREAD_LOAD_LOADED:
+		var sahne := ResourceLoader.load_threaded_get(_yuklenen) as PackedScene
+		_yuklenen = ""
+		get_tree().change_scene_to_packed(sahne)
+		# yeni sahne ilk karesini çizene kadar perde kalır
+		await get_tree().process_frame
+		await get_tree().process_frame
+		_yukleme.visible = false
+	elif d == ResourceLoader.THREAD_LOAD_FAILED or d == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
+		push_error("Sahne yüklenemedi: " + _yuklenen)
+		_yuklenen = ""
+		_yukleme.visible = false
+
+func _kayit_arayuzu_kur() -> void:
+	_kayit_ikon = Control.new()
+	_kayit_ikon.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_kayit_ikon.offset_left = -300; _kayit_ikon.offset_top = -90
+	add_child(_kayit_ikon)
+	var halka := Panel.new()
+	var st := StyleBoxFlat.new()
+	st.bg_color = Color(0, 0, 0, 0)
+	st.border_color = Color(0.9, 0.88, 0.8)
+	st.set_border_width_all(3)
+	st.border_width_top = 0
+	st.set_corner_radius_all(14)
+	halka.add_theme_stylebox_override("panel", st)
+	halka.size = Vector2(28, 28)
+	halka.pivot_offset = Vector2(14, 14)
+	_kayit_ikon.add_child(halka)
+	var l := _etiket("KAYDEDİLİYOR", 18, Color(0.9, 0.88, 0.8))
+	l.position = Vector2(42, 2)
+	_kayit_ikon.add_child(l)
+	_kayit_ikon.visible = false
+	_yukleme = Control.new()
+	_yukleme.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_yukleme.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(_yukleme)
+	var siyah := ColorRect.new(); siyah.color = Color.BLACK; siyah.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_yukleme.add_child(siyah)
+	_yukleme_yazi = _etiket("", 26, Color(0.88, 0.86, 0.8))
+	_yukleme_yazi.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_yukleme_yazi.offset_left = 120; _yukleme_yazi.offset_top = -170
+	_yukleme.add_child(_yukleme_yazi)
+	var alt := ColorRect.new(); alt.color = Color(0.2, 0.2, 0.2)
+	alt.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	alt.offset_left = 120; alt.offset_top = -120; alt.offset_right = 640; alt.offset_bottom = -116
+	_yukleme.add_child(alt)
+	_yukleme_cubuk = ColorRect.new(); _yukleme_cubuk.color = Color(0.85, 0.2, 0.18)
+	_yukleme_cubuk.position = Vector2.ZERO; _yukleme_cubuk.size = Vector2(0, 4)
+	alt.add_child(_yukleme_cubuk)
+	_yukleme.visible = false

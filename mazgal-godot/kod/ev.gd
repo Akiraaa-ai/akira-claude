@@ -17,6 +17,11 @@ const SATIRLAR := {
 	"ev1": ["res://sesler/selim_ev_01.mp3", "Of... yine aynı saçmalık."],
 	"ev2": ["res://sesler/selim_ev_02.mp3", "Saat kaç olmuş ya..."],
 	"ev3": ["res://sesler/selim_ev_03.mp3", "Hadi bakalım Selim. Nöbet var."],
+	# iç ses: alp okuyunca dosyalar sesler/ klasörüne bu adlarla konur; dosya yokken yalnız altyazı çıkar
+	"ic01": ["res://sesler/selim_ic_01.mp3", "Bu ışık da hep bozuk zaten."],
+	"ic02": ["res://sesler/selim_ic_02.mp3", "Dolapta ne kaldıysa artık..."],
+	"ic03": ["res://sesler/selim_ic_03.mp3", "Fatura da gelmiş. Sonra bakarım."],
+	"ic04": ["res://sesler/selim_ic_04.mp3", "Tamam abi, tamam... ne zaman geç kaldım ki."],
 }
 
 # Odaların dünyadaki yerleri (ev.tscn ile aynı)
@@ -43,6 +48,7 @@ const SALON_ALAN := [AABB(Vector3(33.3, 0, -2.7), Vector3(5.4, 3, 5.5)), AABB(Ve
 const YURUME := 1.7
 const GOZ := 1.62
 const Eller := preload("res://kod/eller.gd")
+const Kagit := preload("res://kod/kagit.gd")
 
 # Modeller (alp'in gönderdiği dosyalar)
 const KAPI_MODELI := "res://modeller2/seliminevi/doors_stylish_glass_door.glb"
@@ -202,19 +208,29 @@ func _ready() -> void:
 	_tv_kur()
 	_telefon_kur()
 	_tel_ekstra_kur()
+	_kagitlar_kur()
 	_telefon_yataga()
 	_oyuncu_kur()
 	_carpisma_kur()
 	eller = Eller.new()
 	kamera.add_child(eller)
-	_gec("uyanis")
+	# "Devam Et" ile gelindiyse kaydedilen noktadan başlar
+	var d := get_node_or_null("/root/Duraklat")
+	var nokta: String = str(d.baslangic_noktasi) if d else ""
+	if d: d.baslangic_noktasi = ""
+	_gec(nokta if nokta in KAYIT_NOKTALARI else "uyanis")
 
 
 # ---------------------------------------------------------------- akış
+const KAYIT_NOKTALARI := ["banyo", "mutfak", "salon_kapisi"]
+
 func _gec(ad: String) -> void:
 	faz = ad
 	ft = 0.0
 	_eylem.clear()
+	if ad in KAYIT_NOKTALARI:
+		var d := get_node_or_null("/root/Duraklat")
+		if d: d.kayit_noktasi(scene_file_path, ad)
 	match ad:
 		"banyo": _banyo_basla()
 		"mutfak": _mutfak_basla()
@@ -228,6 +244,7 @@ func _gec(ad: String) -> void:
 			tv_t = 0.0
 			ses_anlatici.play()
 			ses_muzik.play()
+			_crt_ac(true)
 
 
 func _process(dt: float) -> void:
@@ -338,6 +355,7 @@ func _banyo_basla() -> void:
 	$Isiklar/BanyoLamba.light_energy = 0.0
 	_gorev("Duş al")
 	_esya("banyo_kapi", Vector3(11.48, 1.05, -1.47), 2.1)
+	get_tree().create_timer(2.0).timeout.connect(func() -> void: if not _soylendi("ic01"): _soyle("ic01"))
 
 
 ## Mutfak: kapının önünden başlar.
@@ -345,6 +363,7 @@ func _mutfak_basla() -> void:
 	_saat_goster("19:05")
 	_oyuncu_yerlestir(Vector3(29.25, 0.0, 2.5), PI * 0.5, MUTFAK_ALAN)
 	_gorev("Bir şeyler ye")
+	get_tree().create_timer(2.5).timeout.connect(func() -> void: if not _soylendi("ic02"): _soyle("ic02"))
 	_esya("mutfak_kapi", KAPI_MUTFAK[0] + Vector3(0, 1.05, 0), 2.0)
 	# telefon masada, ekranı kapalı
 	telefon.visible = true
@@ -501,6 +520,7 @@ func _s_masa() -> void:
 	_yol([[0.0, _bas_konum, _bas_bakis], [1.6, Vector3(27.5, 1.6, 2.2), KASE], [2.6, otur, KASE], [9.0, otur, KASE + Vector3(0.05, 0, 0)]], ft)
 	if ft > 1.8 and not _eylem.has("m_sandalye"):
 		_eylem["m_sandalye"] = true; _ses_cal("sandalye", -8.0)
+	if ft > 9.2 and not _soylendi("ic03"): _soyle("ic03")
 	if ft > 3.0 and not _eylem.has("m_dok"):
 		_eylem["m_dok"] = true; _ses_cal("dokme", -6.0)
 	# kaşıkla yer: el kâseyle ağız arasında gidip gelir
@@ -557,6 +577,7 @@ func _tel_kaydir() -> void:
 	if (_kaydirilan >= 4 or ft > 16.0) and not tel_bildirim.visible:
 		tel_bildirim.visible = true
 		_ses_cal("bildirim", -10.0)
+		get_tree().create_timer(2.2).timeout.connect(func() -> void: if not _soylendi("ic04"): _soyle("ic04"))
 		_zaman["bildirim"] = T
 		_gorev("Q  Telefonu bırak")
 	if tel_bildirim.visible:
@@ -641,6 +662,14 @@ func _saat() -> void:
 	var u := smoothstep(4.0, 13.0, ft)
 	u = u * u * (3.0 - 2.0 * u)
 	dakika = lerpf(_saat_bas, 24.0 * 60.0, u)
+	# göz kapakları ağırlaşır: yavaş, uzun kırpışlar
+	karartma = _egri([[0, 0], [5.2, 0], [5.9, 0.75], [6.4, 0.1], [8.3, 0.1], [9.1, 0.9], [9.8, 0.2], [11.4, 0.2], [12.1, 0.95], [12.9, 0.15], [13.6, 0.0], [16, 0]], ft)
+	_bulanik(_egri([[0, 0], [5.0, 0], [6.0, 0.12], [9.5, 0.2], [12.6, 0.25], [13.3, 0.0], [16, 0]], ft))
+	# 00:00 olunca saat çalar; Selim irkilir
+	if ft > 13.05 and not _eylem.has("gong"):
+		_eylem["gong"] = true
+		for i in 3:
+			get_tree().create_timer(i * 1.15).timeout.connect(func() -> void: _ses_cal("saat_gong", -6.0))
 	if ft >= 16.0: _gec("cikis")
 
 
@@ -655,12 +684,46 @@ func _cikis() -> void:
 	], ft)
 	if ft > 0.3 and not _soylendi("ev3"): _soyle("ev3")
 	kamera.fov = lerpf(7.0, 70.0, smoothstep(0.6, 2.0, ft))
+	_bulanik(0.0)
+	# kalkarken TV'yi kapatır
+	if ft > 1.1 and tv_acik:
+		tv_acik = false
+		_crt_ac(false)
+		ses_muzik.stop()
+		_ses_cal("dugme", -10.0)
+	# kapının yanında ışığı kapatır
+	if ft > 4.4 and not _eylem.has("isik_kapa"):
+		_eylem["isik_kapa"] = true
+		_ses_cal("dugme", -8.0)
+		($Isiklar/SalonLamba as Light3D).light_energy = 0.0
+	if ft > 3.4: _adim_say(0.55)
 	_kapi_ac(kapi_salon, ft, 4.5, 5.6)
 	karartma = _egri([[0, 0], [5.6, 0], [6.6, 1]], ft)
-	if ft >= 7.0:
+	# karanlıkta: kapı kapanır, kilitlenir, merdiven otomatiği yanar, basamaklar, kapı açılınca yağmur
+	if ft > 6.7 and not _eylem.has("kapi_kapa"):
+		_eylem["kapi_kapa"] = true
+		_ses_cal("dolap", -4.0)
+	if ft > 7.3 and not _eylem.has("kilit"):
+		_eylem["kilit"] = true
+		_ses_cal("anahtar", -10.0)
+		get_tree().create_timer(0.5).timeout.connect(func() -> void: _ses_cal("kilit", -6.0))
+	if ft > 8.6 and not _eylem.has("otomat"):
+		_eylem["otomat"] = true
+		_ses_cal("otomat", -8.0)
+	if ft > 9.0 and ft < 12.4: _adim_say(0.42)
+	if ft > 10.5:
+		if _yagmur_ev == null:
+			_yagmur_ev = AudioStreamPlayer.new()
+			_yagmur_ev.stream = _ses_bul("yagmur")
+			add_child(_yagmur_ev)
+			_yagmur_ev.volume_db = -40.0
+			_yagmur_ev.play()
+		_yagmur_ev.volume_db = lerpf(-40.0, -6.0, smoothstep(10.5, 13.0, ft))
+	if ft >= 13.2:
 		_bitti = true
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-		get_tree().change_scene_to_file(SONRAKI)
+		var d := get_node_or_null("/root/Duraklat")
+		if d: d.yukle(SONRAKI)
+		else: get_tree().change_scene_to_file(SONRAKI)
 
 
 # ---------------------------------------------------------------- kamera
@@ -1672,7 +1735,8 @@ func _secim_guncelle() -> void:
 	e_yazi.visible = _secili != ""
 	if _secili != "":
 		var p := kamera.unproject_position(_esyalar[_secili][0])
-		e_yazi.position = p - e_yazi.size * 0.5
+		var ekran := get_viewport().get_visible_rect().size
+		e_yazi.position = (p - e_yazi.size * 0.5).clamp(Vector2(60, 60), ekran - e_yazi.size - Vector2(60, 60))
 
 
 ## Ekranın sol üstünde küçük görev yazısı. Boş verilirse söner.
@@ -2033,6 +2097,41 @@ func _yedek_ses(ad: String) -> AudioStream:
 			return _tok_sesi(140.0 if ad == "telefon_masa" else 90.0, 0.35, 1.0)
 		"adim_yalin":
 			return _tok_sesi(70.0, 0.18, 0.5)
+		"crt":
+			for i in int(hiz * 1.0):
+				var t := float(i) / hiz
+				o.append(sin(TAU * 10000.0 * t) * 0.04 + sin(TAU * 50.0 * t) * 0.12 + sin(TAU * 100.0 * t) * 0.06 + (randf() * 2.0 - 1.0) * 0.015)
+			return _dongu(_wav(o, hiz))
+		"saat_gong":
+			for i in int(hiz * 2.4):
+				var t := float(i) / hiz
+				var z := exp(-t * 1.6)
+				o.append((sin(TAU * 392.0 * t) * 0.35 + sin(TAU * 784.0 * t) * 0.12 * exp(-t * 3.0) + sin(TAU * 1176.0 * t) * 0.06 * exp(-t * 5.0) + sin(TAU * 196.0 * t) * 0.1) * z * (1.0 - exp(-t * 300.0)))
+			return _wav(o, hiz)
+		"dugme":
+			for i in int(hiz * 0.08):
+				var t := float(i) / hiz
+				o.append((randf() * 2.0 - 1.0) * exp(-t * 200.0) * 0.7 + sin(TAU * 2400.0 * t) * exp(-t * 150.0) * 0.2)
+			return _wav(o, hiz)
+		"kilit":
+			for i in int(hiz * 0.6):
+				var t := float(i) / hiz
+				var d := 0.0
+				for v in [0.0, 0.22, 0.42]:
+					var x: float = t - v
+					if x >= 0.0: d += ((randf() * 2.0 - 1.0) * 0.5 + sin(TAU * 1500.0 * x) * 0.3) * exp(-x * 90.0)
+				o.append(d)
+			return _wav(o, hiz)
+		"anahtar":
+			for i in int(hiz * 0.7):
+				var t := float(i) / hiz
+				o.append((sin(TAU * 3100.0 * t) * 0.2 + sin(TAU * 4250.0 * t) * 0.15) * exp(-fmod(t, 0.11) * 40.0) * exp(-t * 3.0) + (randf() * 2.0 - 1.0) * 0.05 * exp(-fmod(t, 0.11) * 60.0))
+			return _wav(o, hiz)
+		"otomat":
+			for i in int(hiz * 1.4):
+				var t := float(i) / hiz
+				o.append((randf() * 2.0 - 1.0) * exp(-t * 120.0) * 0.8 + (sin(TAU * 100.0 * t) * 0.08 + sin(TAU * 200.0 * t) * 0.03) * smoothstep(0.05, 0.3, t))
+			return _wav(o, hiz)
 		"su_carpma":
 			var dusuk := 0.0
 			for i in int(hiz * 0.7):
@@ -2041,6 +2140,50 @@ func _yedek_ses(ad: String) -> AudioStream:
 				o.append(dusuk * 0.6 * exp(-t * 5.0))
 			return _wav(o, hiz)
 	return null
+
+
+## Mutfak masasında ödenmemiş fatura ve belediyeden gelmiş açılmamış zarf.
+func _kagitlar_kur() -> void:
+	var koyu := Color(0.12, 0.12, 0.13)
+	var fatura := Kagit.yazi_dokusu(self, Vector2i(420, 600), Color(0.9, 0.9, 0.88), [
+		["ELEKTRİK FATURASI", 26, koyu, 1],
+		["EKİM 2026", 18, koyu, 1],
+		["", 10, koyu, 0],
+		["Abone    : SELİM", 17, koyu, 0],
+		["Dönem    : 09.2026", 17, koyu, 0],
+		["Tüketim  : 312 kWh", 17, koyu, 0],
+		["", 10, koyu, 0],
+		["Son ödeme: 14.10.2026", 19, koyu, 0],
+		["TUTAR    : 1.284,60 TL", 21, koyu, 0],
+		["", 16, koyu, 0],
+		["GECİKMİŞ BORÇ", 28, Color(0.7, 0.08, 0.06), 1],
+		["", 12, koyu, 0],
+		["ödenecek... maaş yatınca", 18, Color(0.1, 0.14, 0.45), 2, true],
+	])
+	Kagit.yapistir(self, fatura, Vector3(26.82, 0.87, 1.12), Vector2(0.15, 0.21), Vector3.DOWN, 0.35, 0.12)
+	var zarf := Kagit.yazi_dokusu(self, Vector2i(560, 320), Color(0.82, 0.76, 0.62), [
+		["T.C.", 18, koyu, 0],
+		["BELEDİYE FEN İŞLERİ MÜDÜRLÜĞÜ", 18, koyu, 0],
+		["", 30, koyu, 0],
+		["Sn. SELİM", 24, koyu, 1],
+		["KİŞİYE ÖZEL", 20, Color(0.6, 0.1, 0.08), 1],
+	])
+	Kagit.yapistir(self, zarf, Vector3(27.45, 0.87, 1.02), Vector2(0.23, 0.13), Vector3.DOWN, -0.2, 0.12)
+
+
+var _crt: AudioStreamPlayer3D
+var _yagmur_ev: AudioStreamPlayer
+
+## Tüplü TV'nin ince yüksek vızıltısı ve alçak uğultusu; TV açıkken çalar.
+func _crt_ac(acik: bool) -> void:
+	if _crt == null:
+		_crt = AudioStreamPlayer3D.new()
+		_crt.stream = _ses_bul("crt")
+		_crt.unit_size = 1.5; _crt.volume_db = -14.0
+		add_child(_crt)
+		_crt.global_position = EKRAN
+	if acik: _crt.play()
+	else: _crt.stop()
 
 
 func _tok_sesi(f: float, sure: float, gurultu: float) -> AudioStreamWAV:

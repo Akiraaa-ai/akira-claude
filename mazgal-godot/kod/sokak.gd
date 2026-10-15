@@ -55,7 +55,7 @@ var _son_guvenli := Vector3.ZERO
 func _physics_process(_dt: float) -> void:
 	if Engine.is_editor_hint(): return
 	var o := get_node_or_null("Selim") as CharacterBody3D
-	if o == null or durum == "surus" or durum == "binis" or durum == "inis": return
+	if o == null or durum == "surus" or durum == "binis" or durum == "inis" or durum == "park": return
 	if o.is_on_floor() and o.global_position.y > -0.3: _son_guvenli = o.global_position
 	elif o.global_position.y < -6.0:
 		o.global_position = _son_guvenli + Vector3(0, 0.3, 0); o.velocity = Vector3.ZERO
@@ -86,7 +86,18 @@ const SATIRLAR := {
 	"selim3": ["res://sesler/selim_03.mp3", "SELİM", "Tamam, anladım; iki dakikaya gidip oturturum kapağı yerine. Başımıza iş açılmasın, halledip haber veririm sana."],
 	"mirilti": ["res://sesler/selim_05.mp3", "SELİM", "Kim açar ki bunu bu saatte..."],
 	"ses": ["res://sesler/selim_06.mp3", "SELİM", "Bu... bu ne sesi?"],
+	# iç ses: alp okuyunca sesler/ klasörüne bu adlarla konur; dosya yokken yalnız altyazı çıkar
+	"ic05": ["res://sesler/selim_ic_05.mp3", "SELİM", "Geldik. Yine bu kulübe."],
+	"ic06": ["res://sesler/selim_ic_06.mp3", "SELİM", "Kayıt açık... kim izleyecekse."],
+	"ic07": ["res://sesler/selim_ic_07.mp3", "SELİM", "Kanalı kim değiştirdi şimdi..."],
+	"ic08": ["res://sesler/selim_ic_08.mp3", "SELİM", "Hadi bakalım. İki dakika."],
 }
+const Eller := preload("res://kod/eller.gd")
+const Kagit := preload("res://kod/kagit.gd")
+var _iz_son := Vector3(1e9, 0, 0)
+var _iz_sayi := 0
+var _iz_sol := false
+const Bodycam := preload("res://kod/bodycam.gd")
 const KONUSMA := ["amir1", "selim1", "amir2", "selim2", "amir3", "selim3"]
 # açık mazgalın yeri (kulübeden sola, caddenin ortası); alp'in açık mazgal modeli gelince buraya konur
 const MAZGAL := Vector3(-61.0, 0.0, -88.0)
@@ -109,6 +120,9 @@ var ses_selim: AudioStreamPlayer
 var ses_kapi: AudioStreamPlayer3D
 var ses_yagmur: AudioStreamPlayer
 
+const Atmosfer := preload("res://kod/atmosfer.gd")
+var atmosfer: Atmosfer
+
 func _yolculuk_kur() -> void:
 	if not InputMap.has_action("etkiles"):
 		InputMap.add_action("etkiles")
@@ -130,6 +144,25 @@ func _yolculuk_kur() -> void:
 	ses_kapi.global_position = oyuncu.global_position + Vector3(1.2, 1.0, 0)
 	ses_kapi.play()
 	_ipucu("Arabana git", 0.0)
+	eller = Eller.new()
+	oyuncu_kamera.add_child(eller)
+	atmosfer = Atmosfer.new()
+	atmosfer.ay = $Ay; atmosfer.ortam = $Ortam; atmosfer.oyuncu = oyuncu
+	add_child(atmosfer)
+	var d := get_node_or_null("/root/Duraklat")
+	if d:
+		var nokta := str(d.baslangic_noktasi)
+		d.baslangic_noktasi = ""
+		if nokta == "kulube": _kulubeden_basla.call_deferred()
+		else: d.kayit_noktasi(scene_file_path, "yuruyus")
+
+# kayıttan devam: araba kulübenin önüne park edilmiş, Selim kulübenin kapısında
+func _kulubeden_basla() -> void:
+	araba.global_position = KULUBE_PARK + Vector3(0, 0.5, 0)
+	araba._yere_otur(true)
+	oyuncu.global_position = _k(Vector3(-0.6, 0.3, -2.9))
+	_ipucu("", 0.0)
+	_gec("kulube")
 
 func _process(dt: float) -> void:
 	if Engine.is_editor_hint() or oyuncu == null: return
@@ -139,10 +172,15 @@ func _process(dt: float) -> void:
 		siyah.modulate.a = move_toward(siyah.modulate.a, 0.0, dt * 0.6)
 	if _altyazi_bitis > 0.0 and Time.get_ticks_msec() / 1000.0 > _altyazi_bitis:
 		altyazi.visible = false; _altyazi_bitis = 0.0
+	_kulube_guncelle(dt)
+	if atmosfer:
+		atmosfer.iceride = _kulube_ici(oyuncu.global_position)
+		atmosfer.araba_gecebilir = durum in ["yuruyus", "kulube", "konusma", "mazgala"]
 	match durum:
 		"yuruyus": _yuruyus()
 		"binis": _binis()
 		"surus": _surus(dt)
+		"park": _park()
 		"inis": _inis()
 		"kulube": _kulube()
 		"konusma": _konusma()
@@ -158,16 +196,23 @@ func _surucu_kapisi() -> Vector3:
 	return araba.global_transform * Vector3(-1.45, 0.0, -0.35)
 
 func _yuruyus() -> void:
-	var uzak := Vector2(oyuncu.global_position.x - _surucu_kapisi().x, oyuncu.global_position.z - _surucu_kapisi().z).length()
-	if uzak < 1.8:
-		_ipucu("E  Arabaya bin", 0.0)
-		if Input.is_action_just_pressed("etkiles"):
+	# kapı kolunun yanında küçük "E" yazısı; basınca el kapı koluna uzanır
+	var kol := araba.global_transform * Vector3(-1.06, 0.95, -0.05)
+	if _soylenen.has("kola_uzandi"):
+		if dt_durum - float(_soylenen["kola_uzandi"]) > 0.45:
+			_soylenen.erase("kola_uzandi")
+			eller.birak("sag", 0.4)
 			_binise_basla()
-	elif ipucu.text == "E  Arabaya bin":
-		_ipucu("Arabana git", 0.0)
+		return
+	if _e_bak("araba", kol, "Arabaya bin", 2.4, false):
+		_ipucu("", 0.0)
+		eller.uzan("sag", kol, 0.45)
+		_soylenen["kola_uzandi"] = dt_durum
 
 func _binise_basla() -> void:
 	_ipucu("", 0.0)
+	# Selim'in görünmez gövdesi arabayla taşınır; kolları arabanın içinde görünmesin
+	eller.visible = false
 	oyuncu.set_physics_process(false); oyuncu.set_process_unhandled_input(false)
 	oyuncu.process_mode = Node.PROCESS_MODE_DISABLED
 	(oyuncu.get_node("Govde") as CollisionShape3D).disabled = true
@@ -193,9 +238,17 @@ func _binis() -> void:
 	if dt_durum > 2.95 and not _soylenen.has("kapi_kapandi"):
 		_soylenen["kapi_kapandi"] = true
 		ses_kapi.global_position = araba.global_position; ses_kapi.pitch_scale = 1.0; ses_kapi.volume_db = 0.0; ses_kapi.play()
-	if dt_durum > 3.8:
+	# kontak: marş birkaç kez öksürür, sonra motor tutar
+	if dt_durum > 3.4 and not _soylenen.has("mars"):
+		_soylenen["mars"] = true
+		_kisa_ses(_mars_sesi(), araba.global_position + Vector3(0, 0.8, 0), 1.0, -4.0)
+	if dt_durum > 3.4:
+		kam.transform = kam.transform.interpolate_with(Transform3D(Basis.from_euler(Vector3(-0.04, 0, 0)), Vector3(-0.45, 1.32, -0.1)), 0.08)
+		kam.position += Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * 0.002 * (1.0 if dt_durum < 5.0 else 0.0)
+	if dt_durum > 5.2:
 		kam.transform = Transform3D(Basis.from_euler(Vector3(-0.04, 0, 0)), Vector3(-0.45, 1.32, -0.1))
 		araba.motoru_calistir(true)
+		araba.silecek_acik = true
 		araba.surulebilir = true
 		ses_yagmur.volume_db = -14.0
 		_ipucu("W gaz    S fren / geri    A D direksiyon", 7.0)
@@ -214,12 +267,28 @@ func _surus(dt: float) -> void:
 			_inise_basla()
 	elif ipucu.text == "E  Arabadan in":
 		_ipucu("", 0.0)
+	if kulubeye < 30.0 and not _soylenen.has("kulube_ipucu"):
+		_soylenen["kulube_ipucu"] = true
+		_ipucu("Kulübenin önüne park et", 6.0)
 
 func _inise_basla() -> void:
 	_ipucu("", 0.0)
 	araba.surulebilir = false
 	araba.hiz = 0.0
 	araba.motoru_calistir(false)
+	araba.silecek_acik = false
+	_kisa_ses(_kontak_sesi(), araba.global_position + Vector3(0, 0.8, 0), 1.0, -10.0)
+	_gec("park")
+
+# motor kapandı: yağmurun tavana vuruşu ve soğuyan motorun tıkırtısı; birkaç saniye sonra kapı açılır
+func _park() -> void:
+	if dt_durum > 0.6 and not _soylenen.has("park_tik"):
+		_soylenen["park_tik"] = true
+		for i in 6:
+			get_tree().create_timer(0.8 + i * randf_range(0.5, 0.9)).timeout.connect(func() -> void:
+				_kisa_ses(_tik_sesi(), araba.global_position + Vector3(0, 0.6, -1.8), randf_range(0.5, 0.8), -22.0))
+	if dt_durum > 1.2 and not _soylenen.has("ic05"): _soyle("ic05")
+	if dt_durum < 3.2: return
 	araba.kapi("DFL_8", true)
 	ses_kapi.global_position = _surucu_kapisi() + Vector3(0, 1, 0); ses_kapi.pitch_scale = 1.3; ses_kapi.volume_db = -10.0; ses_kapi.play()
 	var kam := araba.get_node("Kamera") as Camera3D
@@ -246,6 +315,9 @@ func _inis() -> void:
 		oyuncu.set_physics_process(true); oyuncu.set_process_unhandled_input(true)
 		(oyuncu.get_node("Govde") as CollisionShape3D).disabled = false
 		oyuncu_kamera.current = true
+		eller.visible = true
+		var d := get_node_or_null("/root/Duraklat")
+		if d: d.kayit_noktasi(scene_file_path, "kulube")
 		_gec("kulube")
 
 
@@ -275,6 +347,15 @@ func _arayuz_kur() -> void:
 	altyazi.offset_left = -800; altyazi.offset_right = 800; altyazi.offset_top = -160; altyazi.offset_bottom = -100
 	altyazi.visible = false
 	cl.add_child(altyazi)
+	e_yazi = Label.new()
+	e_yazi.add_theme_font_size_override("font_size", 19)
+	e_yazi.add_theme_color_override("font_color", Color(0.95, 0.95, 0.92))
+	e_yazi.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	e_yazi.add_theme_constant_override("outline_size", 5)
+	e_yazi.visible = false
+	cl.add_child(e_yazi)
+	bodycam = Bodycam.new()
+	add_child(bodycam)
 
 var _ipucu_bitis := 0
 func _ipucu(metin: String, sure: float) -> void:
@@ -300,6 +381,40 @@ func _soyle(anahtar: String) -> float:
 	return sure
 
 # kapı kapanma ve çarpma sesi: kısa, boğuk bir gümleme
+# taş ve beton parçalarıyla kenarın çökmesi
+func _cokme_sesi() -> AudioStream:
+	for uz in ["ogg", "mp3", "wav"]:
+		if ResourceLoader.exists("res://sesler/cokme." + uz): return load("res://sesler/cokme." + uz)
+	var vurus := []
+	for i in 14: vurus.append(randf_range(0.0, 1.1))
+	return _wav_yap(1.6, func(t: float) -> float:
+		var d := (randf() * 2.0 - 1.0) * 0.35 * exp(-t * 2.5)
+		for v in vurus:
+			var x: float = t - float(v)
+			if x >= 0.0: d += (randf() * 2.0 - 1.0) * exp(-x * 45.0) * 0.5
+		return d + sin(TAU * 55.0 * t) * exp(-t * 4.0) * 0.5)
+
+# yere çarpma: tok, alçak bir gümbürtü
+func _gumbur_sesi() -> AudioStream:
+	for uz in ["ogg", "mp3", "wav"]:
+		if ResourceLoader.exists("res://sesler/carpma." + uz): return load("res://sesler/carpma." + uz)
+	return _wav_yap(1.2, func(t: float) -> float:
+		return sin(TAU * (70.0 - t * 30.0) * t) * exp(-t * 5.0) * 0.9 + (randf() * 2.0 - 1.0) * exp(-t * 18.0) * 0.5)
+
+# marş motoru: tırtıklı, alçak bir dönme sesi, üç öksürük
+func _mars_sesi() -> AudioStream:
+	for uz in ["ogg", "mp3", "wav"]:
+		if ResourceLoader.exists("res://sesler/mars." + uz): return load("res://sesler/mars." + uz)
+	return _wav_yap(1.9, func(t: float) -> float:
+		var d := sin(TAU * 14.0 * t) * 0.5 + 0.5
+		var mars := (sin(TAU * 220.0 * t + sin(TAU * 14.0 * t) * 2.0) * 0.25 + (randf() * 2.0 - 1.0) * 0.12) * d * smoothstep(1.6, 1.3, t)
+		var tutma := (sin(TAU * 38.0 * t) * 0.5 + (randf() * 2.0 - 1.0) * 0.2) * smoothstep(1.25, 1.45, t) * smoothstep(1.9, 1.6, t)
+		return (mars + tutma) * 0.8)
+
+# kontak anahtarı çevrilir
+func _kontak_sesi() -> AudioStreamWAV:
+	return _wav_yap(0.12, func(t: float) -> float: return (randf() * 2.0 - 1.0) * exp(-t * 90.0) * 0.6 + sin(TAU * 1800.0 * t) * exp(-t * 120.0) * 0.2)
+
 func _kapi_sesi() -> AudioStreamWAV:
 	var hiz := 22050
 	var veri := PackedByteArray(); veri.resize(int(hiz * 0.45) * 2)
@@ -317,44 +432,487 @@ func _kapi_sesi() -> AudioStreamWAV:
 # ---------------- kulübe: telefon çalar, amirle konuşma ----------------
 var _telefon: Node3D
 var _zil: AudioStreamPlayer3D
+# kulübe içi (Kulube düğümünün yerel koordinatları)
+const BODYCAM_YERI := Vector3(0.72, 1.14, -1.18)
+const OTURAK := Vector3(0.05, 0.0, -0.95)
+const KTV_EKRAN := Vector3(0.755, 1.356, -0.55)
+const KAPI_MENTESE := Vector3(-1.13, 0.0, -2.04)
+# alp'in göndereceği kulübe eşyaları: [dosya, yer, yön, ölçek]; dosya gelince yerine konur
+const KULUBE_ESYALARI := [
+	["res://modeller2/klübe/bodycam.glb", Vector3(0.72, 1.14, -1.18), 90.0, 1.0],
+	["res://modeller2/klübe/kul_tablasi.glb", Vector3(0.8, 1.14, -1.02), 0.0, 1.0],
+	["res://modeller2/klübe/termos.glb", Vector3(0.95, 1.14, -0.15), 0.0, 1.0],
+	["res://modeller2/klübe/cay_bardagi.glb", Vector3(0.7, 1.14, -0.25), 0.0, 1.0],
+	["res://modeller2/klübe/sandalye.glb", Vector3(0.05, 0.0, -0.95), -90.0, 1.0],
+	["res://modeller2/klübe/aski.glb", Vector3(-1.32, 1.7, -0.6), 90.0, 1.0],
+]
+const YAGMURLU_CAM := """shader_type spatial;
+render_mode blend_mix, depth_draw_opaque, cull_disabled, unshaded;
+uniform sampler2D ekran : hint_screen_texture, filter_linear_mipmap;
+varying vec3 dunya;
+float h(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+void vertex() { dunya = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	vec2 p = vec2(dunya.x + dunya.z, dunya.y) * 15.0;
+	float damla = 0.0;
+	vec2 egim = vec2(0.0);
+	for (int k = 0; k < 2; k++) {
+		vec2 q = p * (1.0 + float(k) * 0.7);
+		float sut = floor(q.x);
+		float hiz = 0.25 + h(vec2(sut, float(k))) * 0.6;
+		q.y += TIME * hiz * (0.4 + float(k) * 0.3);
+		vec2 id = floor(q);
+		vec2 f = fract(q) - 0.5;
+		vec2 c = (vec2(h(id + 2.3), h(id + 7.1)) - 0.5) * 0.5;
+		float r = 0.07 + 0.1 * h(id + 4.4);
+		float d = length((f - c) * vec2(1.0, 0.75));
+		float var_ = step(0.68, h(id + float(k)));
+		float m = smoothstep(r, r * 0.4, d) * var_;
+		damla = max(damla, m);
+		egim += (f - c) * m;
+		// arkasında bıraktığı ince iz
+		damla = max(damla, smoothstep(0.03, 0.0, abs(f.x - c.x)) * smoothstep(0.0, 0.5, f.y - c.y) * 0.2 * var_);
+	}
+	// damla arkasındaki görüntüyü kırar: dışarıdaki ışıklar damlanın içinde ters ve küçük görünür
+	vec3 arka = textureLod(ekran, SCREEN_UV - egim * 0.06, 1.5).rgb;
+	vec3 duz = textureLod(ekran, SCREEN_UV, 0.0).rgb;
+	ALBEDO = mix(duz * 0.92, arka * 1.15 + vec3(0.015), damla);
+	ALPHA = 1.0;
+}
+"""
+var _adim := 0
+var _k_zaman := {}
+var _otur_bas := Vector3.ZERO
+var _floresan: OmniLight3D
+var _floresan_guc := 1.2
+var _vizilti: AudioStreamPlayer3D
+var _kapi: Node3D
+var _kapi_acik: Transform3D
+var _kapi_k := 0.0
+var _bodycam_model: Node3D
+var eller: Eller
+var bodycam: Bodycam
+var e_yazi: Label
 var _konusma_sira := 0
 var _satir_bitis := 0.0
 var _bakis_bas: Basis
 
 func _kulube() -> void:
-	if _telefon == null:
-		_telefon = $Kulube/Telefon
-		_zil = AudioStreamPlayer3D.new(); _zil.stream = _zil_sesi(); _zil.unit_size = 3.0; _zil.max_db = 3.0
-		_telefon.add_child(_zil)
-	# Selim arabadan inince biraz sonra kulübedeki telefon çalmaya başlar
-	if dt_durum > 2.5 and not _zil.playing and not _soylenen.has("cevap"):
-		_zil.play()
-		_ipucu("Kulübedeki telefon çalıyor", 6.0)
-	var uzak := oyuncu.global_position.distance_to(_telefon.global_position)
-	if uzak < 1.9 and _zil.playing:
-		_ipucu("E  Telefonu aç", 0.0)
-		if Input.is_action_just_pressed("etkiles"):
-			_soylenen["cevap"] = true
-			_zil.stop()
+	if _telefon == null: _kulube_kur()
+	var ic := _kulube_ici(oyuncu.global_position)
+	match _adim:
+		0:
+			if not ic:
+				if dt_durum > 1.0 and ipucu.text == "": _ipucu("Kulübeye gir", 0.0)
+				return
 			_ipucu("", 0.0)
-			_oyuncuyu_dondur(true)
-			_bakis_bas = oyuncu_kamera.global_basis
-			_konusma_sira = 0; _satir_bitis = 0.0
-			_kisa_ses(_kapi_sesi(), _telefon.global_position, 2.2, -12.0)
-			_gec("konusma")
-	elif ipucu.text == "E  Telefonu aç":
-		_ipucu("", 0.0)
+			_adim = 1
+			_k_zaman["floresan"] = dt_durum
+			_k_zaman["kapi_kapan"] = dt_durum + 1.2
+		1:
+			# masadaki yaka kamerası
+			if _e_bak("bodycam", _k(BODYCAM_YERI), "Yaka kamerasını tak", 1.7):
+				_adim = 2
+				_k_zaman["bodycam"] = dt_durum
+				get_tree().create_timer(2.6).timeout.connect(func() -> void: if not _soylenen.has("ic06"): _soyle("ic06"))
+				eller.uzan("sag", _k(BODYCAM_YERI) + Vector3(0, 0.05, 0), 0.7)
+		2:
+			var t := dt_durum - float(_k_zaman["bodycam"])
+			if t > 0.8 and not _soylenen.has("bc_gogus"):
+				_soylenen["bc_gogus"] = true
+				eller.kamerada("sag", Vector3(0.12, -0.42, -0.12), 0.6)
+				if _bodycam_model: _bodycam_model.visible = false
+			if t > 1.5 and not bodycam.acik:
+				eller.birak("sag", 0.6)
+				bodycam.ac(23.0 * 3600.0 + 41.0 * 60.0 + 12.0)
+				_kisa_ses(_bip(), oyuncu.global_position + Vector3(0, 1.2, 0), 1.0, -8.0)
+			if t > 2.4: _adim = 3
+		3:
+			if _e_bak("otur", _k(OTURAK) + Vector3(0, 0.6, 0), "Otur", 2.2):
+				_adim = 4
+				_oyuncuyu_dondur(true)
+				_bakis_bas = oyuncu_kamera.global_basis
+				_k_zaman["otur"] = dt_durum
+				_otur_bas = oyuncu_kamera.global_position
+		4:
+			_bekleme(dt_durum - float(_k_zaman["otur"]))
+		5:
+			# telefon çalıyor; oturduğu yerden açar
+			if _e_bak("telefon", _telefon.global_position + Vector3(0, 0.05, 0), "Telefonu aç", 2.0, false):
+				_soylenen["cevap"] = true
+				_zil.stop()
+				eller.uzan("sol", _telefon.global_position + Vector3(0, 0.06, 0), 0.5)
+				_bakis_bas = oyuncu_kamera.global_basis
+				_konusma_sira = 0; _satir_bitis = T_simdi() + 0.8
+				_kisa_ses(_kapi_sesi(), _telefon.global_position, 2.2, -12.0)
+				_gec("konusma")
+
+
+## Kulübenin kendi yerel noktasını dünyaya çevirir.
+func _k(yerel: Vector3) -> Vector3:
+	return $Kulube.global_transform * yerel
+
+
+func _kulube_ici(p: Vector3) -> bool:
+	var y: Vector3 = $Kulube.global_transform.affine_inverse() * p
+	return y.x > -1.3 and y.x < 1.35 and y.z > -2.0 and y.z < 0.05
+
+
+## Bakılan eşyanın üstünde küçük "E" ve kısa yazı. E'ye basıldıysa true.
+func _e_bak(ad: String, nokta: Vector3, metin: String, menzil: float, bakmali := true) -> bool:
+	var kam := get_viewport().get_camera_3d()
+	var d := nokta - kam.global_position
+	var bak := -kam.global_basis.z
+	var yakin := d.length() < menzil and (not bakmali or bak.dot(d.normalized()) > lerpf(0.8, 0.93, clampf((d.length() - 0.8) / 1.2, 0.0, 1.0)))
+	if not yakin:
+		if e_yazi.get_meta("ad", "") == ad: e_yazi.visible = false
+		return false
+	e_yazi.set_meta("ad", ad)
+	e_yazi.text = "E  " + tr(metin)
+	e_yazi.visible = true
+	e_yazi.reset_size()
+	var ekran := get_viewport().get_visible_rect().size
+	var yer := kam.unproject_position(nokta) - Vector2(16, e_yazi.size.y * 0.5)
+	if kam.is_position_behind(nokta): yer = ekran * 0.5
+	e_yazi.position = yer.clamp(Vector2(60, 60), ekran - e_yazi.size - Vector2(60, 60))
+	if Input.is_action_just_pressed("etkiles"):
+		e_yazi.visible = false
+		return true
+	return false
+
+
+## Oturup TV'ye bakar; kanal kendiliğinden değişir, göz kapakları ağırlaşır, saat akar. Sonunda telefon çalar.
+func _bekleme(t: float) -> void:
+	var goz := _k(OTURAK) + Vector3(0, 1.22, 0)
+	var ekran := _k(KTV_EKRAN)
+	var k := smoothstep(0.0, 1.6, t)
+	oyuncu_kamera.global_position = _otur_bas.lerp(goz, k)
+	var hedef := Basis.looking_at(ekran + Vector3(0, -0.05, 0) - oyuncu_kamera.global_position)
+	oyuncu_kamera.global_basis = _bakis_bas.slerp(hedef, k).orthonormalized()
+	if t > 0.6 and not _soylenen.has("sandalye"):
+		_soylenen["sandalye"] = true
+		_kisa_ses(_kapi_sesi(), goz + Vector3(0, -0.9, 0), 0.7, -14.0)
+	# TV kanalları: [zaman, kanal]
+	for c in [[2.0, "kar"], [2.4, "cubuk"], [8.5, "kar"], [8.8, "foto1"], [14.5, "kar"], [14.8, "foto3"], [20.5, "kar"], [20.9, "oda"], [27.0, "kar"]]:
+		if t >= float(c[0]) and not _soylenen.has("kanal%.1f" % c[0]):
+			_soylenen["kanal%.1f" % c[0]] = true
+			_kanal_degistir(c[1])
+	# ağır göz kapakları: üç kez kapanır, her açılışta saat ileri sarılmış olur
+	var kapak := 0.0
+	for g in [[10.5, 12.3], [16.5, 18.6], [23.0, 25.2]]:
+		var a := float(g[0]); var b := float(g[1])
+		if t > a and t < b:
+			kapak = smoothstep(a, a + 0.9, t) * (1.0 - smoothstep(b - 0.5, b, t))
+		if t > a + 0.9 and not _soylenen.has("uyuklama%.1f" % a):
+			_soylenen["uyuklama%.1f" % a] = true
+			bodycam.saat_ilerlet(randf_range(9.0, 14.0) * 60.0)
+	siyah.modulate.a = kapak
+	if t > 28.0 and not _zil.playing and not _soylenen.has("cevap"):
+		_zil.play()
+		bodycam.bozul(0.6, 0.4)
+		_adim = 5
+
+
+func _kulube_kur() -> void:
+	_telefon = $Kulube/Telefon
+	_zil = AudioStreamPlayer3D.new(); _zil.stream = _zil_sesi(); _zil.unit_size = 3.0; _zil.max_db = 3.0
+	_telefon.add_child(_zil)
+	# camlar: üstünden yağmur damlaları süzülür
+	var cam := ShaderMaterial.new()
+	var sh := Shader.new()
+	sh.code = YAGMURLU_CAM
+	cam.shader = sh
+	for m in $Kulube.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		if mi.mesh == null: continue
+		for i in mi.mesh.get_surface_count():
+			var mat := mi.mesh.surface_get_material(i)
+			if mat and "glass" in mat.resource_name.to_lower():
+				mi.set_surface_override_material(i, cam)
+	# floresan: girince çakıp yanar, vızıldar
+	_floresan = $Kulube/Ampul as OmniLight3D
+	_floresan_guc = _floresan.light_energy
+	_floresan.light_color = Color(0.88, 0.95, 1.0)
+	_floresan.light_energy = 0.0
+	_vizilti = AudioStreamPlayer3D.new(); _vizilti.stream = _vizilti_sesi(); _vizilti.unit_size = 1.5; _vizilti.volume_db = -20.0
+	_floresan.add_child(_vizilti)
+	# kapı: modelde açık durur; menteşesinin çevresinde döner
+	_kapi = $Kulube/Bina.find_child("Door", true, false) as Node3D
+	if _kapi: _kapi_acik = _kapi.global_transform
+	_ktv_kur()
+	# alp'in göndereceği eşyalar: dosyası varsa yerine konur
+	for e in KULUBE_ESYALARI:
+		if not ResourceLoader.exists(e[0]): continue
+		var n: Node3D = (load(e[0]) as PackedScene).instantiate()
+		$Kulube.add_child(n)
+		n.position = e[1]; n.rotation_degrees.y = e[2]; n.scale = Vector3.ONE * float(e[3])
+		if str(e[0]).get_file().begins_with("bodycam"): _bodycam_model = n
+		if str(e[0]).get_file().begins_with("kul_tablasi"): _duman_kur(n.global_position + Vector3(0, 0.03, 0))
+	if eller == null:
+		eller = Eller.new()
+		oyuncu_kamera.add_child(eller)
+	_cizelge_kur()
+
+
+# arka duvarda nöbet çizelgesi: bu gecenin satırında Selim'in adı
+func _cizelge_kur() -> void:
+	var koyu := Color(0.12, 0.11, 0.1)
+	var satirlar := [
+		["FEN İŞLERİ MÜDÜRLÜĞÜ", 26, koyu, 1],
+		["KULÜBE 07 · NÖBET ÇİZELGESİ · EKİM 2026", 20, koyu, 1],
+		["", 10, koyu, 0],
+		["TARİH      GÜNDÜZ        GECE (00-08)", 19, koyu, 0],
+		["----------------------------------------", 19, koyu, 0],
+		["10.10      Murat K.      Hasan T.", 19, koyu, 0],
+		["11.10      Yusuf A.      Murat K.", 19, koyu, 0],
+		["12.10      Hasan T.      Yusuf A.", 19, koyu, 0],
+		["13.10      Murat K.      Hasan T.", 19, koyu, 0],
+		["14.10      Yusuf A.      SELİM", 19, Color(0.55, 0.08, 0.06), 0],
+		["15.10      Hasan T.      SELİM", 19, koyu, 0],
+		["16.10      Murat K.      SELİM", 19, koyu, 0],
+		["", 10, koyu, 0],
+		["Nöbetçi kulübeden ayrılmaz.", 18, koyu, 0],
+		["Arızalar telsizle / telefonla bildirilir.", 18, koyu, 0],
+		["", 14, koyu, 0],
+		["yine mi ben?", 22, Color(0.1, 0.14, 0.45), 2, true],
+	]
+	var doku := Kagit.yazi_dokusu(self, Vector2i(560, 720), Color(0.86, 0.83, 0.74), satirlar)
+	var duvar := ($Kulube as Node3D).global_basis * Vector3(0, 0, -1)
+	Kagit.yapistir(self, doku, _k(Vector3(0.55, 1.45, -1.98)), Vector2(0.32, 0.41), duvar, 0.03)
+
+
+# kulübeye girerken ıslak ayakkabıların bıraktığı izler
+func _ayak_izi() -> void:
+	if _iz_sayi >= 16 or not _kulube_ici(oyuncu.global_position): return
+	var p := oyuncu.global_position
+	if Vector2(p.x - _iz_son.x, p.z - _iz_son.z).length() < 0.34: return
+	var yon := Vector3(p.x - _iz_son.x, 0, p.z - _iz_son.z).normalized() if _iz_son.x < 1e8 else -oyuncu.global_basis.z
+	_iz_son = p
+	var q := PhysicsRayQueryParameters3D.create(p + Vector3(0, 0.8, 0), p + Vector3(0, -1.5, 0))
+	q.exclude = [oyuncu.get_rid()]
+	var r := get_world_3d().direct_space_state.intersect_ray(q)
+	if r.is_empty(): return
+	_iz_sayi += 1
+	_iz_sol = not _iz_sol
+	var yan := yon.cross(Vector3.UP).normalized() * (0.09 if _iz_sol else -0.09)
+	var d := Kagit.yapistir(self, Kagit.iz_dokusu(), (r.position as Vector3) + yan, Vector2(0.11, 0.28), Vector3.DOWN, 0.0, 0.2)
+	d.global_basis = Basis(Vector3.UP.cross(-yon).normalized(), Vector3.UP, -yon)
+	# izler yavaşça kurur
+	var tw := create_tween()
+	tw.tween_interval(40.0)
+	tw.tween_property(d, "modulate:a", 0.0, 50.0)
+
+
+## Kapıyı kapatır (k=1) ya da açar (k=0).
+func _kapi_dondur(k: float) -> void:
+	if _kapi == null: return
+	var h := _k(KAPI_MENTESE)
+	var don := Transform3D(Basis(Vector3.UP, -PI * 0.5 * k), Vector3.ZERO)
+	_kapi.global_transform = Transform3D(Basis(), h) * don * Transform3D(Basis(), -h) * _kapi_acik
+
+
+func _kulube_guncelle(dt: float) -> void:
+	if durum == "kulube" and _adim <= 3: _ayak_izi()
+	if _floresan == null: return
+	if _k_zaman.has("floresan"):
+		var t := dt_durum - float(_k_zaman["floresan"]) if durum == "kulube" else 99.0
+		if t < 1.6:
+			_floresan.light_energy = _floresan_guc if fmod(t * 5.3 + sin(t * 19.0) * 0.4, 1.0) > 0.62 else 0.03
+			if not _soylenen.has("floresan_tik"):
+				_soylenen["floresan_tik"] = true
+				_kisa_ses(_tik_sesi(), _floresan.global_position, 1.0, -6.0)
+		else:
+			_floresan.light_energy = _floresan_guc * (0.97 + 0.03 * sin(T_simdi() * 100.0))
+			if not _vizilti.playing: _vizilti.play()
+	# kapı: içeri girince arkadan kapanır, konuşma bitince açılır
+	var hedef := 1.0 if (_k_zaman.has("kapi_kapan") and dt_durum >= float(_k_zaman["kapi_kapan"]) and durum == "kulube") or durum == "konusma" else _kapi_k
+	if durum == "mazgala": hedef = 0.0
+	if not is_equal_approx(_kapi_k, hedef):
+		var once := _kapi_k
+		_kapi_k = move_toward(_kapi_k, hedef, dt * 1.2)
+		_kapi_dondur(smoothstep(0.0, 1.0, _kapi_k))
+		if once == 0.0 or once == 1.0: _kisa_ses(_kapi_sesi(), _k(KAPI_MENTESE) + Vector3(0, 1, 0), 1.6 if hedef < 0.5 else 1.0, -10.0)
+	if _ktv_vp: _ktv_guncelle(dt)
+	if _vizilti and durum in ["mazgala", "kenar", "dusus", "karanlik"]:
+		_vizilti.volume_db = move_toward(_vizilti.volume_db, -60.0, dt * 10.0)
+
+
+# ---------------- kulübedeki TV: kanallar kendiliğinden değişir ----------------
+var _ktv_vp: SubViewport
+var _ktv_foto: TextureRect
+var _ktv_cubuk: Control
+var _ktv_kar: ColorRect
+var _ktv_kamera: Camera3D
+var _ktv_kanal := "kapali"
+var _ktv_ses: AudioStreamPlayer3D
+
+func _ktv_kur() -> void:
+	_ktv_vp = SubViewport.new()
+	_ktv_vp.size = Vector2i(320, 240)
+	_ktv_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(_ktv_vp)
+	var zemin := ColorRect.new(); zemin.color = Color(0.02, 0.02, 0.03); zemin.size = Vector2(320, 240)
+	_ktv_vp.add_child(zemin)
+	_ktv_foto = TextureRect.new()
+	_ktv_foto.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_ktv_foto.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	_ktv_foto.size = Vector2(320, 240)
+	_ktv_vp.add_child(_ktv_foto)
+	_ktv_cubuk = Control.new(); _ktv_cubuk.size = Vector2(320, 240)
+	var renkler := [Color("c0c0c0"), Color("c0c000"), Color("00c0c0"), Color("00c000"), Color("c000c0"), Color("c00000"), Color("0000c0")]
+	for i in 7:
+		var r := ColorRect.new(); r.color = renkler[i]
+		r.position = Vector2(i * 320.0 / 7.0, 0); r.size = Vector2(320.0 / 7.0 + 1.0, 165)
+		_ktv_cubuk.add_child(r)
+	var l := Label.new(); l.text = "GECE KUŞAĞI · KAMU YAYINI"
+	l.add_theme_font_size_override("font_size", 15)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.size = Vector2(320, 30); l.position = Vector2(0, 190)
+	_ktv_cubuk.add_child(l)
+	_ktv_vp.add_child(_ktv_cubuk)
+	_ktv_kamera = Camera3D.new(); _ktv_kamera.fov = 70.0
+	_ktv_vp.add_child(_ktv_kamera)
+	_ktv_kamera.current = false
+	_ktv_kar = ColorRect.new(); _ktv_kar.size = Vector2(320, 240)
+	var sm := ShaderMaterial.new()
+	var sh := Shader.new()
+	sh.code = """shader_type canvas_item;
+uniform float zaman = 0.0;
+uniform float kar = 1.0;
+float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+void fragment() {
+	float n = h(floor(UV * vec2(160.0, 120.0)) + fract(zaman * 17.0) * 37.0);
+	float s = 0.8 + 0.2 * step(0.5, fract(UV.y * 120.0));
+	COLOR = vec4(vec3(n * s), kar);
+}
+"""
+	sm.shader = sh
+	_ktv_kar.material = sm
+	_ktv_vp.add_child(_ktv_kar)
+	var ekran := $Kulube/TV.find_child("Cube_CRTScreen_0", true, false) as MeshInstance3D
+	if ekran:
+		var em := StandardMaterial3D.new()
+		em.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		em.albedo_texture = _ktv_vp.get_texture()
+		ekran.material_override = em
+	_ktv_ses = AudioStreamPlayer3D.new(); _ktv_ses.unit_size = 1.5; _ktv_ses.volume_db = -14.0
+	_ktv_ses.stream = _kar_sesi()
+	$Kulube/TV.add_child(_ktv_ses)
+	_kanal_degistir("kapali")
+
+
+func _kanal_degistir(kanal: String) -> void:
+	if kanal == "foto1" and not _soylenen.has("ic07"):
+		get_tree().create_timer(1.0).timeout.connect(func() -> void: _soyle("ic07"))
+		_soylenen["ic07"] = true
+	_ktv_kanal = kanal
+	_ktv_foto.visible = kanal.begins_with("foto")
+	_ktv_cubuk.visible = kanal == "cubuk"
+	_ktv_kar.visible = kanal == "kar"
+	_ktv_kamera.current = kanal == "oda"
+	if kanal.begins_with("foto") and ResourceLoader.exists("res://tv/%s.jpg" % kanal):
+		_ktv_foto.texture = load("res://tv/%s.jpg" % kanal)
+	if kanal == "oda":
+		# kanal, kulübeyi dışarıdan gösteren bir kameraya geçer
+		_ktv_kamera.global_position = _k(Vector3(-3.5, 2.6, 2.6))
+		_ktv_kamera.look_at(_k(OTURAK) + Vector3(0, 1.0, 0), Vector3.UP)
+	if kanal == "kar":
+		_ktv_ses.play()
+		_kisa_ses(_tik_sesi(), _k(KTV_EKRAN), 0.7, -10.0)
+	elif kanal != "kapali":
+		_ktv_ses.stop()
+		bodycam.bozul(0.3, 0.15)
+
+
+func _ktv_guncelle(_dt: float) -> void:
+	(_ktv_kar.material as ShaderMaterial).set_shader_parameter("zaman", T_simdi())
+	if _ktv_kanal.begins_with("foto"):
+		_ktv_foto.scale = Vector2.ONE * (1.0 + fmod(T_simdi(), 6.0) * 0.015)
+	if _ktv_kanal == "oda":
+		_ktv_kamera.global_position += Vector3(0.02, 0, 0.01) * _dt
+
+
+func _duman_kur(yer: Vector3) -> void:
+	var d := GPUParticles3D.new()
+	d.amount = 40
+	d.lifetime = 4.0
+	d.position = yer
+	var pm := ParticleProcessMaterial.new()
+	pm.direction = Vector3(0, 1, 0); pm.spread = 8.0
+	pm.initial_velocity_min = 0.05; pm.initial_velocity_max = 0.1
+	pm.gravity = Vector3(0.01, 0.04, 0)
+	pm.turbulence_enabled = true; pm.turbulence_noise_strength = 0.4; pm.turbulence_noise_scale = 3.0
+	pm.scale_min = 0.3; pm.scale_max = 1.0
+	d.process_material = pm
+	var q := QuadMesh.new(); q.size = Vector2(0.12, 0.12)
+	var mat := StandardMaterial3D.new()
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	mat.albedo_color = Color(0.8, 0.8, 0.82, 0.05)
+	q.material = mat
+	d.draw_pass_1 = q
+	add_child(d)
+	d.global_position = yer
+
+
+func _tik_sesi() -> AudioStreamWAV:
+	return _wav_yap(0.05, func(t: float) -> float: return (randf() * 2.0 - 1.0) * exp(-t * 160.0))
+
+
+func _bip() -> AudioStreamWAV:
+	return _wav_yap(0.25, func(t: float) -> float: return sin(TAU * 2600.0 * t) * 0.3 * (1.0 if t < 0.12 else 0.0))
+
+
+func _kar_sesi() -> AudioStreamWAV:
+	var w := _wav_yap(1.0, func(_t: float) -> float: return (randf() * 2.0 - 1.0) * 0.35)
+	w.loop_mode = AudioStreamWAV.LOOP_FORWARD; w.loop_end = 22050
+	return w
+
+
+func _vizilti_sesi() -> AudioStream:
+	if ResourceLoader.exists("res://sesler/floresan.mp3"):
+		var a: AudioStream = load("res://sesler/floresan.mp3")
+		if a is AudioStreamMP3: (a as AudioStreamMP3).loop = true
+		return a
+	var w := _wav_yap(1.0, func(t: float) -> float: return sin(TAU * 100.0 * t) * 0.3 + sin(TAU * 200.0 * t) * 0.12 + sin(TAU * 300.0 * t) * 0.05)
+	w.loop_mode = AudioStreamWAV.LOOP_FORWARD; w.loop_end = 22050
+	return w
+
+
+func _wav_yap(sure: float, f: Callable) -> AudioStreamWAV:
+	var hiz := 22050
+	var veri := PackedByteArray(); veri.resize(int(hiz * sure) * 2)
+	for i in int(hiz * sure):
+		veri.encode_s16(i * 2, int(clampf(float(f.call(float(i) / hiz)), -1.0, 1.0) * 30000.0))
+	var w := AudioStreamWAV.new()
+	w.format = AudioStreamWAV.FORMAT_16_BITS; w.mix_rate = hiz; w.data = veri
+	return w
+
 
 func _konusma() -> void:
 	# kamera ahizeye ve masaya doğru bakar
 	var hedef := Basis.looking_at(_telefon.global_position + Vector3(0, -0.1, 0) - oyuncu_kamera.global_position)
 	oyuncu_kamera.global_basis = _bakis_bas.slerp(hedef, smoothstep(0.0, 1.0, dt_durum)).orthonormalized()
+	# ahizeyi kulağına götürür
+	if dt_durum > 0.6 and not _soylenen.has("ahize"):
+		_soylenen["ahize"] = true
+		eller.kamerada("sol", Vector3(-0.13, -0.04, -0.06), 0.6)
+		eller.yumruk("sol", 0.6)
 	if dt_durum < 1.0: return
 	if T_simdi() >= _satir_bitis:
 		if _konusma_sira >= KONUSMA.size():
 			_kisa_ses(_kapi_sesi(), _telefon.global_position, 2.4, -12.0)
+			eller.birak("sol", 0.6)
+			# ayağa kalkar: kamera yeniden Selim'in başına bağlanır, kapıya döner
+			siyah.modulate.a = 0.6
+			var kapi := _k(KAPI_MENTESE + Vector3(0.5, 0, 0))
+			oyuncu.global_rotation.y = atan2(-(kapi.x - oyuncu.global_position.x), -(kapi.z - oyuncu.global_position.z))
+			(oyuncu.get_node("Kafa") as Node3D).rotation = Vector3.ZERO
+			oyuncu_kamera.transform = Transform3D.IDENTITY
 			_oyuncuyu_dondur(false)
 			_ipucu("Mazgala bak: kulübeden çık, caddenin ortası", 8.0)
+			get_tree().create_timer(1.0).timeout.connect(func() -> void: if not _soylenen.has("ic08"): _soyle("ic08"))
 			_gec("mazgala")
 			return
 		_satir_bitis = T_simdi() + _soyle(KONUSMA[_konusma_sira]) + 0.3
@@ -411,7 +969,8 @@ func _kenar(dt: float) -> void:
 	if dt_durum > 3.5 and not _soylenen.has("ses"): _soyle("ses")
 	if dt_durum > 5.9:
 		# kenar çöker
-		_kisa_ses(_kapi_sesi(), oyuncu.global_position, 0.6, 4.0)
+		_kisa_ses(_cokme_sesi(), oyuncu.global_position, 1.0, 4.0)
+		if bodycam: bodycam.bozul(0.7, 0.5)
 		_dusus_bas = oyuncu_kamera.global_transform
 		_gec("dusus")
 
@@ -431,12 +990,15 @@ func _dusus(dt: float) -> void:
 	oyuncu_kamera.global_transform = Transform3D(Basis.from_euler(Vector3(egim, yon, yuvarlanma)), yer)
 	if t >= 1.05 and not _soylenen.has("carpti"):
 		_soylenen["carpti"] = true
-		_kisa_ses(_kapi_sesi(), yer, 0.7, 6.0)
+		_kisa_ses(_gumbur_sesi(), yer, 1.0, 6.0)
+		if bodycam: bodycam.bozul(1.0, 0.6)
+	if bodycam and randf() < 0.15: bodycam.bozul(randf_range(0.3, 0.8), 0.1)
 	siyah.modulate.a = smoothstep(1.85, 2.25, t)
 	_ugultu_guc = 0.5 + 0.3 * t / DUSUS
 	ses_yagmur.volume_db = lerpf(-8.0, -40.0, t / DUSUS)
 	if dt_durum >= DUSUS:
-		_kisa_ses(_kapi_sesi(), yer, 0.5, 8.0)
+		_kisa_ses(_gumbur_sesi(), yer, 0.8, 8.0)
+		if bodycam: bodycam.bozul(1.0, 2.0)
 		ses_yagmur.stop()
 		_ugultu_guc = 0.0
 		_gec("karanlik")
@@ -444,6 +1006,9 @@ func _dusus(dt: float) -> void:
 # labirent Godot'a taşınınca buradan ona geçilecek; şimdilik kayıt kesilir ve ana menüye dönülür
 func _karanlik() -> void:
 	siyah.modulate.a = 1.0
+	# kamera son bir kez açılıp karlanır, sonra kesilir
+	if bodycam and bodycam.acik and dt_durum > 1.2:
+		bodycam.kapat()
 	if dt_durum > 2.5 and not _soylenen.has("kesildi"):
 		_soylenen["kesildi"] = true
 		altyazi.text = "KAYIT KESİLDİ"

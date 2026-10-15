@@ -221,6 +221,9 @@ func _menu_kur() -> void:
 	_menu.add_child(_yan)
 	_yan.add_child(_etiket("MAZGAL", 96, Color(0.88, 0.86, 0.8)))
 	_yan.add_child(_etiket("●  KAYIT 14.10.2026 · 00:00:00", 18, Color(0.6, 0.3, 0.26)))
+	var d0 := get_node_or_null("/root/Duraklat")
+	if d0 and d0.kayit_var():
+		_yan.add_child(_dugme("DEVAM ET", func() -> void: _devam_et()))
 	_yan.add_child(_dugme("YENİ OYUN", func() -> void: _yeni_oyun()))
 	_yan.add_child(_dugme("AYARLAR", func() -> void: _goster("ayar")))
 	_yan.add_child(_dugme("KONTROLLER", func() -> void: _goster("kontrol")))
@@ -255,7 +258,20 @@ func _yeni_oyun() -> void:
 	var tw := create_tween()
 	tw.tween_property(_siyah, "color:a", 1.0, 1.2)
 	tw.parallel().tween_property(_radyo, "volume_db", -60.0, 1.2)
-	tw.tween_callback(func() -> void: get_tree().change_scene_to_file(ILK_SAHNE))
+	tw.tween_callback(func() -> void:
+		var d := get_node_or_null("/root/Duraklat")
+		if d:
+			d.yeni_oyun()
+			d.yukle(ILK_SAHNE)
+		else:
+			get_tree().change_scene_to_file(ILK_SAHNE))
+
+func _devam_et() -> void:
+	durum = "gidis"
+	var tw := create_tween()
+	tw.tween_property(_siyah, "color:a", 1.0, 1.0)
+	tw.parallel().tween_property(_radyo, "volume_db", -60.0, 1.0)
+	tw.tween_callback(func() -> void: get_node("/root/Duraklat").kayittan_devam())
 
 func _etiket(metin: String, boy: int, renk: Color) -> Label:
 	var l := Label.new(); l.text = metin
