@@ -50,8 +50,8 @@ func _ready() -> void:
 		l.position = bas + Vector3(0, -0.5, 0)
 		l.rotation_degrees.x = -90.0
 		l.light_color = Color(1.0, 0.68, 0.32)
-		l.light_energy = 9.0
-		l.spot_range = 16.0
+		l.light_energy = 14.0
+		l.spot_range = 18.0
 		l.spot_angle = 58.0
 		l.spot_attenuation = 0.9
 		l.shadow_enabled = true
