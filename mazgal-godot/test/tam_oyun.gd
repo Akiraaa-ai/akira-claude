@@ -122,7 +122,13 @@ func _ev_oyna(ev: Node) -> void:
 			print("kapıdan geçip yeniden deniyor")
 			# önce kapı hizasına (yalnız z), sonra kapıdan x yönünde 1.2 m içeri
 			var hh: Vector3 = ev._esyalar[hedef][0]
-			if absf(hh.x - _son_kapi.x) > absf(hh.z - _son_kapi.z):
+			# kapının geçiş yönü: en yakın kapı kökünün yerel x ekseni
+			var gecis := Vector3.RIGHT
+			var en := 1e9
+			for k in ev._kapi_kokleri:
+				var u: float = (k as Node3D).global_position.distance_to(Vector3(_son_kapi.x, 0, _son_kapi.z))
+				if u < en: en = u; gecis = (k as Node3D).global_basis.x
+			if absf(gecis.x) > absf(gecis.z):
 				await _ev_yuru(ev, Vector3(ev.oyuncu.global_position.x, 0, _son_kapi.z))
 				await _ev_yuru(ev, Vector3(_son_kapi.x + signf(hh.x - _son_kapi.x) * 1.2, 0, _son_kapi.z))
 			else:
