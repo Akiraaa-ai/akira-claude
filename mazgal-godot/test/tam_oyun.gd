@@ -309,16 +309,57 @@ func _sokak_oyna(s: Node) -> void:
 		await process_frame
 		if Time.get_ticks_msec() - b > 120000: _hata("konuşma bitmedi"); return
 	print("konuşma bitti (", (Time.get_ticks_msec() - b) / 1000.0, " sn), durum=", s.durum)
+	if s.ipucu.text != "Mazgalı kontrol et": _hata("görev yazısı yok: '" + s.ipucu.text + "'")
+	# masadan feneri ve pili al (oyun durmamalı), sonra F ile feneri yak
+	await _yuru(s, o, s._k(Vector3(0.1, 0, -0.55)), 6.0, 0.3)
+	for ad in ["fener", "pil"]:
+		var m: Node3D = s._fener_m if ad == "fener" else s._pil_m
+		if m == null: _hata(ad + " modeli yok"); continue
+		b = Time.get_ticks_msec()
+		while not s._alim.has(ad):
+			_bak_sokak(s, m.global_position)
+			await process_frame
+			if s.e_yazi.visible and s.e_yazi.get_meta("ad", "") == ad:
+				Input.action_press("etkiles"); await process_frame; await process_frame; Input.action_release("etkiles")
+			if Time.get_ticks_msec() - b > 8000: _hata(ad + " alınamadı e=" + s.e_yazi.text); break
+		if o.is_physics_processing() == false: _hata(ad + " alınırken oyuncu dondu")
+		print("alındı: ", ad)
+		await _sn(1.2)
+	if not o.fener_izin: _hata("pil takılınca F açılmadı")
+	await _tus(KEY_F)
+	await _sn(0.3)
+	print("fener yandı mı=", (o.get_node("Kafa/Kamera/Fener") as SpotLight3D).visible)
 	# kulübe kapısından dışarı, sonra mazgala yürü
 	for yer in [Vector3(-0.6, 0, -1.5), Vector3(-0.6, 0, -2.9)]:
 		await _yuru(s, o, s._k(yer), 6.0, 0.3)
-	if not await _yuru(s, o, s.MAZGAL, 90.0, 1.2): _hata("mazgala varılamadı, oyuncu=" + str(o.global_position) + " mazgal=" + str(s.MAZGAL)); return
+	var sonmeden := _yanan(s)
+	if not await _yuru(s, o, s.MAZGAL, 90.0, 1.8): _hata("mazgala varılamadı, oyuncu=" + str(o.global_position) + " mazgal=" + str(s.MAZGAL)); return
+	await _sn(4.0)
+	var sonra := _yanan(s)
+	print("yanan lamba: ", sonmeden, " -> ", sonra)
+	if sonra >= sonmeden: _hata("lambalar sönmedi")
+	# mazgala bak, E
+	b = Time.get_ticks_msec()
+	while s.durum == "mazgala":
+		_bak_sokak(s, s.MAZGAL)
+		await process_frame
+		if s.e_yazi.visible and s.e_yazi.get_meta("ad", "") == "mazgal":
+			Input.action_press("etkiles"); await process_frame; await process_frame; Input.action_release("etkiles")
+		if Time.get_ticks_msec() - b > 8000: _hata("mazgalda E çıkmadı e=" + s.e_yazi.text + " uzaklık=" + str(o.global_position.distance_to(s.MAZGAL))); return
+	print("mazgala bakıldı, durum=", s.durum, " yazı='", s.ipucu.text, "'")
 	b = Time.get_ticks_msec()
 	while current_scene == s:
 		await process_frame
 		if Time.get_ticks_msec() - b > 60000: _hata("düşüş/karanlık bitmedi durum=" + str(s.durum)); return
 	await process_frame
 	print("düşüşten sonra sahne: ", current_scene.scene_file_path if current_scene else "yok")
+
+
+func _yanan(s: Node) -> int:
+	var n := 0
+	for l in s.get_node("Lambalar").get_children():
+		if l is SpotLight3D and l.visible: n += 1
+	return n
 
 
 func _bak_sokak(s: Node, h: Vector3) -> void:

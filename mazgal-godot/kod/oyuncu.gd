@@ -16,6 +16,9 @@ const EGIK_BOY := 0.95
 var yercekimi: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var salinim := 0.0
 var adim_sayac := 0.0
+## Fener elde değilse ya da pili yoksa F bir şey yapmaz; sahne bunu duyup kısa bir yazı gösterebilir.
+var fener_izin := true
+signal fener_bos
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -28,6 +31,9 @@ func _unhandled_input(e: InputEvent) -> void:
 		kafa.rotate_x(-e.relative.y * h * (-1.0 if d and d.get("ters_y") == true else 1.0))
 		kafa.rotation.x = clamp(kafa.rotation.x, deg_to_rad(-85), deg_to_rad(85))
 	elif e.is_action_pressed("fener"):
+		if not fener_izin:
+			fener_bos.emit()
+			return
 		fener.visible = not fener.visible
 	elif e is InputEventMouseButton and e.pressed:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
