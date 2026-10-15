@@ -76,7 +76,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		var d := get_node_or_null("/root/Duraklat")
 		var h: float = 0.0022 * (float(d.fare) if d else 1.0)
 		_bakis.x = clamp(_bakis.x - e.relative.x * h, deg_to_rad(-110), deg_to_rad(110))
-		_bakis.y = clamp(_bakis.y - e.relative.y * h, deg_to_rad(-55), deg_to_rad(40))
+		_bakis.y = clamp(_bakis.y - e.relative.y * h * (-1.0 if d and d.get("ters_y") == true else 1.0), deg_to_rad(-55), deg_to_rad(40))
 
 func _physics_process(dt: float) -> void:
 	var gaz := 0.0; var yon := 0.0

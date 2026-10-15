@@ -1110,8 +1110,8 @@ func _soyle(anahtar: String) -> void:
 		ses_selim.stream = akis
 		ses_selim.play()
 		sure = akis.get_length() + 0.6
-	altyazi.text = "SELİM: " + s[1]
-	altyazi.visible = true
+	altyazi.text = tr("SELİM") + ": " + tr(s[1])
+	altyazi.visible = _altyazi_acik()
 	_altyazi_bitis = T + sure
 
 
@@ -1613,7 +1613,7 @@ func _unhandled_input(e: InputEvent) -> void:
 			var mm := e as InputEventMouseMotion
 			var h := 0.0022 * _fare_carpani()
 			_yaw -= mm.relative.x * h
-			_pitch = clampf(_pitch - mm.relative.y * h, -1.4, 1.4)
+			_pitch = clampf(_pitch - mm.relative.y * h * _y_carpani(), -1.4, 1.4)
 	elif e is InputEventKey:
 		var ke := e as InputEventKey
 		if not ke.pressed or ke.echo: return
@@ -1626,6 +1626,16 @@ func _unhandled_input(e: InputEvent) -> void:
 		if not mb.pressed or faz != "tel_kaydir": return
 		if mb.button_index == MOUSE_BUTTON_WHEEL_DOWN: _kaydir(1)
 		elif mb.button_index == MOUSE_BUTTON_WHEEL_UP: _kaydir(-1)
+
+
+func _y_carpani() -> float:
+	var d := get_node_or_null("/root/Duraklat")
+	return -1.0 if d and d.get("ters_y") == true else 1.0
+
+
+func _altyazi_acik() -> bool:
+	var d := get_node_or_null("/root/Duraklat")
+	return d == null or d.get("altyazi") != false
 
 
 # duraklatma menüsündeki fare hassasiyeti ayarı

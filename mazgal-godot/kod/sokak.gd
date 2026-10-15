@@ -293,8 +293,9 @@ func _soyle(anahtar: String) -> float:
 		var akis: AudioStream = load(s[0])
 		ses_selim.stream = akis; ses_selim.play()
 		sure = akis.get_length() + 0.6
-	altyazi.text = s[1] + ": " + s[2]
-	altyazi.visible = true
+	altyazi.text = tr(s[1]) + ": " + tr(s[2])
+	var d := get_node_or_null("/root/Duraklat")
+	altyazi.visible = d == null or d.get("altyazi") != false
 	_altyazi_bitis = Time.get_ticks_msec() / 1000.0 + sure
 	return sure
 
