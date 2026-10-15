@@ -1,3 +1,4 @@
+@tool
 extends Node3D
 ## Açılış sokağı: alp'in şehir modeli (orijinal, sıkıştırılmamış), gece, yağmur.
 
@@ -16,4 +17,4 @@ func _ready() -> void:
 	# şehirdeki bütün meshler gölge alır ve verir, üstünde yürünebilir
 	for m in sehir.find_children("*", "MeshInstance3D", true, false):
 		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-		if m.mesh: m.create_trimesh_collision()
+		if m.mesh and not Engine.is_editor_hint(): m.create_trimesh_collision()
