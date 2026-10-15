@@ -120,7 +120,11 @@ func _ev_oyna(ev: Node) -> void:
 		if not ok and _son_kapi != Vector3.INF:
 			# oyuncu gibi önce kapıdan geçer, sonra yeniden dener
 			print("kapıdan geçip yeniden deniyor")
-			await _ev_yuru(ev, _son_kapi)
+			# önce kapı hizasına (yalnız z), sonra kapıdan x yönünde 1.2 m içeri
+			var kz := Vector3(ev.oyuncu.global_position.x, 0, _son_kapi.z)
+			await _ev_yuru(ev, kz)
+			var hx: float = ev._esyalar[hedef][0].x
+			await _ev_yuru(ev, Vector3(_son_kapi.x + signf(hx - _son_kapi.x) * 1.2, 0, _son_kapi.z))
 			ok = await _git_bak_bas(ev, hedef)
 		if ok: bekleme = Time.get_ticks_msec()
 		else:
@@ -184,7 +188,7 @@ func _git_bak_bas(ev: Node, ad: String) -> bool:
 		var yatay := Vector2(hedef.x - p.x, hedef.z - p.z)
 		_bak(ev, hedef)
 		await process_frame
-		if ev._secili == ad and yatay.length() < menzil * 0.8:
+		if ev._secili == ad and (yatay.length() < menzil * 0.8 or takili > 1.0):
 			Input.action_release("ileri")
 			await _tus(KEY_E)
 			await _sn(0.3)
@@ -226,6 +230,15 @@ func _sokak_oyna(s: Node) -> void:
 	await _sn(1.0)
 	# arabaya yürü
 	var kol: Vector3 = s.araba.global_transform * Vector3(-1.06, 0.95, -0.05)
+	# sürücü kapısı arabanın öbür yanında: oyuncu gibi arabanın arkasından dolaşır
+	for yer in [Vector3(1.6, 0, 3.2), Vector3(-1.9, 0, 3.2), Vector3(-1.9, 0, 0.3)]:
+		var h: Vector3 = s.araba.global_transform * yer
+		var b0 := Time.get_ticks_msec()
+		while Vector2(h.x - o.global_position.x, h.z - o.global_position.z).length() > 0.4 and Time.get_ticks_msec() - b0 < 8000:
+			o.global_rotation.y = atan2(-(h.x - o.global_position.x), -(h.z - o.global_position.z))
+			Input.action_press("ileri")
+			await physics_frame
+		Input.action_release("ileri")
 	var b := Time.get_ticks_msec()
 	while s.durum == "yuruyus":
 		var d := kol - o.global_position
@@ -296,7 +309,9 @@ func _sokak_oyna(s: Node) -> void:
 		await process_frame
 		if Time.get_ticks_msec() - b > 120000: _hata("konuşma bitmedi"); return
 	print("konuşma bitti (", (Time.get_ticks_msec() - b) / 1000.0, " sn), durum=", s.durum)
-	# mazgala yürü
+	# kulübe kapısından dışarı, sonra mazgala yürü
+	for yer in [Vector3(-0.6, 0, -1.5), Vector3(-0.6, 0, -2.9)]:
+		await _yuru(s, o, s._k(yer), 6.0, 0.3)
 	if not await _yuru(s, o, s.MAZGAL, 90.0, 1.2): _hata("mazgala varılamadı, oyuncu=" + str(o.global_position) + " mazgal=" + str(s.MAZGAL)); return
 	b = Time.get_ticks_msec()
 	while current_scene == s:
