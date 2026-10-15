@@ -124,7 +124,10 @@ func _gec(ad: String) -> void:
 		"telefon":
 			telefon.visible = true
 			for v in tel_videolar: v.play()
-		"salon": _saat_goster("20:00")
+		"salon":
+			_saat_goster("20:00")
+			$Aksam.visible = false   # gece: güneş artık pencereden vurmaz
+			($Ortam as WorldEnvironment).environment.ambient_light_energy = 0.2
 		"saat":
 			_saat_bas = 20.0 * 60.0 + 10.0 + T / 60.0
 			dakika = _saat_bas
@@ -264,8 +267,9 @@ func _yayin() -> void:
 	_yol([[0.0, KOLTUK, EKRAN], [6.0, KOLTUK + Vector3(0.1, -0.02, 0), EKRAN], [18.0, Vector3(37.65, 0.86, -0.4), EKRAN]], ft)
 	karartma = 0.0
 	sallanti = 0.7
-	var bitti := ses_anlatici.stream != null and not ses_anlatici.playing and ft > 5.0
-	if ft >= TV_SURE + 4.0 or bitti:
+	# anlatıcının sesi bitince (dosya yoksa yayın süresi dolunca) biter
+	var sure := ses_anlatici.stream.get_length() if ses_anlatici.stream else TV_SURE
+	if ft >= sure + 0.6:
 		ses_anlatici.stop()
 		_gec("geri")
 
@@ -285,6 +289,8 @@ func _saat() -> void:
 	var saat_on := SAAT_YERI + Vector3(-0.05, 0, 0)
 	_yol([[0.0, KOLTUK, EKRAN + Vector3(0, 0.05, 0)], [3.0, KOLTUK, saat_on], [16.0, KOLTUK + Vector3(0.02, 0, 0), saat_on]], ft)
 	if ft > 0.6 and not _soylendi("ev2"): _soyle("ev2")
+	kamera.fov = lerpf(70.0, 7.0, smoothstep(0.8, 3.6, ft))
+	sallanti = lerpf(1.0, 0.25, smoothstep(0.8, 3.6, ft))
 	# saat su gibi akar: 20:10 -> 00:00
 	var u := smoothstep(4.0, 13.0, ft)
 	u = u * u * (3.0 - 2.0 * u)
@@ -301,6 +307,7 @@ func _cikis() -> void:
 		[6.0, Vector3(35.0, 1.65, 1.2), Vector3(35.6, 1.5, 2.8)],
 	], ft)
 	if ft > 0.3 and not _soylendi("ev3"): _soyle("ev3")
+	kamera.fov = lerpf(7.0, 70.0, smoothstep(0.6, 2.0, ft))
 	karartma = _egri([[0, 0], [4.8, 0], [6.0, 1]], ft)
 	if ft >= 7.0:
 		_bitti = true
