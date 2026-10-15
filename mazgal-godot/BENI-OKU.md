@@ -3,7 +3,7 @@
 Oyun artık Godot 4 ile yapılıyor. Steam'e masaüstü oyun olarak çıkacak. Dosya boyutu sınırı yok ve modeller sıkıştırılmıyor.
 
 ## Açmak
-1. Godot 4.3'ü indir (ücretsiz): https://godotengine.org/download (Windows, "Godot Engine", .NET olmayan sürüm).
+1. Godot 4.7'ü indir (ücretsiz): https://godotengine.org/download (Windows, "Godot Engine", .NET olmayan sürüm).
 2. Godot'u aç, **Import** de, bu klasördeki `project.godot` dosyasını seç.
 3. **F5** ile oyun başlar.
 
