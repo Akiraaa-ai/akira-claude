@@ -1023,15 +1023,22 @@ func _kapi_ac(mentese: Node3D, t: float, t0: float, t1: float) -> void:
 	mentese.rotation.y = PI * 0.5 * k * 0.95 * float(mentese.get_meta("yon", 1.0))
 
 
-## Kapı Selim'e doğru açılırken kanadın süpürdüğü yerdeyse Selim bir adım geri çekilir
+## Kapı Selim'e doğru açılırken kanadın süpürdüğü yerdeyse Selim kapıdan dik yönde biraz geri çekilir
 func _kapidan_cekil(mentese: Node3D, t: float) -> void:
 	if t > 1.2 or faz != "oyun" or oyuncu == null: return
 	var m := Vector2(mentese.global_position.x, mentese.global_position.z)
+	var kok := mentese.get_parent() as Node3D
+	var kanat := (Vector2(kok.global_position.x, kok.global_position.z) - m).normalized()   # menteşeden kapının ortasına
+	var dik := Vector2(-kanat.y, kanat.x)
 	var p := Vector2(oyuncu.global_position.x, oyuncu.global_position.z)
-	var d := p - m
-	if d.length() >= 1.1 or d.length() < 0.01: return
-	var yeni := m + d.normalized() * move_toward(d.length(), 1.1, get_process_delta_time() * 2.5)
-	var y := Vector3(yeni.x, 0.0, yeni.y)
+	var a := (p - m).dot(kanat)
+	var b := (p - m).dot(dik)
+	if (p - m).length() >= 1.1 or a < -0.2 or a > 1.1: return
+	var gerek := sqrt(maxf(0.0, 1.1 * 1.1 - a * a))
+	var yon := signf(b) if absf(b) > 0.01 else 1.0
+	var yeni_b := yon * move_toward(absf(b), maxf(absf(b), gerek), get_process_delta_time() * 2.5)
+	var y2 := m + kanat * a + dik * yeni_b
+	var y := Vector3(y2.x, 0.0, y2.y)
 	if _icerde(y): oyuncu.global_position = y
 
 
