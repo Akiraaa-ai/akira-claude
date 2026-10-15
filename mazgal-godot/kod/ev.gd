@@ -191,6 +191,7 @@ func _ready() -> void:
 	_paket_kur()
 	_dus_kur()
 	_ayna_kur()
+	_koridor(Vector3(10.88, -0.01, -3.55), Vector3(12.1, 2.45, -1.52), "+z")
 	_koridor(Vector3(28.4, 0, 1.95), Vector3(29.9, 2.5, 3.15), "-x")
 	_koridor(Vector3(35.95, 0, 2.97), Vector3(37.25, 2.5, 4.3), "-z")
 	_arayuz_kur()
@@ -406,8 +407,8 @@ func _s_lavabo() -> void:
 		su_hedef = 0.6
 	if ft > 2.6 and not _eylem.has("l_yuz"):
 		_eylem["l_yuz"] = true
-		eller.kamerada("sag", Vector3(0.05, -0.1, -0.16), 0.5)
-		eller.kamerada("sol", Vector3(-0.05, -0.1, -0.16), 0.5)
+		eller.kamerada("sag", Vector3(0.07, -0.15, -0.24), 0.5)
+		eller.kamerada("sol", Vector3(-0.07, -0.15, -0.24), 0.5)
 		_ses_cal("su_carpma", -6.0)
 	if ft > 3.2 and not _eylem.has("l_damla"):
 		_eylem["l_damla"] = true; damla_hedef = 1.0
@@ -1749,6 +1750,7 @@ func _koridor(a: Vector3, b: Vector3, acik: String) -> void:
 		mi.mesh = bm
 		mi.position = yuzler[y][0]
 		add_child(mi)
+		mi.create_trimesh_collision()
 
 
 ## Banyo aynasının önünde buğu katmanı (sıcak sudan sonra ayna buğulanır).
