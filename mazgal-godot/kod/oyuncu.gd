@@ -22,15 +22,19 @@ func _ready() -> void:
 
 func _unhandled_input(e: InputEvent) -> void:
 	if e is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		rotate_y(-e.relative.x * fare_hassas)
-		kafa.rotate_x(-e.relative.y * fare_hassas)
+		var h := fare_hassas * _fare_carpani()
+		rotate_y(-e.relative.x * h)
+		kafa.rotate_x(-e.relative.y * h)
 		kafa.rotation.x = clamp(kafa.rotation.x, deg_to_rad(-85), deg_to_rad(85))
 	elif e.is_action_pressed("fener"):
 		fener.visible = not fener.visible
-	elif e is InputEventKey and e.pressed and e.keycode == KEY_ESCAPE:
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif e is InputEventMouseButton and e.pressed:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+# duraklatma menüsündeki fare hassasiyeti ayarı
+func _fare_carpani() -> float:
+	var d := get_node_or_null("/root/Duraklat")
+	return float(d.fare) if d else 1.0
 
 func _physics_process(dt: float) -> void:
 	if not is_on_floor():
