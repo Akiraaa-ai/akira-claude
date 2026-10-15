@@ -5,6 +5,7 @@ extends SceneTree
 
 var hata := 0
 var _son_kare := 0
+var _son_kapi := Vector3.INF
 
 func _init() -> void:
 	await process_frame
@@ -114,7 +115,13 @@ func _ev_oyna(ev: Node) -> void:
 		if hedef == "":
 			if ev._esyalar.size() > 0: hedef = ev._esyalar.keys()[0]
 			else: continue
+		if hedef.ends_with("_kapi"): _son_kapi = ev._esyalar[hedef][0]
 		var ok: bool = await _git_bak_bas(ev, hedef)
+		if not ok and _son_kapi != Vector3.INF:
+			# oyuncu gibi önce kapıdan geçer, sonra yeniden dener
+			print("kapıdan geçip yeniden deniyor")
+			await _ev_yuru(ev, _son_kapi)
+			ok = await _git_bak_bas(ev, hedef)
 		if ok: bekleme = Time.get_ticks_msec()
 		else:
 			_hata("'" + hedef + "' seçilemedi; oyuncu=" + str(ev.oyuncu.global_position))
@@ -195,6 +202,15 @@ func _git_bak_bas(ev: Node, ad: String) -> bool:
 			print("takıldı: ", ad, " oyuncu=", p, " hedef=", hedef, " seçili=", ev._secili)
 			return false
 	return false
+
+
+func _ev_yuru(ev: Node, h: Vector3) -> void:
+	var b := Time.get_ticks_msec()
+	while Vector2(h.x - ev.oyuncu.global_position.x, h.z - ev.oyuncu.global_position.z).length() > 0.3 and Time.get_ticks_msec() - b < 6000:
+		_bak(ev, Vector3(h.x, ev.kamera.global_position.y, h.z))
+		Input.action_press("ileri")
+		await physics_frame
+	Input.action_release("ileri")
 
 
 func _bak(ev: Node, h: Vector3) -> void:
