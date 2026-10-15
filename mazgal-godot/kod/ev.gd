@@ -30,7 +30,7 @@ const KASE := Vector3(27.4, 0.875, 1.18)            # Nesquik kâsesi
 const KAPI_MODELI := "res://modeller2/seliminevi/doors_stylish_glass_door.glb"
 const SAAT_MODELI := "res://modeller2/seliminevi/vintage_wooden_wall_clock_- (1).glb"
 const SEHPA_MODELI := "res://modeller2/seliminevi/tv_stand.glb"
-const PAKET_MODELI := "res://modeller2/seliminevi/sigara_paketi.glb"
+const PAKET_MODELI := "res://modeller2/seliminevi/sigara/sigara_paketi.gltf"
 # Oda kapıları: [kapı ortası, yaw (yerel +x geçiş yönü), aynalı, karanlık koridor hangi yanda (yerel x: +1, -1, 0 yok)].
 # Kapı açılınca kanat geçiş yönüne döner. Odalar ayrı yerlerde durduğu için kapının dışı karanlık koridor gibi kapatılır.
 const KAPI_YATAK := [Vector3(3.30, 0.0, 1.6), 0.0, false, 1.0]

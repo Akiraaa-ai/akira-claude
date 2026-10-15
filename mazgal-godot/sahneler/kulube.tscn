@@ -3,7 +3,7 @@
 [ext_resource type="PackedScene" path="res://modeller2/klübe/booth/Booth.gltf" id="1"]
 [ext_resource type="PackedScene" path="res://modeller2/eskitelefon/old_phone_blue_2.glb" id="2"]
 [ext_resource type="PackedScene" path="res://modeller2/tüplütv/crt-tv.glb" id="3"]
-[ext_resource type="PackedScene" path="res://modeller2/seliminevi/sigara_paketi.glb" id="4"]
+[ext_resource type="PackedScene" path="res://modeller2/seliminevi/sigara/sigara_paketi.gltf" id="4"]
 
 [node name="Kulube" type="Node3D"]
 
