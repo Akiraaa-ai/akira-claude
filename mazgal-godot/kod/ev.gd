@@ -64,7 +64,7 @@ const KAPI_MUTFAK := [Vector3(28.33, 0.0, 2.55), 180.0, true, 0.0]
 const KAPI_SALON := [Vector3(36.6, 0.0, 2.935), 90.0, false, -1.0]
 # koridor dibindeki giriş kapıları (dışarısı karanlık perde)
 const KAPI_BANYO_GIRIS := [Vector3(11.49, -0.01, -3.575), 90.0, false, 1.0]
-const KAPI_MUTFAK_GIRIS := [Vector3(29.925, 0.0, 2.55), 0.0, false, 1.0]
+const KAPI_MUTFAK_GIRIS := [Vector3(29.925, 0.0, 2.55), 0.0, true, 1.0]   # menteşe güneyde: mutfak kapısıyla çarpışmasın
 const KAPI_SALON_GIRIS := [Vector3(36.6, 0.0, 4.325), -90.0, false, 1.0]
 const KAPI_EN := 1.07
 const KAPI_BOY := 2.14
@@ -421,11 +421,13 @@ func _etkiles(ad: String) -> void:
 			_sahne("s_dus")
 		"banyo_cikis":
 			_sahne("gecis")
+			# kapı Selim'e doğru açılır: kapının süpürdüğü yerin dışında, kol tarafında durup çeker
 			_gecis_basla([[0.0, _bas_konum, _bas_bakis],
-					[1.2, Vector3(11.5, 1.62, -1.9), Vector3(11.5, 1.5, -3.5)],
-					[2.5, Vector3(11.49, 1.62, -3.05), Vector3(11.49, 1.5, -4.6)],
-					[3.2, Vector3(11.49, 1.62, -3.575), Vector3(11.49, 1.5, -5.0)]],
-				kapi_banyo_giris, Vector2(1.7, 2.6), 3.2,
+					[1.2, Vector3(11.3, 1.62, -2.3), Vector3(11.2, 1.3, -3.6)],
+					[2.0, Vector3(10.98, 1.62, -3.12), Vector3(11.2, 1.1, -3.65)],
+					[3.1, Vector3(11.02, 1.62, -3.15), Vector3(11.5, 1.4, -4.4)],
+					[3.9, Vector3(11.49, 1.62, -3.575), Vector3(11.49, 1.5, -5.0)]],
+				kapi_banyo_giris, Vector2(2.1, 3.0), 3.9,
 				kapi_mutfak_giris, _giris_yolu(KAPI_MUTFAK_GIRIS, Vector3(29.25, 0, 2.5), PI * 0.5), "mutfak")
 			_gorev("")
 		"mutfak_kapi":
@@ -565,6 +567,7 @@ func _gecis_oyna() -> void:
 		eller.birak("sag", 0.01)
 		# giriş kapısı açık durur, Selim geçince arkasından kapanır
 		b_kapi.set_meta("k", 1.0)
+		b_kapi.set_meta("yon", -1.0)   # geldiği holün tarafına açık
 		b_kapi.rotation.y = -PI * 0.5 * 0.95
 	var t := ft - kesme
 	var b_yol: Array = g["b_yol"]
@@ -573,6 +576,7 @@ func _gecis_oyna() -> void:
 	_kapi_ac(b_kapi, t, bitis + 0.6, bitis - 0.2)
 	if t < bitis: _adim_say(0.55)
 	if t >= bitis + 0.6:
+		b_kapi.set_meta("yon", 1.0)
 		_gec(g["sonraki"])
 
 
@@ -697,10 +701,11 @@ func _s_tel_birak() -> void:
 		var bas := Vector3(27.4, 1.25, 1.85) + Vector3(0.1, 0.3, 0.2)
 		_gecis_basla([[0.0, bas, Vector3(29, 1.4, 2.6)],
 				[1.1, Vector3(28.0, 1.62, 2.45), Vector3(29.6, 1.5, 2.55)],
-				[2.2, Vector3(28.95, 1.62, 2.55), Vector3(30.6, 1.5, 2.55)],
-				[3.3, Vector3(29.55, 1.62, 2.55), Vector3(31.0, 1.5, 2.55)],
-				[3.9, Vector3(29.925, 1.62, 2.55), Vector3(31.3, 1.5, 2.55)]],
-			kapi_mutfak_giris, Vector2(2.4, 3.3), 3.9,
+				[2.0, Vector3(28.95, 1.62, 2.65), Vector3(29.9, 1.2, 2.9)],
+				[2.6, Vector3(29.25, 1.62, 2.9), Vector3(29.85, 1.1, 2.95)],
+				[3.6, Vector3(29.25, 1.62, 2.88), Vector3(30.8, 1.4, 2.4)],
+				[4.4, Vector3(29.925, 1.62, 2.55), Vector3(31.3, 1.5, 2.55)]],
+			kapi_mutfak_giris, Vector2(2.6, 3.5), 4.4,
 			kapi_salon_giris, _giris_yolu(KAPI_SALON_GIRIS, Vector3(36.6, 0, 3.8), 0.0), "salon_kapisi")
 
 
@@ -1014,7 +1019,20 @@ func _kapi_ac(mentese: Node3D, t: float, t0: float, t1: float) -> void:
 	if once < 0.02 and k >= 0.02: _kapi_sesi(true)
 	if once > 0.02 and k <= 0.02: _kapi_sesi(false)
 	mentese.set_meta("k", k)
-	mentese.rotation.y = -PI * 0.5 * k * 0.95
+	# Selim'in açtığı kapı ona doğru açılır (çekilir); yon -1 olan kapı öbür tarafa açık durur
+	mentese.rotation.y = PI * 0.5 * k * 0.95 * float(mentese.get_meta("yon", 1.0))
+
+
+## Kapı Selim'e doğru açılırken kanadın süpürdüğü yerdeyse Selim bir adım geri çekilir
+func _kapidan_cekil(mentese: Node3D, t: float) -> void:
+	if t > 1.2 or faz != "oyun" or oyuncu == null: return
+	var m := Vector2(mentese.global_position.x, mentese.global_position.z)
+	var p := Vector2(oyuncu.global_position.x, oyuncu.global_position.z)
+	var d := p - m
+	if d.length() >= 1.1 or d.length() < 0.01: return
+	var yeni := m + d.normalized() * move_toward(d.length(), 1.1, get_process_delta_time() * 2.5)
+	var y := Vector3(yeni.x, 0.0, yeni.y)
+	if _icerde(y): oyuncu.global_position = y
 
 
 ## Banyonun kendi kapısı modelde açık durur; başta kapalıya çevrilir, Selim girerken açılır.
@@ -1874,8 +1892,12 @@ func _gorev(metin: String) -> void:
 ## Her karede: kapılar, banyo lambası, ayna buğusu, yüzdeki su damlaları, görev yazısı.
 func _ev_guncelle(dt: float) -> void:
 	if _zaman.has("banyo_kapi"): _banyo_kapisi(T - float(_zaman["banyo_kapi"]) + 0.5)
-	if _zaman.has("mutfak_kapi"): _kapi_ac(kapi_mutfak, T - float(_zaman["mutfak_kapi"]), 0.0, 1.1)
-	if _zaman.has("salon_kapi"): _kapi_ac(kapi_salon, T - float(_zaman["salon_kapi"]), 0.0, 1.1)
+	if _zaman.has("mutfak_kapi"):
+		_kapi_ac(kapi_mutfak, T - float(_zaman["mutfak_kapi"]), 0.0, 1.1)
+		_kapidan_cekil(kapi_mutfak, T - float(_zaman["mutfak_kapi"]))
+	if _zaman.has("salon_kapi"):
+		_kapi_ac(kapi_salon, T - float(_zaman["salon_kapi"]), 0.0, 1.1)
+		_kapidan_cekil(kapi_salon, T - float(_zaman["salon_kapi"]))
 	if _zaman.has("salon_kapa"): _kapi_ac(kapi_salon, T - float(_zaman["salon_kapa"]), 1.0, 0.0)
 	if _zaman.has("banyo_isik"):
 		# floresan: birkaç kez çakıp söner, sonra yanar

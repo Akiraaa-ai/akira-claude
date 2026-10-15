@@ -260,7 +260,7 @@ func _kapilar(dt: float) -> void:
 		var i: int = _kemik[ad]
 		if i < 0: continue
 		var k: float = ease(_kapi[ad], -2.0)
-		var yon := 1.0 if ad == "DFL_8" else -1.0
+		var yon := -1.0 if ad == "DFL_8" else 1.0
 		var q := _iskelet.get_bone_rest(i).basis.get_rotation_quaternion() * Quaternion(Vector3(0, 0, 1), yon * k * 1.1)
 		_iskelet.set_bone_pose_rotation(i, q)
 

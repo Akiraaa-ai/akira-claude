@@ -121,10 +121,14 @@ func _ev_oyna(ev: Node) -> void:
 			# oyuncu gibi önce kapıdan geçer, sonra yeniden dener
 			print("kapıdan geçip yeniden deniyor")
 			# önce kapı hizasına (yalnız z), sonra kapıdan x yönünde 1.2 m içeri
-			var kz := Vector3(ev.oyuncu.global_position.x, 0, _son_kapi.z)
-			await _ev_yuru(ev, kz)
-			var hx: float = ev._esyalar[hedef][0].x
-			await _ev_yuru(ev, Vector3(_son_kapi.x + signf(hx - _son_kapi.x) * 1.2, 0, _son_kapi.z))
+			var hh: Vector3 = ev._esyalar[hedef][0]
+			if absf(hh.x - _son_kapi.x) > absf(hh.z - _son_kapi.z):
+				await _ev_yuru(ev, Vector3(ev.oyuncu.global_position.x, 0, _son_kapi.z))
+				await _ev_yuru(ev, Vector3(_son_kapi.x + signf(hh.x - _son_kapi.x) * 1.2, 0, _son_kapi.z))
+			else:
+				# kapı z yönünde: önce x hizasına, sonra z yönünde içeri
+				await _ev_yuru(ev, Vector3(_son_kapi.x, 0, ev.oyuncu.global_position.z))
+				await _ev_yuru(ev, Vector3(_son_kapi.x, 0, _son_kapi.z + signf(hh.z - _son_kapi.z) * 1.2))
 			ok = await _git_bak_bas(ev, hedef)
 		if ok: bekleme = Time.get_ticks_msec()
 		else:

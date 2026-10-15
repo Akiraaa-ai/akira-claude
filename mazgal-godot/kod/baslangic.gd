@@ -55,6 +55,8 @@ var _ayar: Control
 var _siyah: ColorRect
 var _radyo: AudioStreamPlayer
 var _yagmur_ses: AudioStreamPlayer
+var _muzik: AudioStreamPlayer
+const ACILIS_MUZIGI := "res://sesler/muzik_1.mp3"
 var _tik: AudioStreamPlayer
 var _sokak: Node3D
 var _kamera: Camera3D
@@ -73,7 +75,14 @@ func _sesler_kur() -> void:
 	if ResourceLoader.exists("res://sesler/yagmur.mp3"):
 		var y: AudioStream = load("res://sesler/yagmur.mp3")
 		if y is AudioStreamMP3: (y as AudioStreamMP3).loop = true
-		_yagmur_ses.stream = y; _yagmur_ses.volume_db = -14.0; _yagmur_ses.play()
+		# açılışta yağmur duyulmaz; ana menü gelince yavaşça başlar
+		_yagmur_ses.stream = y; _yagmur_ses.volume_db = -60.0
+	# açılış jeneriğinin müziği (alp'in)
+	_muzik = AudioStreamPlayer.new(); add_child(_muzik)
+	if ResourceLoader.exists(ACILIS_MUZIGI):
+		var m: AudioStream = load(ACILIS_MUZIGI)
+		if m is AudioStreamMP3: (m as AudioStreamMP3).loop = true
+		_muzik.stream = m; _muzik.volume_db = -8.0; _muzik.play()
 	_radyo = AudioStreamPlayer.new(); add_child(_radyo)
 	if ResourceLoader.exists("res://sesler/radyo.mp3"):
 		var r: AudioStream = load("res://sesler/radyo.mp3")
@@ -115,6 +124,10 @@ func _process(dt: float) -> void:
 	if durum == "acilis": _acilis()
 	elif durum == "menu":
 		_radyo.volume_db = move_toward(_radyo.volume_db, -12.0, dt * 12.0)
+		_yagmur_ses.volume_db = move_toward(_yagmur_ses.volume_db, -14.0, dt * 10.0)
+		if _muzik.playing:
+			_muzik.volume_db = move_toward(_muzik.volume_db, -60.0, dt * 20.0)
+			if _muzik.volume_db <= -59.0: _muzik.stop()
 		_siyah.color.a = move_toward(_siyah.color.a, 0.0, dt * 0.5)
 
 func _input(e: InputEvent) -> void:
@@ -128,6 +141,7 @@ func _menuyu_ac() -> void:
 	for k in _kartlar.values(): (k as Control).visible = false
 	_menu.visible = true
 	if not _radyo.playing: _radyo.play()
+	if not _yagmur_ses.playing and _yagmur_ses.stream: _yagmur_ses.play()
 	(_yan.get_child(2) as Button).grab_focus()
 
 
@@ -258,6 +272,7 @@ func _yeni_oyun() -> void:
 	var tw := create_tween()
 	tw.tween_property(_siyah, "color:a", 1.0, 1.2)
 	tw.parallel().tween_property(_radyo, "volume_db", -60.0, 1.2)
+	tw.parallel().tween_property(_yagmur_ses, "volume_db", -60.0, 1.2)
 	tw.tween_callback(func() -> void:
 		var d := get_node_or_null("/root/Duraklat")
 		if d:
@@ -271,6 +286,7 @@ func _devam_et() -> void:
 	var tw := create_tween()
 	tw.tween_property(_siyah, "color:a", 1.0, 1.0)
 	tw.parallel().tween_property(_radyo, "volume_db", -60.0, 1.0)
+	tw.parallel().tween_property(_yagmur_ses, "volume_db", -60.0, 1.0)
 	tw.tween_callback(func() -> void: get_node("/root/Duraklat").kayittan_devam())
 
 func _etiket(metin: String, boy: int, renk: Color) -> Label:
