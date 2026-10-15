@@ -233,8 +233,6 @@ func _binise_basla() -> void:
 	oyuncu.process_mode = Node.PROCESS_MODE_DISABLED
 	(oyuncu.get_node("Govde") as CollisionShape3D).disabled = true
 	_gecis_bas = oyuncu_kamera.global_transform
-	araba.kapi("DFL_8", true)
-	ses_kapi.global_position = _surucu_kapisi() + Vector3(0, 1, 0); ses_kapi.pitch_scale = 1.3; ses_kapi.volume_db = -10.0; ses_kapi.play()
 	var kam := araba.get_node("Kamera") as Camera3D
 	kam.rotation = Vector3(-0.04, 0, 0)
 	_gecis_bit = kam.global_transform
@@ -242,26 +240,41 @@ func _binise_basla() -> void:
 	kam.current = true
 	_gec("binis")
 
-# kapı açılır, Selim oturur, kapı kapanır, motor çalışır
+# Selim kapının arkasına geçer, kapı dışa açılır (menteşe önde), açıklıktan girip oturur, kapı kapanır, motor çalışır
 func _binis() -> void:
 	var kam := araba.get_node("Kamera") as Camera3D
-	var u := smoothstep(0.5, 2.3, dt_durum)
-	var ara := _gecis_bas.interpolate_with(_gecis_bit, u)
-	ara.origin.y -= sin(u * PI) * 0.25
+	var kol := araba.global_transform * Vector3(-1.06, 0.95, -0.05)
+	# kapının açılırken süpürdüğü yerin dışında, kapının arka ucunda durur
+	var dur := Transform3D(Basis(), araba.global_transform * Vector3(-1.6, 1.45, 0.45)).looking_at(kol, Vector3.UP)
+	# kapı açıldıktan sonra kapıyla gövde arasındaki açıklık
+	var ic := Transform3D(araba.global_basis * Basis.from_euler(Vector3(-0.15, -0.5, 0)), araba.global_transform * Vector3(-1.45, 1.3, -0.35))
+	var ara: Transform3D
+	if dt_durum < 0.6:
+		ara = _gecis_bas.interpolate_with(dur, smoothstep(0.0, 0.6, dt_durum))
+	elif dt_durum < 1.9:
+		ara = dur.interpolate_with(ic, smoothstep(1.2, 1.9, dt_durum))
+	else:
+		var u := smoothstep(1.9, 2.7, dt_durum)
+		ara = ic.interpolate_with(_gecis_bit, u)
+		ara.origin.y -= sin(u * PI) * 0.2
 	kam.global_transform = ara
-	if dt_durum > 2.4 and araba._kapi_hedef["DFL_8"] > 0.5:
+	if dt_durum > 0.6 and not _soylenen.has("kapi_acildi"):
+		_soylenen["kapi_acildi"] = true
+		araba.kapi("DFL_8", true)
+		ses_kapi.global_position = _surucu_kapisi() + Vector3(0, 1, 0); ses_kapi.pitch_scale = 1.3; ses_kapi.volume_db = -10.0; ses_kapi.play()
+	if dt_durum > 2.8 and araba._kapi_hedef["DFL_8"] > 0.5:
 		araba.kapi("DFL_8", false)
-	if dt_durum > 2.95 and not _soylenen.has("kapi_kapandi"):
+	if dt_durum > 3.35 and not _soylenen.has("kapi_kapandi"):
 		_soylenen["kapi_kapandi"] = true
 		ses_kapi.global_position = araba.global_position; ses_kapi.pitch_scale = 1.0; ses_kapi.volume_db = 0.0; ses_kapi.play()
 	# kontak: marş birkaç kez öksürür, sonra motor tutar
-	if dt_durum > 3.4 and not _soylenen.has("mars"):
+	if dt_durum > 3.8 and not _soylenen.has("mars"):
 		_soylenen["mars"] = true
 		_kisa_ses(_mars_sesi(), araba.global_position + Vector3(0, 0.8, 0), 1.0, -4.0)
-	if dt_durum > 3.4:
+	if dt_durum > 3.8:
 		kam.transform = kam.transform.interpolate_with(Transform3D(Basis.from_euler(Vector3(-0.04, 0, 0)), Vector3(-0.45, 1.32, -0.1)), 0.08)
-		kam.position += Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * 0.002 * (1.0 if dt_durum < 5.0 else 0.0)
-	if dt_durum > 5.2:
+		kam.position += Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * 0.002 * (1.0 if dt_durum < 5.4 else 0.0)
+	if dt_durum > 5.6:
 		kam.transform = Transform3D(Basis.from_euler(Vector3(-0.04, 0, 0)), Vector3(-0.45, 1.32, -0.1))
 		araba.motoru_calistir(true)
 		araba.silecek_acik = true
