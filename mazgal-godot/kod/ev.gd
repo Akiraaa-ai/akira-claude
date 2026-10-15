@@ -471,7 +471,7 @@ func _saat_ibreleri() -> void:
 	var gercek := dakika
 	if faz != "saat" and faz != "cikis":
 		gercek = 20.0 * 60.0 + 10.0 + T / 60.0
-	var sn := floor(fmod(T, 60.0))
+	var sn: float = floor(fmod(T, 60.0))
 	if faz == "saat" and ft > 4.0 and ft < 13.0:
 		sn = fmod(gercek * 60.0, 60.0)
 	saniye.rotation.z = -TAU * sn / 60.0
@@ -920,7 +920,7 @@ func _tv_guncelle(dt: float) -> void:
 		tv_oda_kamera.global_position += Vector3(-0.08, 0, -0.05) * dt
 	var acilis := smoothstep(0.0, 0.45, t) if tur == "ac" else 1.0
 	um.set_shader_parameter("acilis", acilis)
-	var gecis := t - kare[0] < 0.12 and kare[0] > 0.0
+	var gecis: bool = t - kare[0] < 0.12 and kare[0] > 0.0
 	var kar := 0.95 if gecis else (0.9 - (t - 0.45) * 1.2 if tur == "ac" and t > 0.45 else 0.08)
 	um.set_shader_parameter("kar", clampf(kar, 0.06, 0.95))
 	um.set_shader_parameter("kar_tam", 1.0 if tur == "kar" else 0.0)
