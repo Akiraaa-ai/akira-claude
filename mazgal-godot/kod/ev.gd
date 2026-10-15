@@ -386,7 +386,7 @@ func _etkiles(ad: String) -> void:
 		"telefon": _sahne("s_tel_al")
 		"salon_kapi":
 			_zaman["salon_kapi"] = T
-			_esya("koltuk", KOLTUK + Vector3(0.2, -0.5, 0), 2.2)
+			_esya("koltuk", KOLTUK + Vector3(0.2, -0.5, 0), 3.2)
 		"koltuk": _sahne("s_koltuk")
 
 
@@ -481,7 +481,7 @@ func _s_buzdolabi() -> void:
 
 
 func _s_dolap() -> void:
-	_yol([[0.0, _bas_konum, _bas_bakis], [1.0, Vector3(25.2, 1.62, -2.9), DOLAP], [4.6, Vector3(25.2, 1.62, -2.9), DOLAP + Vector3(0, -0.1, 0)]], ft)
+	_yol([[0.0, _bas_konum, _bas_bakis], [1.0, Vector3(25.45, 1.64, -2.95), DOLAP + Vector3(0, -0.15, 0)], [4.6, Vector3(25.45, 1.64, -2.95), DOLAP + Vector3(0, -0.22, 0)]], ft)
 	var acik := smoothstep(1.0, 1.7, ft) * (1.0 - smoothstep(3.6, 4.3, ft))
 	_dolap_kapaklari(acik)
 	if ft > 1.6 and not _eylem.has("do_el"):
@@ -534,7 +534,7 @@ func _s_tel_al() -> void:
 		_eylem["t_al"] = true
 		telefon.reparent(kamera, true)
 		_tel_ekran(true)
-		eller.kamerada("sag", Vector3(0.05, -0.13, -0.24), 0.6)
+		eller.kamerada("sag", Vector3(0.04, -0.19, -0.22), 0.6)
 	if ft > 1.0:
 		var k := smoothstep(1.0, 1.8, ft)
 		telefon.position = telefon.position.lerp(Vector3(0.0, -0.035, -0.215), k)
@@ -552,7 +552,8 @@ func _tel_kaydir() -> void:
 	sallanti = 0.6
 	telefon.position = Vector3(0.0, -0.035, -0.215)
 	telefon.rotation_degrees = Vector3(-8.0 + sin(T * 1.1) * 1.5, sin(T * 0.7) * 2.0, sin(T * 0.9) * 1.2)
-	eller.kamerada("sag", Vector3(0.05, -0.13, -0.24), 0.01)
+	eller.kamerada("sag", Vector3(0.04, -0.19, -0.22), 0.01)
+	eller.yumruk("sag", 0.45)
 	if (_kaydirilan >= 4 or ft > 16.0) and not tel_bildirim.visible:
 		tel_bildirim.visible = true
 		_ses_cal("bildirim", -10.0)
@@ -1646,15 +1647,17 @@ func _esya_kaldir(ad: String) -> void:
 func _secim_guncelle() -> void:
 	_secili = ""
 	if faz == "oyun":
-		var en := 0.93
+		var en := -1.0
 		var bak := -kamera.global_basis.z
 		for ad: String in _esyalar:
 			var e: Array = _esyalar[ad]
 			var d: Vector3 = (e[0] as Vector3) - kamera.global_position
 			if d.length() > float(e[1]): continue
+			# yakındaki eşyaya bakmak için daha geniş açı yeter
 			var c := bak.dot(d.normalized())
-			if c > en:
-				en = c
+			var esik := lerpf(0.8, 0.93, clampf((d.length() - 0.8) / 1.2, 0.0, 1.0))
+			if c > esik and c - esik > en:
+				en = c - esik
 				_secili = ad
 	e_yazi.visible = _secili != ""
 	if _secili != "":
@@ -1728,7 +1731,7 @@ func _dunya_kutusu(n: Node3D) -> AABB:
 ## Kapının dışındaki karanlık koridor: taban, tavan, yan duvarlar ve dip (kapı tarafı açık).
 func _koridor(a: Vector3, b: Vector3, acik: String) -> void:
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.035, 0.033, 0.03)
+	mat.albedo_color = Color(0.2, 0.18, 0.15)
 	mat.roughness = 0.95
 	var k := 0.05
 	var o := (a + b) * 0.5
@@ -1741,6 +1744,14 @@ func _koridor(a: Vector3, b: Vector3, acik: String) -> void:
 		"-z": [Vector3(o.x, o.y, a.z - k * 0.5), Vector3(s.x, s.y, k)],
 		"+z": [Vector3(o.x, o.y, b.z + k * 0.5), Vector3(s.x, s.y, k)],
 	}
+	# koridorda loş bir ampul
+	var lamba := OmniLight3D.new()
+	lamba.light_color = Color(1.0, 0.78, 0.55)
+	lamba.light_energy = 0.7
+	lamba.omni_range = 3.5
+	lamba.shadow_enabled = true
+	lamba.position = Vector3(o.x, b.y - 0.3, o.z)
+	add_child(lamba)
 	for y: String in yuzler:
 		if y == acik: continue
 		var mi := MeshInstance3D.new()
@@ -1885,20 +1896,20 @@ func _tel_ekstra_kur() -> void:
 	st.set_corner_radius_all(16)
 	tel_bildirim.add_theme_stylebox_override("panel", st)
 	tel_bildirim.position = Vector2(12, -120)
-	tel_bildirim.size = Vector2(336, 96)
+	tel_bildirim.size = Vector2(336, 128)
 	tel_vp.add_child(tel_bildirim)
 	var kim := Label.new()
 	kim.text = "Mesajlar · Amir · şimdi"
-	kim.add_theme_font_size_override("font_size", 14)
+	kim.add_theme_font_size_override("font_size", 18)
 	kim.add_theme_color_override("font_color", Color(0.7, 0.7, 0.72))
 	kim.position = Vector2(16, 10)
 	tel_bildirim.add_child(kim)
 	var ne := Label.new()
 	ne.text = "Gece 12'de kulübede ol. Geç kalma."
-	ne.add_theme_font_size_override("font_size", 18)
+	ne.add_theme_font_size_override("font_size", 24)
 	ne.autowrap_mode = TextServer.AUTOWRAP_WORD
-	ne.size = Vector2(310, 60)
-	ne.position = Vector2(16, 34)
+	ne.size = Vector2(310, 80)
+	ne.position = Vector2(16, 38)
 	tel_bildirim.add_child(ne)
 	tel_bildirim.visible = false
 
