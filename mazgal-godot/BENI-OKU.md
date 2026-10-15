@@ -8,7 +8,8 @@ Oyun artık Godot 4 ile yapılıyor. Steam'e masaüstü oyun olarak çıkacak. D
 3. Sağ üstteki **▶** düğmesiyle oyun başlar (laptopta F5 ses tuşuysa Fn+F5).
 
 ## Kontroller
-WASD yürü, Shift koş, Ctrl eğil, F fener, Esc fareyi bırakır.
+WASD yürü, Shift koş, Ctrl eğil, F fener, E etkileşim (arabaya bin / in), Esc fareyi bırakır.
+Arabada: W gaz, S fren ve geri, A D direksiyon, fareyle etrafa bakılır.
 
 ## Dosyaları nereye atacaksın
 - **3D modeller** (`.glb`, `.gltf`, `.fbx`, `.blend`): `modeller/` klasörüne at. Godot onları kendisi içe alır ve oldukları gibi 3D kalırlar.
@@ -19,7 +20,7 @@ WASD yürü, Shift koş, Ctrl eğil, F fener, Esc fareyi bırakır.
 Attıktan sonra bana hangi dosyayı attığını yaz, ben oyuna bağlarım.
 
 ## Klasörler
-- `sahneler/`: oyun sahneleri (`ev.tscn` Selim'in evi ve akşam sinematiği, ardından `sokak.tscn`)
+- `sahneler/`: oyun sahneleri (`ev.tscn` Selim'in evi ve akşam sinematiği, ardından `sokak.tscn`: evden çıkış, arabayla kulübeye sürüş)
 - `tv/`: TV yayınının videosu ve fotoğrafları
 - `kod/`: GDScript kodları
 - `modeller/`: 3D modeller (`sehir.glb` senin şehrin, orijinal haliyle)
