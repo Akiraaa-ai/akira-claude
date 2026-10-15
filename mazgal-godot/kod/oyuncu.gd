@@ -11,7 +11,7 @@ extends CharacterBody3D
 @onready var fener: SpotLight3D = $Kafa/Kamera/Fener
 @onready var adim: AudioStreamPlayer3D = $Adim
 
-const BOY := 1.65
+const BOY := 1.51
 const EGIK_BOY := 0.95
 var yercekimi: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var salinim := 0.0
