@@ -301,7 +301,7 @@ func _uyanis() -> void:
 	var titre := alarm and fmod(ft, 1.0) < 0.42
 	telefon.position = TEL_YATAK + (Vector3(randf_range(-1, 1), 0, randf_range(-1, 1)) * 0.0016 if titre else Vector3.ZERO)
 	tel_isigi.position = TEL_YATAK + Vector3(0, 0.12, 0)
-	tel_isigi.light_energy = (0.55 + 0.25 * sin(ft * 9.0)) if alarm else move_toward(tel_isigi.light_energy, 0.0, get_process_delta_time() * 0.4)
+	tel_isigi.light_energy = (0.16 + 0.06 * sin(ft * 9.0)) if alarm else move_toward(tel_isigi.light_energy, 0.0, get_process_delta_time() * 0.4)
 	if ft > 6.2 and not _eylem.has("uzan"):
 		_eylem["uzan"] = true
 		eller.uzan("sag", TEL_YATAK + Vector3(0.0, 0.06, -0.02), 1.0)
@@ -1834,7 +1834,8 @@ func _telefon_yataga() -> void:
 	tel_alarm.visible = true
 	tel_isigi = OmniLight3D.new()
 	tel_isigi.light_color = Color(0.75, 0.82, 1.0)
-	tel_isigi.omni_range = 1.8
+	tel_isigi.omni_range = 1.4
+	tel_isigi.omni_attenuation = 2.0
 	tel_isigi.light_energy = 0.0
 	add_child(tel_isigi)
 	tel_isigi.position = TEL_YATAK + Vector3(0, 0.12, 0)
