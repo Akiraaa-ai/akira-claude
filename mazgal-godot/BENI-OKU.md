@@ -5,7 +5,7 @@ Oyun artık Godot 4 ile yapılıyor. Steam'e masaüstü oyun olarak çıkacak. D
 ## Açmak
 1. Godot 4.7'ü indir (ücretsiz): https://godotengine.org/download (Windows, "Godot Engine", .NET olmayan sürüm).
 2. Godot'u aç, **Import** de, bu klasördeki `project.godot` dosyasını seç.
-3. **F5** ile oyun başlar.
+3. Sağ üstteki **▶** düğmesiyle oyun başlar (laptopta F5 ses tuşuysa Fn+F5).
 
 ## Kontroller
 WASD yürü, Shift koş, Ctrl eğil, F fener, Esc fareyi bırakır.
@@ -14,11 +14,13 @@ WASD yürü, Shift koş, Ctrl eğil, F fener, Esc fareyi bırakır.
 - **3D modeller** (`.glb`, `.gltf`, `.fbx`, `.blend`): `modeller/` klasörüne at. Godot onları kendisi içe alır ve oldukları gibi 3D kalırlar.
 - **Sesler** (`.mp3`, `.wav`, `.ogg`): `sesler/` klasörüne at.
 - **Mixamo karakter ve animasyonlar**: `modeller/selim/` klasörüne at.
+- **Telefon videosu** (Selim'in TikTok kaydırdığı): `telefon/` klasörüne at. Godot yalnızca `.ogv` oynatır; mp4 atarsan ben çeviririm.
 
 Attıktan sonra bana hangi dosyayı attığını yaz, ben oyuna bağlarım.
 
 ## Klasörler
-- `sahneler/`: oyun sahneleri (`sokak.tscn` açılış sokağı)
+- `sahneler/`: oyun sahneleri (`ev.tscn` Selim'in evi ve akşam sinematiği, ardından `sokak.tscn`)
+- `tv/`: TV yayınının videosu ve fotoğrafları
 - `kod/`: GDScript kodları
 - `modeller/`: 3D modeller (`sehir.glb` senin şehrin, orijinal haliyle)
 - `sesler/`: seslendirmeler ve müzikler
