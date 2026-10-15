@@ -144,6 +144,11 @@ func _yolculuk_kur() -> void:
 	ses_kapi.global_position = oyuncu.global_position + Vector3(1.2, 1.0, 0)
 	ses_kapi.play()
 	_ipucu("Arabana git", 0.0)
+	# fener kulübedeki masada: alınıp pili takılana kadar F çalışmaz
+	(oyuncu.get_node("Kafa/Kamera/Fener") as SpotLight3D).visible = false
+	oyuncu.fener_izin = false
+	oyuncu.fener_bos.connect(func() -> void:
+		if _fener_tutuldu and not _pil_takildi: _gecici_ipucu("Pil yok", 2.0))
 	eller = Eller.new()
 	oyuncu_kamera.add_child(eller)
 	atmosfer = Atmosfer.new()
@@ -329,8 +334,8 @@ func _arayuz_kur() -> void:
 	siyah.set_anchors_preset(Control.PRESET_FULL_RECT); siyah.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cl.add_child(siyah)
 	ipucu = Label.new()
-	ipucu.add_theme_font_size_override("font_size", 26)
-	ipucu.add_theme_color_override("font_color", Color(0.85, 0.85, 0.8, 0.85))
+	ipucu.add_theme_font_size_override("font_size", 20)
+	ipucu.add_theme_color_override("font_color", Color(0.85, 0.85, 0.8, 0.75))
 	ipucu.add_theme_color_override("font_outline_color", Color.BLACK)
 	ipucu.add_theme_constant_override("outline_size", 8)
 	ipucu.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -651,7 +656,40 @@ func _kulube_kur() -> void:
 	if eller == null:
 		eller = Eller.new()
 		oyuncu_kamera.add_child(eller)
+	_fener_m = _masa_esyasi(FENER_MODEL, FENER_BOY, FENER_YERI, FENER_DONUS)
+	_pil_m = _masa_esyasi(PIL_MODEL, PIL_BOY, PIL_YERI, PIL_DONUS)
 	_cizelge_kur()
+
+
+## Masaya konan eşya: modelin en uzun ekseni düğümün Z eksenine çevrilir, ortası düğümün merkezine
+## gelir, boyu `boy` metre olur. Düğüm masada `donus` ile yatar.
+func _masa_esyasi(yol: String, boy: float, yer: Vector3, donus: Vector3) -> Node3D:
+	if not ResourceLoader.exists(yol): return null
+	var kap := Node3D.new()
+	$Kulube.add_child(kap)
+	var n: Node3D = (load(yol) as PackedScene).instantiate()
+	kap.add_child(n)
+	var a := AABB(); var ilk := true
+	for m in n.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		var b: AABB = n.global_transform.affine_inverse() * mi.global_transform * mi.get_aabb()
+		a = b if ilk else a.merge(b); ilk = false
+	var o := boy / maxf(a.get_longest_axis_size(), 0.001)
+	var don := Basis.IDENTITY
+	match a.get_longest_axis_index():
+		Vector3.AXIS_X: don = Basis(Vector3.UP, -PI * 0.5)
+		Vector3.AXIS_Y: don = Basis(Vector3.RIGHT, PI * 0.5)
+	n.transform = Transform3D(don.scaled(Vector3.ONE * o), -(don * a.get_center()) * o)
+	kap.rotation_degrees = donus
+	# masanın üstüne oturur: alt yüzü masa hizasına gelir
+	kap.position = yer
+	var alt := 1e9
+	for m in n.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		var b: AABB = mi.global_transform * mi.get_aabb()
+		alt = minf(alt, b.position.y)
+	kap.global_position.y += _k(yer).y - alt
+	return kap
 
 
 # arka duvarda nöbet çizelgesi: bu gecenin satırında Selim'in adı
@@ -911,7 +949,7 @@ func _konusma() -> void:
 			(oyuncu.get_node("Kafa") as Node3D).rotation = Vector3.ZERO
 			oyuncu_kamera.transform = Transform3D.IDENTITY
 			_oyuncuyu_dondur(false)
-			_ipucu("Mazgala bak: kulübeden çık, caddenin ortası", 8.0)
+			_ipucu(GOREV_MAZGAL, 0.0)
 			get_tree().create_timer(1.0).timeout.connect(func() -> void: if not _soylenen.has("ic08"): _soyle("ic08"))
 			_gec("mazgala")
 			return
@@ -927,7 +965,7 @@ func _oyuncuyu_dondur(dur: bool) -> void:
 	if dur: oyuncu.velocity = Vector3.ZERO
 
 
-# ---------------- mazgal: lamba söner, fener açılır, kenar çöker, düşüş ----------------
+# ---------------- mazgal: fener ve pil, lambalar söner, eğilip bakar, itilir, düşüş ----------------
 var _kenar_lamba: SpotLight3D
 var _kenar_enerji := 0.0
 var _titreme := 0.0
@@ -937,25 +975,148 @@ var _ugultu_gen: AudioStreamGeneratorPlayback
 var _ugultu_guc := 0.0
 var _ugultu_faz := 0.0
 
+# kulübenin masasındaki fener ve pil (alp'in modelleri)
+const FENER_MODEL := "res://modeller2/el feneri ve pil/flashlight.glb"
+const PIL_MODEL := "res://modeller2/el feneri ve pil/simple_battery (1).glb"
+const FENER_BOY := 0.22
+const PIL_BOY := 0.06
+const FENER_YERI := Vector3(0.66, 1.14, -0.3)
+const FENER_DONUS := Vector3(0, 70, 0)
+const PIL_YERI := Vector3(0.64, 1.14, -0.8)
+const PIL_DONUS := Vector3(0, 0, 0)
+# fener elde: kamera uzayında duruşu
+const FENER_ELDE := Vector3(0.16, -0.2, -0.45)
+const GOREV_MAZGAL := "Mazgalı kontrol et"
+var _fener_m: Node3D
+var _pil_m: Node3D
+var _alim := {}
+var _fener_tutuldu := false
+var _pil_takildi := false
+var _sonen := []          # [lamba, başlangıç]
+var _sonraki_sonme := 1.0
+var _egil_bas := Vector3.ZERO
+
+## Kısa süreli yazı; süre dolunca o anki görev yazısı geri gelir.
+func _gecici_ipucu(metin: String, sure: float) -> void:
+	var gorev := GOREV_MAZGAL if durum == "mazgala" else ""
+	ipucu.text = metin
+	var bu := Time.get_ticks_msec() + int(sure * 1000.0)
+	_ipucu_bitis = bu
+	get_tree().create_timer(sure).timeout.connect(func() -> void:
+		if _ipucu_bitis == bu and ipucu.text == metin: ipucu.text = gorev if durum == "mazgala" else "")
+
 func _mazgala() -> void:
+	_sonmeler(get_process_delta_time())
+	_fener_pil()
 	var yatay := Vector2(oyuncu.global_position.x - MAZGAL.x, oyuncu.global_position.z - MAZGAL.z).length()
 	if yatay < 9.0 and not _soylenen.has("mirilti"): _soyle("mirilti")
-	if yatay < 1.6:
+	if yatay < 2.4 and _e_bak("mazgal", MAZGAL, "Mazgala bak", 2.8):
+		# bu andan sonra oyuncunun kontrolü yok
+		_ipucu("", 0.0)
 		_oyuncuyu_dondur(true)
 		_bakis_bas = oyuncu_kamera.global_basis
+		_egil_bas = oyuncu_kamera.global_position
 		_kenar_lamba = _en_yakin_lamba(MAZGAL)
 		if _kenar_lamba: _kenar_enerji = _kenar_lamba.light_energy
 		_ugultu_kur()
 		_gec("kenar")
 
+# masadan feneri ve pili alır; oyun durmaz, Selim yürümeye devam edebilir
+func _fener_pil() -> void:
+	# ikisi yan yana: yalnızca bakılana daha yakın olanın yazısı çıkar
+	var bak := -oyuncu_kamera.global_basis.z
+	var aday := ""
+	var en_iyi := -1.0
+	for ad in ["fener", "pil"]:
+		var m: Node3D = _fener_m if ad == "fener" else _pil_m
+		if m == null or _alim.has(ad): continue
+		var nokta := bak.dot((m.global_position - oyuncu_kamera.global_position).normalized())
+		if nokta > en_iyi: en_iyi = nokta; aday = ad
+	if aday == "fener" and _e_bak("fener", _fener_m.global_position, "Feneri al", 1.9):
+		_alim["fener"] = dt_durum
+		eller.uzan("sag", _fener_m.global_position, 0.45)
+	elif aday == "pil" and _e_bak("pil", _pil_m.global_position, "Pili al", 1.9):
+		_alim["pil"] = dt_durum
+		eller.uzan("sol", _pil_m.global_position, 0.45)
+	if e_yazi.visible and e_yazi.get_meta("ad", "") in ["fener", "pil"] and e_yazi.get_meta("ad", "") != aday:
+		e_yazi.visible = false
+	if _alim.has("fener") and not _fener_tutuldu and dt_durum - float(_alim["fener"]) > 0.45:
+		_fener_tutuldu = true
+		_fener_m.get_parent().remove_child(_fener_m)
+		oyuncu_kamera.add_child(_fener_m)
+		_fener_m.position = FENER_ELDE
+		# modelin başı (camı) +Z yönünde: öne baksın diye döndürülür
+		_fener_m.rotation_degrees = Vector3(0, 180, 0)
+		var isik := oyuncu.get_node("Kafa/Kamera/Fener") as SpotLight3D
+		isik.position = FENER_ELDE + Vector3(0, 0, -FENER_BOY * 0.5)
+		eller.kamerada("sag", FENER_ELDE + Vector3(0.01, -0.04, 0.12), 0.45)
+		eller.yumruk("sag", 0.7)
+		_kisa_ses(_tik_sesi(), oyuncu_kamera.global_position, 0.6, -14.0)
+	if _alim.has("pil") and _pil_m.visible and dt_durum - float(_alim["pil"]) > 0.45:
+		_pil_m.visible = false
+		eller.yumruk("sol", 0.6)
+		_kisa_ses(_tik_sesi(), oyuncu_kamera.global_position, 0.5, -16.0)
+	# pil fenere takılır: fener eldeyse sol el ona gider, tık sesiyle takar, sonra iner
+	if _alim.has("pil") and not _pil_m.visible and _fener_tutuldu and not _pil_takildi:
+		if not _alim.has("tak"):
+			_alim["tak"] = dt_durum
+			eller.kamerada("sol", FENER_ELDE + Vector3(-0.05, -0.02, 0.1), 0.4)
+		elif dt_durum - float(_alim["tak"]) > 0.6:
+			_pil_takildi = true
+			eller.birak("sol", 0.5)
+			eller.yumruk("sol", 0.0)
+			_kisa_ses(_tik_sesi(), oyuncu_kamera.global_position, 1.4, -10.0)
+			oyuncu.fener_izin = true
+			_gecici_ipucu("F  Fener", 3.0)
+
+# Selim kulübeden çıkınca yakındaki sokak lambaları birer birer titreyip söner
+func _sonmeler(dt: float) -> void:
+	for s_ in _sonen:
+		var l: SpotLight3D = s_[0]
+		var t: float = T_simdi() - float(s_[1])
+		if not l.visible: continue
+		if t < 1.4:
+			var guc: float = float(s_[2])
+			l.light_energy = guc * (randf_range(0.0, 0.45) if randf() < 0.5 else 0.9)
+			if l.has_meta("hale"): (l.get_meta("hale") as OmniLight3D).light_energy = 0.7 * l.light_energy / guc
+		else:
+			l.visible = false
+			for m in ["hale", "parilti"]:
+				if l.has_meta(m): (l.get_meta(m) as Node3D).visible = false
+			_kisa_ses(_kapi_sesi(), l.global_position, 3.5, -14.0)
+	if _kulube_ici(oyuncu.global_position): return
+	_sonraki_sonme -= dt
+	if _sonraki_sonme > 0.0: return
+	_sonraki_sonme = randf_range(1.3, 2.2)
+	var mazgal_lamba := _en_yakin_lamba(MAZGAL)
+	var p := oyuncu.global_position
+	var en: SpotLight3D = null
+	var d := 45.0
+	for l in $Lambalar.get_children():
+		if not (l is SpotLight3D) or not l.visible or l == mazgal_lamba: continue
+		if _sonen.any(func(s_: Array) -> bool: return s_[0] == l): continue
+		var u := Vector2(l.global_position.x - p.x, l.global_position.z - p.z).length()
+		if u < d: d = u; en = l
+	if en: _sonen.append([en, T_simdi(), en.light_energy])
+
 func _kenar(dt: float) -> void:
-	# Selim mazgalın içine bakar
-	var hedef := Basis.looking_at(MAZGAL + Vector3(0, -1.5, 0) - oyuncu_kamera.global_position)
-	oyuncu_kamera.global_basis = _bakis_bas.slerp(hedef, smoothstep(0.0, 1.4, dt_durum)).orthonormalized()
-	_ugultu_guc = 0.5 * smoothstep(0.3, 5.0, dt_durum)
+	# Selim mazgalın kenarına çömelir ve içine bakar
+	var t := dt_durum
+	var yon := Vector3(MAZGAL.x - _egil_bas.x, 0.0, MAZGAL.z - _egil_bas.z)
+	yon = yon.normalized() if yon.length() > 0.01 else Vector3.FORWARD
+	var comel := Vector3(MAZGAL.x, 0.9, MAZGAL.z) - yon * 0.7
+	var k := smoothstep(0.0, 1.4, t)
+	var yer := _egil_bas.lerp(comel, k)
+	# arkadan bir el iter: kamera öne ve aşağı savrulur
+	var it := smoothstep(5.6, 5.85, t)
+	yer += yon * 0.45 * it + Vector3(0, -0.15 * it, 0)
+	var bakis := _bakis_bas.slerp(Basis.looking_at(MAZGAL + Vector3(0, -1.5, 0) - yer), k).orthonormalized()
+	if it > 0.0: bakis = (Basis(bakis.x.normalized(), -0.6 * it) * bakis).orthonormalized()
+	oyuncu_kamera.global_transform = Transform3D(bakis, yer)
+	_ugultu_guc = 0.5 * smoothstep(0.3, 5.0, t)
 	# yakındaki sokak lambası titrer ve söner
 	if _kenar_lamba:
-		if dt_durum < 1.9:
+		if t < 1.9:
 			_titreme -= dt
 			if randf() < dt * 9.0: _titreme = randf_range(0.05, 0.15)
 			_kenar_lamba.light_energy = _kenar_enerji * (randf_range(0.0, 0.5) if _titreme > 0.0 else 0.9)
@@ -964,13 +1125,16 @@ func _kenar(dt: float) -> void:
 			for m in ["hale", "parilti"]:
 				if _kenar_lamba.has_meta(m): (_kenar_lamba.get_meta(m) as Node3D).visible = false
 			_kisa_ses(_kapi_sesi(), _kenar_lamba.global_position, 3.5, -16.0)
+	# feneri hazırsa Selim onu açar
 	var fener := oyuncu.get_node("Kafa/Kamera/Fener") as SpotLight3D
-	if dt_durum > 2.8 and not fener.visible: fener.visible = true
-	if dt_durum > 3.5 and not _soylenen.has("ses"): _soyle("ses")
-	if dt_durum > 5.9:
-		# kenar çöker
-		_kisa_ses(_cokme_sesi(), oyuncu.global_position, 1.0, 4.0)
-		if bodycam: bodycam.bozul(0.7, 0.5)
+	if t > 2.8 and _pil_takildi and not fener.visible: fener.visible = true
+	if t > 3.5 and not _soylenen.has("ses"): _soyle("ses")
+	if t > 5.6 and not _soylenen.has("itildi"):
+		_soylenen["itildi"] = true
+		_kisa_ses(_gumbur_sesi(), yer - yon * 0.6 + Vector3(0, 0.3, 0), 1.7, 0.0)
+		if bodycam: bodycam.bozul(0.9, 0.4)
+	if t > 5.9:
+		_kisa_ses(_cokme_sesi(), yer, 1.0, 2.0)
 		_dusus_bas = oyuncu_kamera.global_transform
 		_gec("dusus")
 
