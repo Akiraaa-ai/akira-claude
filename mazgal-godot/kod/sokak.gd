@@ -6,11 +6,18 @@ extends Node3D
 const SEHIR_DOSYALARI := ["res://modeller/sehir.glb", "res://modeller/Terrain Remaked.glb", "res://dokular/source/Terrain Remaked.glb", "res://dokular/source/sehir.glb"]
 
 @onready var sehir: Node3D = $Sehir
+# şehir modelinin derinliği; ikinci kopya bu kadar kuzeyde (dünyada -z) durur
+const SEHIR_BOY := 164.7771
 
 func _ready() -> void:
 	for yol in SEHIR_DOSYALARI:
 		if ResourceLoader.exists(yol):
 			sehir.add_child((load(yol) as PackedScene).instantiate())
+			# şehir büyüsün diye aynı dosyanın ikinci kopyası kuzeye, ilkinin ucuna eklenir (tam boyut)
+			var ikinci: Node3D = (load(yol) as PackedScene).instantiate()
+			ikinci.name = "Sehir2"
+			ikinci.position = Vector3(0, 0, SEHIR_BOY)
+			sehir.add_child(ikinci)
 			break
 	if sehir.get_child_count() == 0:
 		push_error("Şehir modeli bulunamadı: modeller/ klasörüne sehir.glb ya da Terrain Remaked.glb koy")
@@ -63,8 +70,11 @@ func _physics_process(_dt: float) -> void:
 # şehrin kenarlarına görünmez duvar: arabayla ya da yürüyerek boşluğa çıkılmaz
 func _sinir_duvarlari() -> void:
 	var g := StaticBody3D.new(); g.name = "SinirDuvarlari"; add_child(g)
-	for d in [[Vector3(-117.5, 3, -13), Vector3(1, 8, 170)], [Vector3(37.5, 3, -13), Vector3(1, 8, 170)],
-			[Vector3(-40, 3, -95.5), Vector3(160, 8, 1)], [Vector3(-40, 3, 69.5), Vector3(160, 8, 1)]]:
+	var kuzey := -95.5 - SEHIR_BOY
+	var orta := (kuzey + 69.5) * 0.5
+	var boy := 69.5 - kuzey + 5.0
+	for d in [[Vector3(-117.5, 3, orta), Vector3(1, 8, boy)], [Vector3(37.5, 3, orta), Vector3(1, 8, boy)],
+			[Vector3(-40, 3, kuzey), Vector3(160, 8, 1)], [Vector3(-40, 3, 69.5), Vector3(160, 8, 1)]]:
 		var c := CollisionShape3D.new(); var b := BoxShape3D.new()
 		b.size = d[1]; c.shape = b; c.position = d[0]; g.add_child(c)
 
@@ -181,6 +191,7 @@ func _process(dt: float) -> void:
 	if atmosfer:
 		atmosfer.iceride = _kulube_ici(oyuncu.global_position)
 		atmosfer.araba_gecebilir = durum in ["yuruyus", "kulube", "konusma", "mazgala"]
+	_tarif_guncelle()
 	match durum:
 		"yuruyus": _yuruyus()
 		"binis": _binis()
@@ -303,7 +314,7 @@ func _park() -> void:
 	oyuncu.global_position = Vector3(yer.x, araba.global_position.y + 0.3, yer.z)
 	oyuncu.global_rotation = Vector3(0, araba.global_rotation.y + PI * 0.5, 0)
 	(oyuncu.get_node("Kafa") as Node3D).rotation = Vector3.ZERO
-	_gecis_bit = Transform3D(oyuncu.global_transform.basis, oyuncu.global_position + Vector3(0, 1.65, 0))
+	_gecis_bit = Transform3D(oyuncu.global_transform.basis, oyuncu.global_position + Vector3(0, oyuncu.BOY, 0))
 	ses_yagmur.volume_db = -8.0
 	_gec("inis")
 
@@ -359,6 +370,16 @@ func _arayuz_kur() -> void:
 	e_yazi.add_theme_constant_override("outline_size", 5)
 	e_yazi.visible = false
 	cl.add_child(e_yazi)
+	tarif = Label.new()
+	tarif.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	tarif.add_theme_font_size_override("font_size", 20)
+	tarif.add_theme_color_override("font_color", Color(0.85, 0.85, 0.8, 0.8))
+	tarif.add_theme_color_override("font_outline_color", Color.BLACK)
+	tarif.add_theme_constant_override("outline_size", 8)
+	tarif.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tarif.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	tarif.offset_left = -500; tarif.offset_right = 500; tarif.offset_top = 40; tarif.offset_bottom = 70
+	cl.add_child(tarif)
 	bodycam = Bodycam.new()
 	add_child(bodycam)
 
@@ -1233,3 +1254,52 @@ func _zil_sesi() -> AudioStreamWAV:
 	w.format = AudioStreamWAV.FORMAT_16_BITS; w.mix_rate = hiz; w.data = veri
 	w.loop_mode = AudioStreamWAV.LOOP_FORWARD; w.loop_end = int(hiz * sure)
 	return w
+
+
+# ---------------- yol tarifi ----------------
+# Evden kulübeye: kuzeye düz, ortadaki caddeden sola, sonra sağa; kulübe sağda.
+# Kulübeden mazgala: tarif mazgalın yönünü ve uzaklığını söyler.
+const ROTA := [Vector3(-11.3, 0, 0.25), Vector3(-57.2, 0, 0.25), KULUBE_PARK]
+var tarif: Label
+var _rota_i := 0
+
+func _tarif_guncelle() -> void:
+	if durum == "surus":
+		tarif.text = _surus_tarifi()
+	elif durum == "mazgala":
+		var yatay := Vector2(oyuncu.global_position.x - MAZGAL.x, oyuncu.global_position.z - MAZGAL.z).length()
+		tarif.text = "" if yatay < 2.4 else tr("Mazgal: %d m, %s") % [int(round(yatay)), tr(_yon_adi(-oyuncu_kamera.global_basis.z, MAZGAL - oyuncu.global_position, false))]
+	else:
+		tarif.text = ""
+
+func _surus_tarifi() -> String:
+	var p := araba.global_position
+	while _rota_i < ROTA.size() - 1 and Vector2(p.x - ROTA[_rota_i].x, p.z - ROTA[_rota_i].z).length() < 10.0:
+		_rota_i += 1
+	# köşeyi kestiyse de sonraki caddeye girmiş sayılır
+	for j in range(_rota_i + 1, ROTA.size()):
+		var y := Geometry3D.get_closest_point_to_segment(Vector3(p.x, 0, p.z), ROTA[j - 1], ROTA[j])
+		if Vector2(p.x - y.x, p.z - y.z).length() < 8.0: _rota_i = j
+	var h: Vector3 = ROTA[_rota_i]
+	var uzak := Vector2(p.x - h.x, p.z - h.z).length()
+	var son := _rota_i == ROTA.size() - 1
+	if son and uzak < PARK_YARICAP: return ""
+	var yon := _yon_adi(-araba.global_basis.z, h - p, true)
+	if yon != "ileride":
+		return tr("Kulübe: %s") % tr(yon)
+	var m := int(maxf(10.0, round(uzak / 10.0) * 10.0))
+	if son:
+		return tr("Kulübe: %d m ileride, sağda") % m
+	var a: Vector3 = ROTA[_rota_i - 1] if _rota_i > 0 else p
+	var d1 := h - a; var d2: Vector3 = ROTA[_rota_i + 1] - h
+	var sola := d1.cross(d2).y > 0.0
+	return tr("Kulübe: %d m sonra sola dön") % m if sola else tr("Kulübe: %d m sonra sağa dön") % m
+
+## hedefin bakılan yöne göre nerede olduğu; sürüşte "sola dön", yürürken "solunda"
+func _yon_adi(ileri: Vector3, hedef: Vector3, surus: bool) -> String:
+	var a := Vector2(ileri.x, ileri.z).angle_to(Vector2(hedef.x, hedef.z))
+	if absf(a) < deg_to_rad(35.0): return "ileride"
+	if absf(a) > deg_to_rad(120.0): return "geri dön" if surus else "arkanda"
+	# Vector2(x, z) düzleminde açı artışı sağa dönüş demek
+	if a > 0.0: return "sağa dön" if surus else "sağında"
+	return "sola dön" if surus else "solunda"

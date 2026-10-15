@@ -65,7 +65,7 @@ func menude_mi() -> bool:
 
 func _unhandled_input(e: InputEvent) -> void:
 	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_ESCAPE:
-		if menude_mi(): return
+		if menude_mi() or yukleniyor_mu(): return
 		get_viewport().set_input_as_handled()
 		if acik: devam()
 		else: duraklat()
