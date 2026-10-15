@@ -1,0 +1,22 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="PackedScene" path="res://modeller2/klübe/booth/Booth.gltf" id="1"]
+[ext_resource type="PackedScene" path="res://modeller2/eskitelefon/old_phone_blue_2.glb" id="2"]
+[ext_resource type="PackedScene" path="res://modeller2/tüplütv/crt-tv.glb" id="3"]
+
+[node name="Kulube" type="Node3D"]
+
+[node name="Bina" parent="." instance=ExtResource("1")]
+
+[node name="Telefon" parent="." instance=ExtResource("2")]
+transform = Transform3D(0, 0, 0.11, 0, 0.11, 0, -0.11, 0, 0, 0.85, 1.186, -1.3)
+
+[node name="TV" parent="." instance=ExtResource("3")]
+transform = Transform3D(0, 0, -0.13, 0, 0.13, 0, 0.13, 0, 0, 0.9, 1.135, -0.55)
+
+[node name="Ampul" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.3, -1.0)
+light_color = Color(1, 0.8, 0.55, 1)
+light_energy = 1.2
+shadow_enabled = true
+omni_range = 7.0

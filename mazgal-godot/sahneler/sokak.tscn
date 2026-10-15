@@ -1,9 +1,12 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://kod/sokak.gd" id="1"]
 [ext_resource type="Script" path="res://kod/oyuncu.gd" id="3"]
 [ext_resource type="Script" path="res://kod/yagmur.gd" id="4"]
 [ext_resource type="Script" path="res://kod/lambalar.gd" id="5"]
+[ext_resource type="PackedScene" path="res://sahneler/kulube.tscn" id="6"]
+[ext_resource type="PackedScene" path="res://modeller2/selim araba/old_car.glb" id="7"]
+[ext_resource type="Script" path="res://kod/model_carpisma.gd" id="8"]
 
 [sub_resource type="Environment" id="env"]
 background_mode = 1
@@ -61,11 +64,19 @@ shadow_enabled = true
 [node name="Sehir" type="Node3D" parent="."]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -14.5, 0, -43.75)
 
+[node name="Kulube" parent="." instance=ExtResource("6")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -52.5, 0, -82)
+script = ExtResource("8")
+
+[node name="Araba" parent="." instance=ExtResource("7")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -58, 0, -78)
+script = ExtResource("8")
+
 [node name="Lambalar" type="Node3D" parent="."]
 script = ExtResource("5")
 
 [node name="Selim" type="CharacterBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -60, 0.2, -6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -56, 0.2, -76)
 script = ExtResource("3")
 
 [node name="Govde" type="CollisionShape3D" parent="Selim"]
