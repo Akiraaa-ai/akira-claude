@@ -51,7 +51,7 @@ var _yan: VBoxContainer
 var _panel: Control
 var _yapimcilar: RichTextLabel
 var _kontroller: Label
-var _ayar: VBoxContainer
+var _ayar: Control
 var _siyah: ColorRect
 var _radyo: AudioStreamPlayer
 var _yagmur_ses: AudioStreamPlayer
@@ -157,12 +157,13 @@ func _daktilo(ad: String, bas: float, hiz: float) -> void:
 		var lb := l as Label
 		if not lb.has_meta("yaz"): continue
 		var n := int((T - bas) / hiz)
-		bas += lb.text.length() * hiz + 0.4
+		var uzun := tr(lb.text).length()
+		bas += uzun * hiz + 0.4
 		var once: int = _yazilan.get(lb, -1)
-		lb.visible_characters = clampi(n, 0, lb.text.length())
+		lb.visible_characters = clampi(n, 0, uzun)
 		if lb.visible_characters != once:
 			_yazilan[lb] = lb.visible_characters
-			if lb.visible_characters > 0 and lb.visible_characters < lb.text.length(): _tik.play()
+			if lb.visible_characters > 0 and lb.visible_characters < uzun: _tik.play()
 
 
 # ---------------- arayüz ----------------
@@ -220,6 +221,9 @@ func _menu_kur() -> void:
 	_menu.add_child(_yan)
 	_yan.add_child(_etiket("MAZGAL", 96, Color(0.88, 0.86, 0.8)))
 	_yan.add_child(_etiket("●  KAYIT 14.10.2026 · 00:00:00", 18, Color(0.6, 0.3, 0.26)))
+	var d0 := get_node_or_null("/root/Duraklat")
+	if d0 and d0.kayit_var():
+		_yan.add_child(_dugme("DEVAM ET", func() -> void: _devam_et()))
 	_yan.add_child(_dugme("YENİ OYUN", func() -> void: _yeni_oyun()))
 	_yan.add_child(_dugme("AYARLAR", func() -> void: _goster("ayar")))
 	_yan.add_child(_dugme("KONTROLLER", func() -> void: _goster("kontrol")))
@@ -235,7 +239,7 @@ func _menu_kur() -> void:
 	_yapimcilar.add_theme_color_override("default_color", Color(0.85, 0.83, 0.77))
 	_yapimcilar.size = Vector2(900, 780); _yapimcilar.visible = false
 	_panel.add_child(_yapimcilar)
-	_kontroller = _etiket("KONTROLLER\n\nW A S D      yürü\nSHIFT        koş\nCTRL         eğil\nF            fener\nE            etkileşim (arabaya bin / in)\nESC          duraklat\n\nARABADA\nW            gaz\nS            fren / geri\nA D          direksiyon\nFARE         etrafa bak", 24, Color(0.85, 0.83, 0.77))
+	_kontroller = _etiket("KONTROLLER\n\nW A S D      yürü\nSHIFT        koş\nCTRL         eğil\nF            fener\nE            etkileşim\nQ            telefonu bırak\nTEKERLEK     telefonda kaydır\nESC          duraklat\n\nARABADA\nW            gaz\nS            fren / geri\nA D          direksiyon\nFARE         etrafa bak", 24, Color(0.85, 0.83, 0.77))
 	_kontroller.visible = false
 	_panel.add_child(_kontroller)
 	var d := get_node_or_null("/root/Duraklat")
@@ -254,7 +258,20 @@ func _yeni_oyun() -> void:
 	var tw := create_tween()
 	tw.tween_property(_siyah, "color:a", 1.0, 1.2)
 	tw.parallel().tween_property(_radyo, "volume_db", -60.0, 1.2)
-	tw.tween_callback(func() -> void: get_tree().change_scene_to_file(ILK_SAHNE))
+	tw.tween_callback(func() -> void:
+		var d := get_node_or_null("/root/Duraklat")
+		if d:
+			d.yeni_oyun()
+			d.yukle(ILK_SAHNE)
+		else:
+			get_tree().change_scene_to_file(ILK_SAHNE))
+
+func _devam_et() -> void:
+	durum = "gidis"
+	var tw := create_tween()
+	tw.tween_property(_siyah, "color:a", 1.0, 1.0)
+	tw.parallel().tween_property(_radyo, "volume_db", -60.0, 1.0)
+	tw.tween_callback(func() -> void: get_node("/root/Duraklat").kayittan_devam())
 
 func _etiket(metin: String, boy: int, renk: Color) -> Label:
 	var l := Label.new(); l.text = metin

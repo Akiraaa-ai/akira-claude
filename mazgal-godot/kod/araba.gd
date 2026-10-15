@@ -41,7 +41,80 @@ func _ready() -> void:
 	motor.stream = gen
 	_yere_otur(true)
 
+## Camlar: yağmur damlaları birikir, ön camda silecekler geçtikçe silinir; motor yeni çalışınca kenarları buğulu.
+const CAM_SHADER := """shader_type spatial;
+render_mode blend_mix, depth_draw_opaque, cull_disabled, unshaded;
+uniform sampler2D ekran : hint_screen_texture, filter_linear_mipmap;
+uniform float silecek_zaman = 0.0;
+uniform float silecek = 0.0;
+uniform float silecek_bos = 0.0;
+uniform float bugu = 0.6;
+uniform float hiz = 0.0;
+varying vec3 yerel;
+varying vec3 yerel_n;
+float h(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+void vertex() { yerel = VERTEX; yerel_n = NORMAL; }
+void fragment() {
+	// ön cam: aracın önüne bakan, üst taraftaki cam
+	bool on_cam = yerel.x > 30.0 && yerel.y > 64.0 && yerel_n.x > 0.25;
+	vec2 p = on_cam ? vec2(yerel.z, length(yerel.xy - vec2(72.0, 68.0))) : vec2(yerel.x + yerel.z, yerel.y);
+	p *= 0.32;
+	// silecek: iki kol, 1.4 sn'de bir gidip gelir
+	float P = 1.4;
+	float son_gecis = 99.0;
+	if (on_cam && silecek > 0.5) {
+		for (int k = 0; k < 2; k++) {
+			vec2 pv = vec2(k == 0 ? -22.0 : 20.0, 0.0);
+			vec2 q = vec2(yerel.z, length(yerel.xy - vec2(72.0, 68.0))) - pv;
+			if (length(q) < 44.0) {
+				float th = clamp(atan(q.y, q.x) / 3.14159, 0.0, 1.0);
+				float u1 = acos(clamp(1.0 - 2.0 * th, -1.0, 1.0)) / 6.28318;
+				float u2 = 1.0 - u1;
+				float u = fract(silecek_zaman / P);
+				float g = u >= u2 ? u - u2 : (u >= u1 ? u - u1 : u + 1.0 - u2);
+				son_gecis = min(son_gecis, g * P + silecek_bos);
+			}
+		}
+	}
+	float damla = 0.0;
+	vec2 egim = vec2(0.0);
+	for (int k = 0; k < 2; k++) {
+		vec2 q = p * (1.0 + float(k) * 0.8);
+		// yan camlarda araç hızlanınca damlalar geriye akar
+		if (!on_cam) q.x += TIME * hiz * 0.08 * (1.0 + float(k));
+		else q.y -= TIME * (0.08 + float(k) * 0.05);
+		vec2 id = floor(q);
+		vec2 f = fract(q) - 0.5;
+		vec2 c = (vec2(h(id + 2.3), h(id + 7.1)) - 0.5) * 0.5;
+		float r = 0.08 + 0.12 * h(id + 4.4);
+		float gecikme = h(id + 9.7) * 1.2;
+		float var_ = step(0.55, h(id + float(k))) * step(gecikme, son_gecis);
+		float m = smoothstep(r, r * 0.4, length((f - c) * vec2(1.0, 0.8))) * var_;
+		damla = max(damla, m);
+		egim += (f - c) * m;
+	}
+	// buğu: kenarlardan başlar, motor ısındıkça çekilir
+	float kenar = on_cam ? smoothstep(20.0, 45.0, abs(yerel.z)) + smoothstep(85.0, 100.0, yerel.y) : 0.6;
+	float b = clamp(bugu * (0.15 + kenar), 0.0, 0.7);
+	vec3 duz = textureLod(ekran, SCREEN_UV, b * 3.0).rgb;
+	vec3 arka = textureLod(ekran, SCREEN_UV - egim * 0.05, 1.5 + b * 2.0).rgb;
+	vec3 c = mix(duz * 0.92, arka * 1.2 + vec3(0.015), damla);
+	c = mix(c, vec3(0.1, 0.105, 0.11) + c * 0.75, b * 0.35);
+	ALBEDO = c;
+}
+"""
+var cam_mat: ShaderMaterial
+var silecek_acik := false
+var _silecek_t := 0.0
+var _bugu := 0.4
+var _silecek_ses: AudioStreamPlayer3D
+var _silecek_onceki := 0.0
+var _silecek_bos := 0.0
+
 func _camlari_duzelt() -> void:
+	cam_mat = ShaderMaterial.new()
+	var sh := Shader.new(); sh.code = CAM_SHADER
+	cam_mat.shader = sh
 	for m in model.find_children("*", "MeshInstance3D", true, false):
 		var mi := m as MeshInstance3D
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
@@ -49,11 +122,45 @@ func _camlari_duzelt() -> void:
 		for i in mi.mesh.get_surface_count():
 			var mat := mi.mesh.surface_get_material(i)
 			if mat and "glass" in mat.resource_name.to_lower():
-				var cam := StandardMaterial3D.new()
-				cam.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-				cam.albedo_color = Color(0.5, 0.56, 0.6, 0.16)
-				cam.roughness = 0.05; cam.metallic = 0.2
-				mi.set_surface_override_material(i, cam)
+				mi.set_surface_override_material(i, cam_mat)
+	_silecek_ses = AudioStreamPlayer3D.new()
+	_silecek_ses.position = Vector3(0, 1.0, -1.0); _silecek_ses.volume_db = -12.0
+	_silecek_ses.stream = _silecek_sesi()
+	add_child(_silecek_ses)
+
+## Silecek lastiğinin camda sürtünmesi: kısa, kuru bir sürtme ve sonunda tok bir vuruş.
+func _silecek_sesi() -> AudioStream:
+	for uz in ["ogg", "mp3", "wav"]:
+		if ResourceLoader.exists("res://sesler/silecek." + uz): return load("res://sesler/silecek." + uz)
+	var hz := 22050
+	var n := int(hz * 0.62)
+	var b := PackedByteArray(); b.resize(n * 2)
+	var y := 0.0
+	for i in n:
+		var t := float(i) / hz
+		y += (randf_range(-1.0, 1.0) - y) * 0.25
+		var d := y * 0.35 * sin(PI * clampf(t / 0.55, 0.0, 1.0)) * (0.7 + 0.3 * sin(TAU * 31.0 * t))
+		if t > 0.55: d += sin(TAU * 90.0 * t) * exp(-(t - 0.55) * 60.0) * 0.5
+		b.encode_s16(i * 2, int(clampf(d, -1.0, 1.0) * 28000.0))
+	var w := AudioStreamWAV.new(); w.format = AudioStreamWAV.FORMAT_16_BITS; w.mix_rate = hz; w.data = b
+	return w
+
+func _camlar(dt: float) -> void:
+	if cam_mat == null: return
+	if silecek_acik or fmod(_silecek_t, 1.4) > 0.03:
+		_silecek_t += dt
+		_silecek_bos = 0.0
+		# her yarım turda (bir uçtan öbürüne) sürtme sesi
+		if floor(_silecek_t / 0.7) != floor(_silecek_onceki / 0.7): _silecek_ses.play()
+		_silecek_onceki = _silecek_t
+	else:
+		_silecek_bos += dt
+	if _motor_acik: _bugu = maxf(0.05, _bugu - dt * 0.012)
+	cam_mat.set_shader_parameter("silecek_zaman", _silecek_t)
+	cam_mat.set_shader_parameter("silecek", 1.0 if _silecek_t > 0.0 else 0.0)
+	cam_mat.set_shader_parameter("silecek_bos", _silecek_bos)
+	cam_mat.set_shader_parameter("bugu", _bugu)
+	cam_mat.set_shader_parameter("hiz", absf(hiz))
 
 ## Kapıyı aç (true) ya da kapat (false). Sürücü kapısı "DFL_8".
 func kapi(ad: String, acik: bool) -> void:
@@ -76,7 +183,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		var d := get_node_or_null("/root/Duraklat")
 		var h: float = 0.0022 * (float(d.fare) if d else 1.0)
 		_bakis.x = clamp(_bakis.x - e.relative.x * h, deg_to_rad(-110), deg_to_rad(110))
-		_bakis.y = clamp(_bakis.y - e.relative.y * h, deg_to_rad(-55), deg_to_rad(40))
+		_bakis.y = clamp(_bakis.y - e.relative.y * h * (-1.0 if d and d.get("ters_y") == true else 1.0), deg_to_rad(-55), deg_to_rad(40))
 
 func _physics_process(dt: float) -> void:
 	var gaz := 0.0; var yon := 0.0
@@ -108,6 +215,7 @@ func _physics_process(dt: float) -> void:
 			if has_node("Carpma"): ($Carpma as AudioStreamPlayer3D).play()
 		hiz = sign(hiz) * min(abs(hiz), gercek)
 	_yere_otur(false)
+	_camlar(dt)
 	_tekerler(dt)
 	_kapilar(dt)
 	_kamera(dt)
