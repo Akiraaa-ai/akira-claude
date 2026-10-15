@@ -24,7 +24,7 @@ const SALON := Vector3(36, 0, 0)
 const KOLTUK := Vector3(33.7, 1.12, -0.45)        # Selim'in koltuktaki göz hizası
 const EKRAN := Vector3(38.228, 0.84, -0.4)        # TV ekranının ortası
 const SAAT_YERI := Vector3(38.885, 2.05, -0.4)     # duvar saati (TV'nin üstünde)
-const KASE := Vector3(27.4, 0.875, 1.0)            # Nesquik kâsesi
+const KASE := Vector3(27.4, 0.875, 1.18)            # Nesquik kâsesi
 
 @onready var kamera: Camera3D = $Kamera
 @onready var telefon: Node3D = $Kamera/Telefon
@@ -124,7 +124,10 @@ func _gec(ad: String) -> void:
 		"telefon":
 			telefon.visible = true
 			for v in tel_videolar: v.play()
-		"salon": _saat_goster("20:00")
+		"salon":
+			_saat_goster("20:00")
+			$Aksam.visible = false   # gece: güneş artık pencereden vurmaz
+			($Ortam as WorldEnvironment).environment.ambient_light_energy = 0.2
 		"saat":
 			_saat_bas = 20.0 * 60.0 + 10.0 + T / 60.0
 			dakika = _saat_bas
@@ -203,19 +206,19 @@ func _dus() -> void:
 
 
 func _kahvalti() -> void:
-	var otur := Vector3(27.4, 1.22, 1.95)
+	var otur := Vector3(27.4, 1.25, 1.85)
 	_yol([[0.0, otur, KASE], [11.0, otur, KASE + Vector3(0.05, 0, 0)]], ft)
 	karartma = _egri([[0, 1], [0.8, 0], [10.4, 0], [11, 0.0]], ft)
 	# kaşık: kâseden ağza, tekrar kâseye
 	var d := fmod(ft + 0.4, 2.8)
 	var kase_p := KASE + Vector3(sin(ft * 1.7) * 0.025, 0.035, cos(ft * 1.3) * 0.02)
-	var agiz_p := kamera.global_transform * Vector3(0.0, -0.08, -0.13)
+	var agiz_p := kamera.global_transform * Vector3(0.0, -0.13, -0.2)
 	var k := 0.0
 	if d < 0.8: k = 0.0
 	elif d < 1.5: k = smoothstep(0.8, 1.5, d)
 	elif d < 1.9: k = 1.0
 	else: k = 1.0 - smoothstep(1.9, 2.6, d)
-	kasik.visible = ft < 10.0
+	kasik.visible = ft < 10.0 and k < 0.8
 	kasik.global_position = kase_p.lerp(agiz_p, k)
 	var sap := kamera.global_transform * Vector3(0.16, -0.22, 0.05)
 	kasik.look_at(sap, Vector3.UP)
@@ -225,14 +228,14 @@ func _kahvalti() -> void:
 
 
 func _telefon() -> void:
-	var otur := Vector3(27.4, 1.22, 1.95)
-	_yol([[0.0, otur, KASE + Vector3(0.05, 0, 0)], [1.6, otur + Vector3(0, -0.02, 0), Vector3(27.4, 0.75, 1.1)], [12.0, otur + Vector3(0, -0.03, 0), Vector3(27.42, 0.74, 1.12)]], ft)
+	var otur := Vector3(27.4, 1.25, 1.85)
+	_yol([[0.0, otur, KASE + Vector3(0.05, 0, 0)], [1.6, otur + Vector3(0, -0.02, 0), Vector3(27.4, 0.9, 1.2)], [12.0, otur + Vector3(0, -0.03, 0), Vector3(27.42, 0.89, 1.22)]], ft)
 	karartma = _egri([[0, 0], [11.2, 0], [12, 1]], ft)
 	sallanti = 0.6
 	# telefon aşağıdan kaldırılır, kaydırdıkça hafif sallanır
 	var kalk := smoothstep(0.3, 1.8, ft) * (1.0 - smoothstep(10.6, 11.8, ft))
-	telefon.position = Vector3(0.0, lerpf(-0.45, -0.085, kalk), -0.235)
-	telefon.rotation_degrees = Vector3(-22.0 + sin(T * 1.1) * 1.5, sin(T * 0.7) * 2.0, sin(T * 0.9) * 1.2)
+	telefon.position = Vector3(0.0, lerpf(-0.45, -0.035, kalk), -0.215)
+	telefon.rotation_degrees = Vector3(-8.0 + sin(T * 1.1) * 1.5, sin(T * 0.7) * 2.0, sin(T * 0.9) * 1.2)
 	# her 2.3 saniyede bir sonraki videoya kaydırır
 	if tel_akis:
 		var hedef := int(floor(maxf(ft - 2.4, 0.0) / 2.3)) + (1 if ft > 2.4 else 0)
@@ -264,8 +267,9 @@ func _yayin() -> void:
 	_yol([[0.0, KOLTUK, EKRAN], [6.0, KOLTUK + Vector3(0.1, -0.02, 0), EKRAN], [18.0, Vector3(37.65, 0.86, -0.4), EKRAN]], ft)
 	karartma = 0.0
 	sallanti = 0.7
-	var bitti := ses_anlatici.stream != null and not ses_anlatici.playing and ft > 5.0
-	if ft >= TV_SURE + 4.0 or bitti:
+	# anlatıcının sesi bitince (dosya yoksa yayın süresi dolunca) biter
+	var sure := ses_anlatici.stream.get_length() if ses_anlatici.stream else TV_SURE
+	if ft >= sure + 0.6:
 		ses_anlatici.stop()
 		_gec("geri")
 
@@ -285,6 +289,8 @@ func _saat() -> void:
 	var saat_on := SAAT_YERI + Vector3(-0.05, 0, 0)
 	_yol([[0.0, KOLTUK, EKRAN + Vector3(0, 0.05, 0)], [3.0, KOLTUK, saat_on], [16.0, KOLTUK + Vector3(0.02, 0, 0), saat_on]], ft)
 	if ft > 0.6 and not _soylendi("ev2"): _soyle("ev2")
+	kamera.fov = lerpf(70.0, 7.0, smoothstep(0.8, 3.6, ft))
+	sallanti = lerpf(1.0, 0.25, smoothstep(0.8, 3.6, ft))
 	# saat su gibi akar: 20:10 -> 00:00
 	var u := smoothstep(4.0, 13.0, ft)
 	u = u * u * (3.0 - 2.0 * u)
@@ -301,6 +307,7 @@ func _cikis() -> void:
 		[6.0, Vector3(35.0, 1.65, 1.2), Vector3(35.6, 1.5, 2.8)],
 	], ft)
 	if ft > 0.3 and not _soylendi("ev3"): _soyle("ev3")
+	kamera.fov = lerpf(7.0, 70.0, smoothstep(0.6, 2.0, ft))
 	karartma = _egri([[0, 0], [4.8, 0], [6.0, 1]], ft)
 	if ft >= 7.0:
 		_bitti = true
@@ -523,7 +530,7 @@ func _kase_kur() -> void:
 	kasik = Node3D.new()
 	kasik.name = "Kasik"
 	add_child(kasik)
-	var celik := _malzeme(Color(0.8, 0.8, 0.82), 0.2, 1.0)
+	var celik := _malzeme(Color(0.85, 0.85, 0.87), 0.35, 0.6)
 	var bas := MeshInstance3D.new()
 	var bs := SphereMesh.new()
 	bs.radius = 0.02; bs.height = 0.012; bs.material = celik
