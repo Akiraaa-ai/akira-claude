@@ -2258,9 +2258,21 @@ function loadCity() {
     CITY_SCENE = gl.scene; CITY_SCENE.userData.hole = holeU; res(CITY_SCENE);
   }, (e) => { console.warn("şehir yüklenemedi", e); res(null); })));
 }
+// gece: şehir malzemeleri bir kez karartılır, beyaz camlar koyu maviye çekilir, parlaklık kısılır
+function nightCity(sc) {
+  if (sc.userData.night) return; sc.userData.night = true;
+  const seen = new Set();
+  sc.traverse((o) => { if (!o.isMesh) return; (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => {
+    if (!m || seen.has(m)) return; seen.add(m);
+    if (m.color) { const c = m.color, l = (c.r + c.g + c.b) / 3; if (l > 0.75 && !m.map) c.setRGB(0.05, 0.06, 0.08); else c.multiplyScalar(0.55); }
+    if (m.emissive) m.emissive.setHex(0); if ("envMapIntensity" in m) m.envMapIntensity = 0.3;
+    if ("roughness" in m) m.roughness = Math.max(m.roughness, 0.55);
+  }); });
+}
 function addCity(st) {
   const place = (sc) => {
     if (st.userData.disposed) return;   // sokak bu arada silindiyse eklenmez
+    nightCity(sc);
     const c = sc.clone(); c.rotation.y = CITY_POS.rot; c.position.set(CITY_POS.x, 0, CITY_POS.z); c.name = "SEHIR"; st.add(c);
     st.updateMatrixWorld(true); sc.userData.hole.value.copy(st.position);
   };
@@ -4805,9 +4817,9 @@ function updateLights(dt) {
   // açılıştaki sokak: gece, yağmur, kendi ışıkları
   if (S.surface) {
     LIGHT_POOL.forEach((l) => { l.intensity = 0; });
-    ambient.intensity = 0.07; hemi.intensity = 0.24;
-    hemi.color.setHex(0x5a6a8e); hemi.groundColor.setHex(0x14130f);
-    scene.fog.density = 0.034; scene.fog.color.setHex(0x0b0e15); scene.background.setHex(0x0b0e15);
+    ambient.intensity = 0.04; hemi.intensity = 0.16;
+    hemi.color.setHex(0x4a5878); hemi.groundColor.setHex(0x0e0d0b);
+    scene.fog.density = 0.042; scene.fog.color.setHex(0x0b0e15); scene.background.setHex(0x0b0e15);
     flashlight.intensity = S.lightOn ? 1.0 : 0;
     return;
   }
