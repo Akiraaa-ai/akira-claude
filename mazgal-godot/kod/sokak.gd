@@ -14,11 +14,30 @@ func _ready() -> void:
 			break
 	if sehir.get_child_count() == 0:
 		push_error("Şehir modeli bulunamadı: modeller/ klasörüne sehir.glb ya da Terrain Remaked.glb koy")
+	_arabalari_kaldir()
 	# şehirdeki bütün meshler gölge alır ve verir, üstünde yürünebilir
 	for m in sehir.find_children("*", "MeshInstance3D", true, false):
 		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		if m.mesh and not Engine.is_editor_hint(): m.create_trimesh_collision()
 	if not Engine.is_editor_hint(): _guvenlik_zemini()
+
+# şehir modelindeki park halindeki arabalar (tekerlek ve kasa yüzeyleri) çıkarılır; yerine alp'in arabası gelir
+const ARABA_MALZEMELERI := ["WheelTex", "CarTex_1"]
+func _arabalari_kaldir() -> void:
+	for m in sehir.find_children("*", "MeshInstance3D", true, false):
+		var eski := (m as MeshInstance3D).mesh as ArrayMesh
+		if eski == null: continue
+		var kalan := []
+		for i in eski.get_surface_count():
+			var mat := eski.surface_get_material(i)
+			if mat and mat.resource_name in ARABA_MALZEMELERI: continue
+			kalan.append(i)
+		if kalan.size() == eski.get_surface_count(): continue
+		var yeni := ArrayMesh.new()
+		for i in kalan:
+			yeni.add_surface_from_arrays(eski.surface_get_primitive_type(i), eski.surface_get_arrays(i))
+			yeni.surface_set_material(yeni.get_surface_count() - 1, eski.surface_get_material(i))
+		(m as MeshInstance3D).mesh = yeni
 
 # şehrin altında görünmez düz zemin: modelde boşluk olan yerden aşağı düşülmez
 func _guvenlik_zemini() -> void:
