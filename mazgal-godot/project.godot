@@ -3,7 +3,7 @@ config_version=5
 
 [application]
 config/name="MAZGAL"
-run/main_scene="res://sahneler/sokak.tscn"
+run/main_scene="res://sahneler/ev.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 
 [display]

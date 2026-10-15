@@ -1,6 +1,6 @@
 extends SceneTree
 ## Test: sokak sahnesini yükler, birkaç açıdan ekran görüntüsü alır.
-var ac := [["kulube", Vector3(-60,1.7,-6), Vector3(-60,1.5,-40)], ["kavsak", Vector3(-45,1.7,1.5), Vector3(-62,1.5,-10)], ["mazgal", Vector3(6,1.7,5), Vector3(0,0.4,0)], ["cadde", Vector3(-30,1.7,1.5), Vector3(20,2,0)]]
+var ac := [["kulube_dis", Vector3(-60,1.7,-86), Vector3(-52.5,1.2,-82)], ["araba", Vector3(-62,1.8,-73), Vector3(-58,0.8,-78)], ["kulube_ic", Vector3(-53.5,1.65,-81.2), Vector3(-53.4,1.1,-82.9)], ["ust", Vector3(-47,4,-78), Vector3(-53.5,1,-82)]]
 func _init() -> void:
 	var s: Node = load("res://sahneler/sokak.tscn").instantiate()
 	root.add_child(s)
