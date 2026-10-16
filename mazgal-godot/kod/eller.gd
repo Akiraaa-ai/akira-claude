@@ -1,5 +1,6 @@
 extends Node3D
-## Selim'in elleri (alp'in gönderdiği eldivenli kollar, Arms.fbx). Kameranın çocuğu olarak durur.
+## Selim'in elleri: alp'in gönderdiği Selim karakterinin (Ch17_nonPBR.fbx) kendi kolları.
+## Karakterin gövdesinden yalnızca kollar ve eller (deri + gömlek kolu) ayrılıp kameraya bağlanır.
 ## Her kol iki kemikli IK ile hedefe uzanır: omuz sabit, dirsek aşağı ve dışa bakar.
 ## Hedef yoksa kol aşağı iner ve görüş alanından çıkar.
 ##   uzan("sag", dunya_konumu, sure)   el o noktaya uzanır
@@ -7,12 +8,14 @@ extends Node3D
 ##   tut("sag", dugum)                  eşya avuçta durur (dugum ele bağlanır)
 ##   yumruk("sag", 0..1)                parmaklar kapanır
 
-const MODEL := "res://modeller2/eller/Arms.fbx"
-const OLCEK := 0.42
+const MODEL := "res://modeller2/selim/Ch17_nonPBR.fbx"
+const ON := "mixamorig1_"
+# kollarda görünen parçalar: çıplak el ve kol derisi (Body) ile gömleğin kolu (Shirt)
+const KOL_PARCALARI := ["Ch17_Body", "Ch17_Shirt"]
 # omuzların kameraya göre yeri (kamera uzayında, metre)
-const OMUZ := Vector3(0.0, -0.36, 0.16)
+const OMUZ := Vector3(0.0, -0.24, 0.12)
 # kol aşağıdayken bileğin kamera uzayındaki yeri
-const DINLEN := {"sol": Vector3(-0.32, -0.75, -0.05), "sag": Vector3(0.32, -0.75, -0.05)}
+const DINLEN := {"sol": Vector3(-0.3, -0.72, -0.02), "sag": Vector3(0.3, -0.72, -0.02)}
 
 var _iskelet: Skeleton3D
 var _kemik := {}          # "sag_ust" -> indeks ...
@@ -33,19 +36,22 @@ var gorunur_mu := false
 func _ready() -> void:
 	var m: Node3D = (load(MODEL) as PackedScene).instantiate()
 	add_child(m)
-	m.scale = Vector3.ONE * OLCEK
 	_iskelet = m.find_child("Skeleton3D", true, false) as Skeleton3D
-	for g in m.find_children("*", "GeometryInstance3D", true, false):
-		var gi := g as GeometryInstance3D
-		gi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		gi.extra_cull_margin = 2.0
+	for g in m.find_children("*", "MeshInstance3D", true, false):
+		var mi := g as MeshInstance3D
+		if not (String(mi.name) in KOL_PARCALARI):
+			mi.queue_free()
+			continue
+		mi.mesh = _yalniz_kollar(mi)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.extra_cull_margin = 2.0
 	# model +z'ye bakıyor; kameranın önü -z
 	m.rotation.y = PI
 	for taraf in ["sol", "sag"]:
-		var e := "L" if taraf == "sol" else "R"
-		_kemik[taraf + "_ust"] = _iskelet.find_bone("upper_arm." + e)
-		_kemik[taraf + "_on"] = _iskelet.find_bone("forearm." + e)
-		_kemik[taraf + "_el"] = _iskelet.find_bone("hand." + e)
+		var e := "Left" if taraf == "sol" else "Right"
+		_kemik[taraf + "_ust"] = _iskelet.find_bone(ON + e + "Arm")
+		_kemik[taraf + "_on"] = _iskelet.find_bone(ON + e + "ForeArm")
+		_kemik[taraf + "_el"] = _iskelet.find_bone(ON + e + "Hand")
 		_hedef[taraf] = DINLEN[taraf]
 		_bitis[taraf] = DINLEN[taraf]
 	# modelin kökü: omuzların ortası kamera uzayında OMUZ'a gelsin
@@ -60,6 +66,44 @@ func _ready() -> void:
 		var c := sg * _iskelet.get_bone_global_rest(_kemik[taraf + "_el"]).origin
 		_boy[taraf] = [a.distance_to(b), b.distance_to(c)]
 	visible = false
+
+
+## Karakterin tek parça gövdesinden yalnızca kol kemiklerine bağlı üçgenler alınır (gövde, baş,
+## bacak kamerada görünmesin diye). Köşeler aynı kalır, sadece üçgen listesi süzülür.
+func _yalniz_kollar(mi: MeshInstance3D) -> ArrayMesh:
+	var kaynak := mi.mesh
+	var skin := mi.skin
+	var kol := {}
+	for i in skin.get_bind_count():
+		var ad := String(skin.get_bind_name(i))
+		if ad == "":
+			var k := skin.get_bind_bone(i)
+			if k >= 0: ad = _iskelet.get_bone_name(k)
+		if ("Arm" in ad or "Hand" in ad) and not ("Shoulder" in ad):
+			kol[i] = true
+	var yeni := ArrayMesh.new()
+	for s in kaynak.get_surface_count():
+		var d := kaynak.surface_get_arrays(s)
+		var kemik: PackedInt32Array = d[Mesh.ARRAY_BONES]
+		var agirlik: PackedFloat32Array = d[Mesh.ARRAY_WEIGHTS]
+		var n: int = (d[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+		var adim := kemik.size() / maxi(n, 1)
+		var kolda := PackedByteArray(); kolda.resize(n)
+		for v in n:
+			var w := 0.0
+			for j in adim:
+				if kol.has(kemik[v * adim + j]): w += agirlik[v * adim + j]
+			kolda[v] = 1 if w > 0.5 else 0
+		var ind: PackedInt32Array = d[Mesh.ARRAY_INDEX]
+		var secili := PackedInt32Array()
+		for t in range(0, ind.size(), 3):
+			if kolda[ind[t]] and kolda[ind[t + 1]] and kolda[ind[t + 2]]:
+				secili.append(ind[t]); secili.append(ind[t + 1]); secili.append(ind[t + 2])
+		d[Mesh.ARRAY_INDEX] = secili
+		var bayrak: int = kaynak.surface_get_format(s) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
+		yeni.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, d, [], {}, bayrak)
+		yeni.surface_set_material(s, mi.get_active_material(s))
+	return yeni
 
 
 ## El dünyadaki bir noktaya uzanır (bilek o noktaya gelir).
@@ -108,8 +152,8 @@ func tut(taraf: String, esya: Node3D) -> void:
 func avuc(taraf: String) -> Vector3:
 	var el: int = _kemik[taraf + "_el"]
 	var t := _iskelet.global_transform * _iskelet.get_bone_global_pose(el)
-	var p := _iskelet.global_transform * _iskelet.get_bone_global_pose(_iskelet.find_bone("palm.02." + ("L" if taraf == "sol" else "R")))
-	return t.origin.lerp(p.origin, 1.6)
+	var p := _iskelet.global_transform * _iskelet.get_bone_global_pose(_iskelet.find_bone(ON + ("Left" if taraf == "sol" else "Right") + "HandMiddle1"))
+	return t.origin.lerp(p.origin, 0.8)
 
 
 func _process(dt: float) -> void:
@@ -177,16 +221,18 @@ func _kol(taraf: String, bilek: Vector3) -> void:
 
 
 func _parmaklar(taraf: String) -> void:
-	var e := "L" if taraf == "sol" else "R"
+	var e := "Left" if taraf == "sol" else "Right"
 	var k: float = _yumruk[taraf]
-	for p in ["f_index", "f_middle", "f_ring", "f_pinky"]:
+	# Mixamo parmak kemikleri yerel z ekseni etrafında bükülür (sol ve sağda ters yön)
+	var yon := 1.0 if taraf == "sol" else -1.0
+	for p in ["Index", "Middle", "Ring", "Pinky"]:
 		for n in [1, 2, 3]:
-			var i := _iskelet.find_bone("%s.0%d.%s" % [p, n, e])
+			var i := _iskelet.find_bone(ON + e + "Hand" + p + str(n))
 			if i < 0: continue
 			var r := _iskelet.get_bone_rest(i).basis.get_rotation_quaternion()
-			_iskelet.set_bone_pose_rotation(i, r * Quaternion(Vector3.RIGHT, k * (1.1 if n == 1 else 1.3)))
+			_iskelet.set_bone_pose_rotation(i, r * Quaternion(Vector3.FORWARD, yon * k * (1.1 if n == 1 else 1.3)))
 	for n in [2, 3]:
-		var i := _iskelet.find_bone("thumb.0%d.%s" % [n, e])
+		var i := _iskelet.find_bone(ON + e + "HandThumb" + str(n))
 		if i < 0: continue
 		var r := _iskelet.get_bone_rest(i).basis.get_rotation_quaternion()
-		_iskelet.set_bone_pose_rotation(i, r * Quaternion(Vector3.RIGHT, k * 0.7))
+		_iskelet.set_bone_pose_rotation(i, r * Quaternion(Vector3.FORWARD, yon * k * 0.7))

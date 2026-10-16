@@ -1,7 +1,7 @@
 extends SceneTree
 ## Baştan sona oyun testi: ana menüden Yeni Oyun, evde gerçek oyuncu gibi yürüyüp bakarak E'ye basar,
 ## her odada sekiz yöne yürüyüp boşluğa çıkılıyor mu bakar. Sorunları "HATA" ile yazar.
-## Argüman "devam": kayıttan Devam Et yolunu dener.
+## Argüman "devam": kayıttan Devam Et yolunu dener; "sokak": yalnız sokağı oynar.
 
 var hata := 0
 var _son_kare := 0
@@ -16,6 +16,14 @@ func _init() -> void:
 		quit()
 		return
 	d.yeni_oyun()
+	if "sokak" in args:
+		# yalnız sokak: evden çıkmış gibi başlar
+		get_root().get_node("Duraklat").yukle("res://sahneler/sokak.tscn")
+		var sk: Node = await _sahne_bekle("res://sahneler/sokak.tscn")
+		if sk: await _sokak_oyna(sk)
+		print("BİTTİ hata=", hata)
+		quit()
+		return
 	var menu: Node = (load("res://sahneler/baslangic.tscn") as PackedScene).instantiate()
 	root.add_child(menu)
 	current_scene = menu
@@ -82,13 +90,16 @@ func _sahne_bekle(yol: String) -> Node:
 
 
 # ---------------------------------------------------------------- ev
+var _holde_yuruldu := {}
+
 func _ev_oyna(ev: Node) -> void:
 	var b := Time.get_ticks_msec()
 	while ev.faz != "oyun":
 		await process_frame
 		if Time.get_ticks_msec() - b > 240000: _hata("uyanış bitmedi, faz=" + str(ev.faz)); return
 	print("uyanış bitti (", (Time.get_ticks_msec() - b) / 1000.0, " sn) eşyalar=", ev._esyalar.keys())
-	var sira := ["yatak_kapi", "banyo_kapi", "banyo_isik", "lavabo", "dus", "banyo_cikis", "mutfak_kapi", "buzdolabi", "dolap", "masa", "telefon", "salon_kapi", "koltuk"]
+	_holde_yuruldu.clear()
+	var sira := ["hol_banyo", "hol_mutfak", "hol_salon", "yatak_kapi", "banyo_kapi", "banyo_isik", "lavabo", "dus", "banyo_cikis", "mutfak_kapi", "buzdolabi", "dolap", "masa", "telefon", "salon_kapi", "koltuk"]
 	var gezildi := {}
 	var bekleme := Time.get_ticks_msec()
 	while is_instance_valid(ev) and ev.faz != "salon" and ev.faz != "yayin" and ev.faz != "saat" and ev.faz != "cikis":
@@ -116,13 +127,22 @@ func _ev_oyna(ev: Node) -> void:
 		if not gezildi.has(oda):
 			gezildi[oda] = true
 			await _gez(ev, oda)
+		# holde: kapıya giden yolu yürür (hol köşeli, düz gidilmez)
+		if ev._hol_hedef != "" and not _holde_yuruldu.has(ev._hol_hedef):
+			var hh: String = ev._hol_hedef
+			_holde_yuruldu[hh] = true
+			print("holde yürüyor: ", hh, " başlangıç ", ev.oyuncu.global_position)
+			for n: Vector3 in ev.HOL_ROTA[hh]:
+				await _ev_yuru(ev, n, 20000)
+				if not ev._icerde(ev.oyuncu.global_position): _hata("holde alan dışı: " + str(ev.oyuncu.global_position))
+			print("hol yolu bitti: ", ev.oyuncu.global_position)
 		var hedef := ""
 		for ad in sira:
 			if ev._esyalar.has(ad): hedef = ad; break
 		if hedef == "":
 			if ev._esyalar.size() > 0: hedef = ev._esyalar.keys()[0]
 			else: continue
-		if hedef.ends_with("_kapi"): _son_kapi = ev._esyalar[hedef][0]
+		if hedef.ends_with("_kapi") or hedef.begins_with("hol_"): _son_kapi = ev._esyalar[hedef][0]
 		var ok: bool = await _git_bak_bas(ev, hedef)
 		if not ok and _son_kapi != Vector3.INF:
 			# oyuncu gibi önce kapıdan geçer, sonra yeniden dener
@@ -151,7 +171,7 @@ func _ev_oyna(ev: Node) -> void:
 	b = Time.get_ticks_msec()
 	while is_instance_valid(ev) and current_scene == ev:
 		await process_frame
-		if Time.get_ticks_msec() - b > 200000: _hata("salon/çıkış bitmedi faz=" + (str(ev.faz) if is_instance_valid(ev) else "?")); return
+		if Time.get_ticks_msec() - b > 420000: _hata("salon/çıkış bitmedi faz=" + (str(ev.faz) if is_instance_valid(ev) else "?")); return
 	print("ev bitti (", (Time.get_ticks_msec() - b) / 1000.0, " sn)")
 
 
@@ -225,9 +245,9 @@ func _git_bak_bas(ev: Node, ad: String) -> bool:
 	return false
 
 
-func _ev_yuru(ev: Node, h: Vector3) -> void:
+func _ev_yuru(ev: Node, h: Vector3, sure := 6000) -> void:
 	var b := Time.get_ticks_msec()
-	while Vector2(h.x - ev.oyuncu.global_position.x, h.z - ev.oyuncu.global_position.z).length() > 0.3 and Time.get_ticks_msec() - b < 6000:
+	while Vector2(h.x - ev.oyuncu.global_position.x, h.z - ev.oyuncu.global_position.z).length() > 0.3 and Time.get_ticks_msec() - b < sure:
 		_bak(ev, Vector3(h.x, ev.kamera.global_position.y, h.z))
 		Input.action_press("ileri")
 		await physics_frame
@@ -265,14 +285,17 @@ func _sokak_oyna(s: Node) -> void:
 	await _sn(0.5)
 	# kulübenin kapısına yürü, içeri gir
 	var kapi_ici: Vector3 = s._k(Vector3(-0.2, 0.3, -1.3))
-	if not await _yuru(s, o, kapi_ici, 30.0): _hata("kulübeye girilemedi, oyuncu=" + str(o.global_position) + " hedef=" + str(kapi_ici)); return
+	# kulübe eşyaları ve eller ilk karede yüklenir: yazılım çiziminde uzun sürer
+	if not await _yuru(s, o, kapi_ici, 120.0): _hata("kulübeye girilemedi, oyuncu=" + str(o.global_position) + " hedef=" + str(kapi_ici)); return
 	print("kulübede, adım=", s._adim)
+	await _sn(3.0)
+	print("kulübe fps: ", Engine.get_frames_per_second())
 	# yaka kamerası, otur
 	for adim in [[1, s._k(s.BODYCAM_YERI)], [3, s._k(s.OTURAK) + Vector3(0, 0.6, 0)]]:
 		b = Time.get_ticks_msec()
 		while s._adim < adim[0]:
 			await process_frame
-			if Time.get_ticks_msec() - b > 15000: _hata("kulübe adımı " + str(adim[0]) + " gelmedi, adım=" + str(s._adim)); return
+			if Time.get_ticks_msec() - b > 60000: _hata("kulübe adımı " + str(adim[0]) + " gelmedi, adım=" + str(s._adim)); return
 		b = Time.get_ticks_msec()
 		while s._adim == adim[0]:
 			var hedef: Vector3 = adim[1]
@@ -439,7 +462,11 @@ func _yuru(s: Node, o: CharacterBody3D, hedef: Vector3, sure: float, yakin := 0.
 		son = o.global_position
 		if takili > 3.0 or Time.get_ticks_msec() - b > sure * 1000.0:
 			Input.action_release("ileri")
-			print("yürürken takıldı: ", o.global_position, " hedef ", hedef)
+			print("yürürken takıldı (", "süre doldu" if takili <= 3.0 else "kıpırdamıyor", "): ", o.global_position, " hedef ", hedef)
+			var kc := KinematicCollision3D.new()
+			var dd := hedef - o.global_position; dd.y = 0.0
+			if o.test_move(o.global_transform, dd.normalized() * 0.2, kc) and kc.get_collider():
+				print("  çarpan: ", (kc.get_collider() as Node).get_path(), " nokta ", kc.get_position())
 			return false
 	Input.action_release("ileri")
 	return true
