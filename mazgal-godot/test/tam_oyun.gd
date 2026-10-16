@@ -1,7 +1,7 @@
 extends SceneTree
 ## Baştan sona oyun testi: ana menüden Yeni Oyun, evde gerçek oyuncu gibi yürüyüp bakarak E'ye basar,
 ## her odada sekiz yöne yürüyüp boşluğa çıkılıyor mu bakar. Sorunları "HATA" ile yazar.
-## Argüman "devam": kayıttan Devam Et yolunu dener.
+## Argüman "devam": kayıttan Devam Et yolunu dener; "sokak": yalnız sokağı oynar.
 
 var hata := 0
 var _son_kare := 0
@@ -16,6 +16,14 @@ func _init() -> void:
 		quit()
 		return
 	d.yeni_oyun()
+	if "sokak" in args:
+		# yalnız sokak: evden çıkmış gibi başlar
+		get_root().get_node("Duraklat").yukle("res://sahneler/sokak.tscn")
+		var sk: Node = await _sahne_bekle("res://sahneler/sokak.tscn")
+		if sk: await _sokak_oyna(sk)
+		print("BİTTİ hata=", hata)
+		quit()
+		return
 	var menu: Node = (load("res://sahneler/baslangic.tscn") as PackedScene).instantiate()
 	root.add_child(menu)
 	current_scene = menu
@@ -277,14 +285,17 @@ func _sokak_oyna(s: Node) -> void:
 	await _sn(0.5)
 	# kulübenin kapısına yürü, içeri gir
 	var kapi_ici: Vector3 = s._k(Vector3(-0.2, 0.3, -1.3))
-	if not await _yuru(s, o, kapi_ici, 30.0): _hata("kulübeye girilemedi, oyuncu=" + str(o.global_position) + " hedef=" + str(kapi_ici)); return
+	# kulübe eşyaları ve eller ilk karede yüklenir: yazılım çiziminde uzun sürer
+	if not await _yuru(s, o, kapi_ici, 120.0): _hata("kulübeye girilemedi, oyuncu=" + str(o.global_position) + " hedef=" + str(kapi_ici)); return
 	print("kulübede, adım=", s._adim)
+	await _sn(3.0)
+	print("kulübe fps: ", Engine.get_frames_per_second())
 	# yaka kamerası, otur
 	for adim in [[1, s._k(s.BODYCAM_YERI)], [3, s._k(s.OTURAK) + Vector3(0, 0.6, 0)]]:
 		b = Time.get_ticks_msec()
 		while s._adim < adim[0]:
 			await process_frame
-			if Time.get_ticks_msec() - b > 15000: _hata("kulübe adımı " + str(adim[0]) + " gelmedi, adım=" + str(s._adim)); return
+			if Time.get_ticks_msec() - b > 60000: _hata("kulübe adımı " + str(adim[0]) + " gelmedi, adım=" + str(s._adim)); return
 		b = Time.get_ticks_msec()
 		while s._adim == adim[0]:
 			var hedef: Vector3 = adim[1]
@@ -451,7 +462,11 @@ func _yuru(s: Node, o: CharacterBody3D, hedef: Vector3, sure: float, yakin := 0.
 		son = o.global_position
 		if takili > 3.0 or Time.get_ticks_msec() - b > sure * 1000.0:
 			Input.action_release("ileri")
-			print("yürürken takıldı: ", o.global_position, " hedef ", hedef)
+			print("yürürken takıldı (", "süre doldu" if takili <= 3.0 else "kıpırdamıyor", "): ", o.global_position, " hedef ", hedef)
+			var kc := KinematicCollision3D.new()
+			var dd := hedef - o.global_position; dd.y = 0.0
+			if o.test_move(o.global_transform, dd.normalized() * 0.2, kc) and kc.get_collider():
+				print("  çarpan: ", (kc.get_collider() as Node).get_path(), " nokta ", kc.get_position())
 			return false
 	Input.action_release("ileri")
 	return true
