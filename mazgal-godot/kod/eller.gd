@@ -225,19 +225,22 @@ func _kol(taraf: String, bilek: Vector3) -> void:
 	sk.set_bone_global_pose(el, Transform3D(el_b, b_s))
 
 
+var _parmak_kemik := {}   # taraf -> [[kemik, dinlenme dönüşü, katsayı], ...]; her karede ad aranmasın
+
 func _parmaklar(taraf: String) -> void:
-	var e := "Left" if taraf == "sol" else "Right"
+	if not _parmak_kemik.has(taraf):
+		var e := "Left" if taraf == "sol" else "Right"
+		var liste := []
+		for p in ["Index", "Middle", "Ring", "Pinky"]:
+			for n in [1, 2, 3]:
+				var i := _iskelet.find_bone(ON + e + "Hand" + p + str(n))
+				if i >= 0: liste.append([i, _iskelet.get_bone_rest(i).basis.get_rotation_quaternion(), 1.1 if n == 1 else 1.3])
+		for n in [2, 3]:
+			var i := _iskelet.find_bone(ON + e + "HandThumb" + str(n))
+			if i >= 0: liste.append([i, _iskelet.get_bone_rest(i).basis.get_rotation_quaternion(), 0.7])
+		_parmak_kemik[taraf] = liste
 	var k: float = _yumruk[taraf]
 	# Mixamo parmak kemikleri yerel z ekseni etrafında bükülür (sol ve sağda ters yön)
 	var yon := 1.0 if taraf == "sol" else -1.0
-	for p in ["Index", "Middle", "Ring", "Pinky"]:
-		for n in [1, 2, 3]:
-			var i := _iskelet.find_bone(ON + e + "Hand" + p + str(n))
-			if i < 0: continue
-			var r := _iskelet.get_bone_rest(i).basis.get_rotation_quaternion()
-			_iskelet.set_bone_pose_rotation(i, r * Quaternion(Vector3.FORWARD, yon * k * (1.1 if n == 1 else 1.3)))
-	for n in [2, 3]:
-		var i := _iskelet.find_bone(ON + e + "HandThumb" + str(n))
-		if i < 0: continue
-		var r := _iskelet.get_bone_rest(i).basis.get_rotation_quaternion()
-		_iskelet.set_bone_pose_rotation(i, r * Quaternion(Vector3.FORWARD, yon * k * 0.7))
+	for b in _parmak_kemik[taraf]:
+		_iskelet.set_bone_pose_rotation(b[0], (b[1] as Quaternion) * Quaternion(Vector3.FORWARD, yon * k * float(b[2])))

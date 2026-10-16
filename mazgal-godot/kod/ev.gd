@@ -332,6 +332,12 @@ func _process(dt: float) -> void:
 	T += dt
 	ft += dt
 	sallanti = 1.0
+	# TV ve telefon ekranları yalnızca görünürken çizilir (zayıf ekran kartlarında boşa iş yapılmasın)
+	if tv_vp and tv_ust:
+		var tv_calisiyor := tv_acik or float((tv_ust.material as ShaderMaterial).get_shader_parameter("acilis")) > 0.01
+		tv_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS if tv_calisiyor else SubViewport.UPDATE_DISABLED
+	if tel_vp and tel_ekran_mi:
+		tel_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS if tel_ekran_mi.is_visible_in_tree() else SubViewport.UPDATE_DISABLED
 	# gövde yalnızca serbest yürürken: oturma, yatma, sinematiklerde gölgesi kafayla uyuşmaz
 	govde.visible = faz == "oyun"
 	if govde.visible:

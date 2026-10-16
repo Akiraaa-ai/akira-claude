@@ -297,7 +297,7 @@ void fragment() {
 	_ana.add_child(_etiket("●  DURAKLATILDI", 22, Color(0.85, 0.2, 0.18)))
 	_ana.add_child(_dugme("DEVAM ET", devam))
 	_ana.add_child(_dugme("AYARLAR", func() -> void: _ana.visible = false; _ayar.visible = true))
-	_ana.add_child(_dugme("BAŞTAN BAŞLA", func() -> void: _git(ILK_SAHNE)))
+	_ana.add_child(_dugme("BAŞTAN BAŞLA", func() -> void: yeni_oyun(); _git(ILK_SAHNE)))
 	_ana.add_child(_dugme("ANA MENÜ", func() -> void: _git(ANA_MENU)))
 	_ana.add_child(_dugme("OYUNDAN ÇIK", func() -> void: _kaydet(); get_tree().quit()))
 	_ana.add_child(_etiket("ESC  DEVAM ET", 16, Color(0.5, 0.5, 0.46)))

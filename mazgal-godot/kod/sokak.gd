@@ -246,6 +246,8 @@ func _yolculuk_kur() -> void:
 	add_child(govde)
 	_arayuz_kur()
 	ses_selim = AudioStreamPlayer.new(); add_child(ses_selim)
+	# düşüşün sesleri önceden hazırlanır: en gergin anda takılma olmasın
+	_cokme_sesi(); _gumbur_sesi()
 	ses_kapi = AudioStreamPlayer3D.new(); ses_kapi.stream = _kapi_sesi(); ses_kapi.unit_size = 4.0; add_child(ses_kapi)
 	($Araba/Carpma as AudioStreamPlayer3D).stream = _kapi_sesi()
 	ses_yagmur = AudioStreamPlayer.new(); add_child(ses_yagmur)
@@ -285,6 +287,7 @@ func _kulubeden_basla() -> void:
 func _process(dt: float) -> void:
 	if Engine.is_editor_hint() or oyuncu == null: return
 	dt_durum += dt
+	_oyun_saati += dt
 	# gövde yürürken görünür (arabada, otururken, düşerken gizli)
 	govde.visible = (durum == "yuruyus" or durum == "mazgala" or durum == "kulube") and oyuncu.is_physics_processing()
 	if govde.visible:
@@ -295,7 +298,7 @@ func _process(dt: float) -> void:
 	_physics_ugultu()
 	if durum != "dusus" and durum != "karanlik":
 		siyah.modulate.a = move_toward(siyah.modulate.a, 0.0, dt * 0.6)
-	if _altyazi_bitis > 0.0 and Time.get_ticks_msec() / 1000.0 > _altyazi_bitis:
+	if _altyazi_bitis > 0.0 and T_simdi() > _altyazi_bitis:
 		altyazi.visible = false; _altyazi_bitis = 0.0
 	_kulube_guncelle(dt)
 	if atmosfer:
@@ -426,7 +429,7 @@ func _park() -> void:
 	if dt_durum > 0.6 and not _soylenen.has("park_tik"):
 		_soylenen["park_tik"] = true
 		for i in 6:
-			get_tree().create_timer(0.8 + i * randf_range(0.5, 0.9)).timeout.connect(func() -> void:
+			get_tree().create_timer(0.8 + i * randf_range(0.5, 0.9), false).timeout.connect(func() -> void:
 				_kisa_ses(_tik_sesi(), araba.global_position + Vector3(0, 0.6, -1.8), randf_range(0.5, 0.8), -22.0))
 	if dt_durum > 1.2 and not _soylenen.has("ic05"): _soyle("ic05")
 	if dt_durum < 3.2: return
@@ -514,7 +517,7 @@ func _ipucu(metin: String, sure: float) -> void:
 	if sure > 0.0:
 		var bu := Time.get_ticks_msec() + int(sure * 1000.0)
 		_ipucu_bitis = bu
-		get_tree().create_timer(sure).timeout.connect(func() -> void:
+		get_tree().create_timer(sure, false).timeout.connect(func() -> void:
 			if _ipucu_bitis == bu and ipucu.text == metin: ipucu.text = "")
 
 func _soyle(anahtar: String) -> float:
@@ -528,12 +531,18 @@ func _soyle(anahtar: String) -> float:
 	altyazi.text = tr(s[1]) + ": " + tr(s[2])
 	var d := get_node_or_null("/root/Duraklat")
 	altyazi.visible = d == null or d.get("altyazi") != false
-	_altyazi_bitis = Time.get_ticks_msec() / 1000.0 + sure
+	_altyazi_bitis = T_simdi() + sure
 	return sure
 
 # kapı kapanma ve çarpma sesi: kısa, boğuk bir gümleme
 # taş ve beton parçalarıyla kenarın çökmesi
+## Ses bir kez üretilir, sonra saklanır (her seferinde yeniden üretmek o karede takılma yapıyordu).
+var _cokme_sesi_hazir: AudioStream
 func _cokme_sesi() -> AudioStream:
+	if _cokme_sesi_hazir == null: _cokme_sesi_hazir = _cokme_sesi_yap()
+	return _cokme_sesi_hazir
+
+func _cokme_sesi_yap() -> AudioStream:
 	for uz in ["ogg", "mp3", "wav"]:
 		if ResourceLoader.exists("res://sesler/cokme." + uz): return load("res://sesler/cokme." + uz)
 	var vurus := []
@@ -546,7 +555,13 @@ func _cokme_sesi() -> AudioStream:
 		return d + sin(TAU * 55.0 * t) * exp(-t * 4.0) * 0.5)
 
 # yere çarpma: tok, alçak bir gümbürtü
+## Ses bir kez üretilir, sonra saklanır (her seferinde yeniden üretmek o karede takılma yapıyordu).
+var _gumbur_sesi_hazir: AudioStream
 func _gumbur_sesi() -> AudioStream:
+	if _gumbur_sesi_hazir == null: _gumbur_sesi_hazir = _gumbur_sesi_yap()
+	return _gumbur_sesi_hazir
+
+func _gumbur_sesi_yap() -> AudioStream:
 	for uz in ["ogg", "mp3", "wav"]:
 		if ResourceLoader.exists("res://sesler/carpma." + uz): return load("res://sesler/carpma." + uz)
 	return _wav_yap(1.2, func(t: float) -> float:
@@ -566,7 +581,13 @@ func _mars_sesi() -> AudioStream:
 func _kontak_sesi() -> AudioStreamWAV:
 	return _wav_yap(0.12, func(t: float) -> float: return (randf() * 2.0 - 1.0) * exp(-t * 90.0) * 0.6 + sin(TAU * 1800.0 * t) * exp(-t * 120.0) * 0.2)
 
+## Ses bir kez üretilir, sonra saklanır (her seferinde yeniden üretmek o karede takılma yapıyordu).
+var _kapi_sesi_hazir: AudioStreamWAV
 func _kapi_sesi() -> AudioStreamWAV:
+	if _kapi_sesi_hazir == null: _kapi_sesi_hazir = _kapi_sesi_yap()
+	return _kapi_sesi_hazir
+
+func _kapi_sesi_yap() -> AudioStreamWAV:
 	var hiz := 22050
 	var veri := PackedByteArray(); veri.resize(int(hiz * 0.45) * 2)
 	var dusuk := 0.0
@@ -665,7 +686,7 @@ func _kulube() -> void:
 			if _e_bak("bodycam", _k(BODYCAM_YERI), "Yaka kamerasını tak", 1.7):
 				_adim = 2
 				_k_zaman["bodycam"] = dt_durum
-				get_tree().create_timer(2.6).timeout.connect(func() -> void: if not _soylenen.has("ic06"): _soyle("ic06"))
+				get_tree().create_timer(2.6, false).timeout.connect(func() -> void: if not _soylenen.has("ic06"): _soyle("ic06"))
 				eller.uzan("sag", _k(BODYCAM_YERI) + Vector3(0, 0.05, 0), 0.7)
 		2:
 			var t := dt_durum - float(_k_zaman["bodycam"])
@@ -727,6 +748,7 @@ func _vardiya_bitti(v: float) -> void:
 		eve_donus = true
 		_k_zaman.erase("kapi_kapan")   # kulübenin kapısı açılır
 		_soylenen.erase("kola_uzandi")
+		for a in ["kapi_acildi", "kapi_kapandi", "mars"]: _soylenen.erase(a)   # eve dönüşte araba kapısı yine açılsın
 		_ipucu("Arabana dön", 0.0)
 		_rota_i = 0
 		_gec("yuruyus")
@@ -996,7 +1018,7 @@ var _ktv_ses: AudioStreamPlayer3D
 func _ktv_kur() -> void:
 	_ktv_vp = SubViewport.new()
 	_ktv_vp.size = Vector2i(320, 240)
-	_ktv_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_ktv_vp.render_target_update_mode = SubViewport.UPDATE_ONCE   # kapalıyken bir kez çizilir, sonra durur
 	add_child(_ktv_vp)
 	var zemin := ColorRect.new(); zemin.color = Color(0.02, 0.02, 0.03); zemin.size = Vector2(320, 240)
 	_ktv_vp.add_child(zemin)
@@ -1050,9 +1072,10 @@ void fragment() {
 
 func _kanal_degistir(kanal: String) -> void:
 	if kanal == "foto1" and not _soylenen.has("ic07"):
-		get_tree().create_timer(1.0).timeout.connect(func() -> void: _soyle("ic07"))
+		get_tree().create_timer(1.0, false).timeout.connect(func() -> void: _soyle("ic07"))
 		_soylenen["ic07"] = true
 	_ktv_kanal = kanal
+	_ktv_vp.render_target_update_mode = SubViewport.UPDATE_ONCE if kanal == "kapali" else SubViewport.UPDATE_ALWAYS
 	_ktv_foto.visible = kanal.begins_with("foto")
 	_ktv_cubuk.visible = kanal == "cubuk"
 	_ktv_kar.visible = kanal == "kar"
@@ -1159,14 +1182,16 @@ func _konusma() -> void:
 			oyuncu_kamera.transform = Transform3D.IDENTITY
 			_oyuncuyu_dondur(false)
 			_ipucu(GOREV_MAZGAL, 0.0)
-			get_tree().create_timer(1.0).timeout.connect(func() -> void: if not _soylenen.has("ic08"): _soyle("ic08"))
+			get_tree().create_timer(1.0, false).timeout.connect(func() -> void: if not _soylenen.has("ic08"): _soyle("ic08"))
 			_gec("mazgala")
 			return
 		_satir_bitis = T_simdi() + _soyle(KONUSMA[_konusma_sira]) + 0.3
 		_konusma_sira += 1
 
+## Oyun saati: Esc ile duraklatınca durur (gerçek saat dursaydı konuşmalar duraklamada ilerliyordu).
+var _oyun_saati := 0.0
 func T_simdi() -> float:
-	return Time.get_ticks_msec() / 1000.0
+	return _oyun_saati
 
 func _oyuncuyu_dondur(dur: bool) -> void:
 	oyuncu.set_physics_process(not dur)
@@ -1211,7 +1236,7 @@ func _gecici_ipucu(metin: String, sure: float) -> void:
 	ipucu.text = metin
 	var bu := Time.get_ticks_msec() + int(sure * 1000.0)
 	_ipucu_bitis = bu
-	get_tree().create_timer(sure).timeout.connect(func() -> void:
+	get_tree().create_timer(sure, false).timeout.connect(func() -> void:
 		if _ipucu_bitis == bu and ipucu.text == metin: ipucu.text = gorev if durum == "mazgala" else "")
 
 func _mazgala() -> void:
