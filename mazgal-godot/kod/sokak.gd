@@ -203,7 +203,7 @@ const EV_PARK := Vector3(-14.0, 0.0, 30.0)
 var eve_donus := false
 const Eller := preload("res://kod/eller.gd")
 const Govde := preload("res://kod/govde.gd")
-var govde: Govde       # Selim'in gövdesi: yalnızca gölgesi görünür
+var govde: Govde       # Selim'in gövdesi: aşağı bakınca görünür, başın yalnızca gölgesi
 const Kagit := preload("res://kod/kagit.gd")
 var _iz_son := Vector3(1e9, 0, 0)
 var _iz_sayi := 0
@@ -288,6 +288,9 @@ func _process(dt: float) -> void:
 	# gövde yürürken görünür (arabada, otururken, düşerken gizli)
 	govde.visible = (durum == "yuruyus" or durum == "mazgala" or durum == "kulube") and oyuncu.is_physics_processing()
 	if govde.visible:
+		govde.goz = oyuncu.BOY
+		govde.eller = eller
+		govde.gorunur = not Input.is_action_pressed("egil")
 		govde.guncelle(oyuncu.global_position, oyuncu.global_rotation.y, dt)
 	_physics_ugultu()
 	if durum != "dusus" and durum != "karanlik":

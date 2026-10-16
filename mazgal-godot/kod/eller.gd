@@ -34,6 +34,10 @@ var gorunur_mu := false
 
 
 func _ready() -> void:
+	if not ResourceLoader.exists(MODEL):
+		push_warning("Selim'in modeli yok: " + MODEL)
+		visible = false
+		return
 	var m: Node3D = (load(MODEL) as PackedScene).instantiate()
 	add_child(m)
 	_iskelet = m.find_child("Skeleton3D", true, false) as Skeleton3D
@@ -113,7 +117,7 @@ func uzan(taraf: String, dunya_konumu: Vector3, sure := 0.8) -> void:
 	_dunya_hedef[taraf] = dunya_konumu
 	_sure[taraf] = maxf(sure, 0.01)
 	_t[taraf] = 0.0
-	visible = true
+	visible = _iskelet != null
 
 
 ## El kamera uzayında bir noktaya gelir (örneğin telefonu yüzün önünde tutmak için).
@@ -123,7 +127,7 @@ func kamerada(taraf: String, konum: Vector3, sure := 0.8) -> void:
 	_bitis[taraf] = konum
 	_sure[taraf] = maxf(sure, 0.01)
 	_t[taraf] = 0.0
-	visible = true
+	visible = _iskelet != null
 
 
 func birak(taraf: String, sure := 0.7) -> void:
@@ -150,6 +154,7 @@ func tut(taraf: String, esya: Node3D) -> void:
 
 ## Elin avuç noktası (dünya). Eşyayı bırakmak için kullanılır.
 func avuc(taraf: String) -> Vector3:
+	if _iskelet == null: return global_position
 	var el: int = _kemik[taraf + "_el"]
 	var t := _iskelet.global_transform * _iskelet.get_bone_global_pose(el)
 	var p := _iskelet.global_transform * _iskelet.get_bone_global_pose(_iskelet.find_bone(ON + ("Left" if taraf == "sol" else "Right") + "HandMiddle1"))

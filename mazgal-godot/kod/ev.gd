@@ -200,7 +200,7 @@ var buhar: GPUParticles3D
 
 # oynanabilir kısım
 var eller: Eller
-var govde: Govde       # Selim'in gövdesi: yalnızca gölgesi görünür
+var govde: Govde       # Selim'in gövdesi: aşağı bakınca görünür, başın yalnızca gölgesi
 var oyuncu: CharacterBody3D
 var _yaw := 0.0
 var _pitch := 0.0
@@ -288,6 +288,8 @@ func _ready() -> void:
 	kamera.add_child(eller)
 	govde = Govde.new()
 	govde.yelek = false     # evde iş yeleği yok
+	govde.goz = GOZ
+	govde.eller = eller
 	add_child(govde)
 	# "Devam Et" ile gelindiyse kaydedilen noktadan başlar
 	var d := get_node_or_null("/root/Duraklat")
@@ -333,6 +335,7 @@ func _process(dt: float) -> void:
 	# gövde yalnızca serbest yürürken: oturma, yatma, sinematiklerde gölgesi kafayla uyuşmaz
 	govde.visible = faz == "oyun"
 	if govde.visible:
+		govde.gorunur = not _oturuyor
 		var kp := kamera.global_position
 		govde.guncelle(Vector3(kp.x, 0.0, kp.z), kamera.global_rotation.y, dt)
 	match faz:
