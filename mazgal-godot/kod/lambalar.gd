@@ -48,8 +48,8 @@ func _lamba(bas: Vector3, parilti: Material, boy: float) -> void:
 	l.spot_attenuation = 0.9
 	l.shadow_enabled = true
 	l.distance_fade_enabled = true
-	l.distance_fade_begin = 55.0
-	l.distance_fade_length = 15.0
+	l.distance_fade_begin = 100.0
+	l.distance_fade_length = 25.0
 	l.distance_fade_shadow = 28.0
 	add_child(l)
 	# başın kendisini ve direği hafifçe aydınlatan ışık
@@ -59,8 +59,8 @@ func _lamba(bas: Vector3, parilti: Material, boy: float) -> void:
 	h.light_energy = 0.7
 	h.omni_range = 4.5
 	h.distance_fade_enabled = true
-	h.distance_fade_begin = 55.0
-	h.distance_fade_length = 15.0
+	h.distance_fade_begin = 100.0
+	h.distance_fade_length = 25.0
 	add_child(h)
 	l.set_meta("hale", h)
 	# ampulün parıltısı (ışık efekti, model değil): kameraya dönük yumuşak bir ışık lekesi

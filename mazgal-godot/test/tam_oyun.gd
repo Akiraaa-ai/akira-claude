@@ -243,8 +243,9 @@ func _sokak_oyna(s: Node) -> void:
 	# sürücü kapısı arabanın öbür yanında: oyuncu gibi arabanın arkasından dolaşır
 	for yer in [Vector3(1.6, 0, 3.2), Vector3(-1.9, 0, 3.2), Vector3(-1.9, 0, 0.3)]:
 		var h: Vector3 = s.araba.global_transform * yer
-		var b0 := Time.get_ticks_msec()
-		while Vector2(h.x - o.global_position.x, h.z - o.global_position.z).length() > 0.4 and Time.get_ticks_msec() - b0 < 8000:
+		var kare := 0   # yavaş çizimde de yetsin diye süre fizik karesiyle sayılır
+		while Vector2(h.x - o.global_position.x, h.z - o.global_position.z).length() > 0.4 and kare < 600:
+			kare += 1
 			o.global_rotation.y = atan2(-(h.x - o.global_position.x), -(h.z - o.global_position.z))
 			Input.action_press("ileri")
 			await physics_frame

@@ -1,10 +1,10 @@
 extends Node
 ## Oyunun açılışı: kulaklık uyarısı, arşiv kaydı yazısı, REC, jenerik ve MAZGAL logosu (geçilemez),
-## ardından ana menü: arkada yağmurlu gece sokağı, radyo çalar.
+## ardından ana menü: arkada Selim'in gece karanlık yatak odası (şehir görünmez), dışarıda yağmur, radyo çalar.
 ## Yeni oyun ev.tscn ile başlar.
 
 const ILK_SAHNE := "res://sahneler/ev.tscn"
-const SOKAK := "res://sahneler/sokak.tscn"
+const YATAK_ODASI := "res://modeller2/seliminevi/interior_8_bedroom.glb"
 const ACILIS_SURESI := 21.0
 
 const YAPIMCILAR := """[center][font_size=46]MAZGAL[/font_size]
@@ -97,30 +97,60 @@ func _sesler_kur() -> void:
 	var w := AudioStreamWAV.new(); w.format = AudioStreamWAV.FORMAT_16_BITS; w.mix_rate = hiz; w.data = veri
 	_tik.stream = w; _tik.volume_db = -14.0
 
-# menünün arkasında yağmurlu sokak; kamera yavaşça süzülür
+# menünün arkasında Selim'in gece yatak odası: pencereden soğuk ay ışığı, başucu lambası; kamera yavaşça süzülür
+var _ampul: OmniLight3D
+var _ampul_guc := 0.25
+var _titreme := 0.0
+
 func _sokak_kur() -> void:
-	var p: PackedScene = load(SOKAK)
-	_sokak = p.instantiate()
-	_sokak.set_meta("arkaplan", true)
-	var selim := _sokak.get_node("Selim")
-	selim.process_mode = Node.PROCESS_MODE_DISABLED
+	_sokak = Node3D.new()
 	add_child(_sokak)
 	move_child(_sokak, 0)
+	_sokak.add_child((load(YATAK_ODASI) as PackedScene).instantiate())
+	var ortam := WorldEnvironment.new()
+	var env := Environment.new()
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = Color(0.01, 0.014, 0.03)
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(0.3, 0.36, 0.55)
+	env.ambient_light_energy = 0.09
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.glow_enabled = true
+	env.glow_intensity = 0.4
+	ortam.environment = env
+	_sokak.add_child(ortam)
+	# pencereden giren ay ışığı
+	var ay := DirectionalLight3D.new()
+	ay.light_color = Color(0.55, 0.65, 1.0)
+	ay.light_energy = 0.45
+	ay.shadow_enabled = true
+	ay.rotation_degrees = Vector3(-22.0, -115.0, 0.0)
+	_sokak.add_child(ay)
+	# başucunda loş, arada titreyen bir lamba
+	_ampul = OmniLight3D.new()
+	_ampul.light_color = Color(1.0, 0.7, 0.42)
+	_ampul.light_energy = _ampul_guc
+	_ampul.omni_range = 3.5
+	_ampul.shadow_enabled = true
+	_sokak.add_child(_ampul)
+	_ampul.position = Vector3(-1.7, 1.55, 0.74)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	_kamera = Camera3D.new(); _kamera.fov = 60.0; _kamera.far = 300.0
+	_kamera = Camera3D.new(); _kamera.fov = 62.0; _kamera.near = 0.03; _kamera.far = 60.0
 	_sokak.add_child(_kamera)
 	_kamera.current = true
 
 func _process(dt: float) -> void:
 	T += dt
 	if _kamera:
-		# kulübeye doğru caddeden süzülen, hafif sallanan kamera
-		var u := fmod(T * 0.012, 1.0)
-		var yer := Vector3(-61.0, 2.2 + sin(T * 0.4) * 0.05, lerpf(-20.0, -60.0, u))
+		# kapının yanından boş yatağa bakan, çok yavaş süzülen kamera
+		var yer := Vector3(2.5 + sin(T * 0.05) * 0.25, 1.62 + sin(T * 0.4) * 0.012, 1.4 + sin(T * 0.037) * 0.35)
 		_kamera.global_position = yer
-		_kamera.look_at(yer + Vector3(sin(T * 0.07) * 0.6 + 0.35, -0.12, -1.0))
-		var selim := _sokak.get_node("Selim") as Node3D
-		selim.global_position = yer
+		_kamera.look_at(Vector3(-1.4, 0.8 + sin(T * 0.06) * 0.08, 0.0 + sin(T * 0.045) * 0.4))
+	# ampul arada bir titrer
+	if _ampul:
+		_titreme -= dt
+		if _titreme < -randf_range(4.0, 9.0): _titreme = randf_range(0.2, 0.6)
+		_ampul.light_energy = _ampul_guc * (randf_range(0.15, 0.9) if _titreme > 0.0 else 1.0)
 	if durum == "acilis": _acilis()
 	elif durum == "menu":
 		_radyo.volume_db = move_toward(_radyo.volume_db, -12.0, dt * 12.0)
