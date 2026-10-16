@@ -181,17 +181,17 @@ const PARK_YARICAP := 8.0
 const SATIRLAR := {
 	"araba1": ["res://sesler/selim_araba_01.mp3", "SELİM", "Her gece aynı yol... aynı lambalar."],
 	"araba2": ["res://sesler/selim_araba_02.mp3", "SELİM", "Bir şey olsun be. Bir şey..."],
-	"amir1": ["res://sesler/amir_01.mp3", "AMİR", "Alo, Selim? Kulübede misin?"],
+	"amir1": ["res://sesler/amir_01.mp3", "AMİR", "Alo, Selim?"],
 	"selim1": ["res://sesler/selim_01.mp3", "SELİM", "Buradayım abi, kulübeden ayrılmadım hiç."],
-	"amir2": ["res://sesler/amir_02.mp3", "AMİR", "Santralden bağladılar demin... Biri aradı, mazgal açık kalmış diyor. Yalan yok, arayanın sesi de aynı sen ha, bir an 'bu herif benimle kafa mı buluyor' dedim."],
+	"amir2": ["res://sesler/amir_02.mp3", "AMİR", "Kulübede misin? Santralden bağladılar demin... Biri aradı, mazgal açık kalmış diyor. Yalan yok, arayanın sesi de aynı sen ha, bir an 'bu herif benimle kafa mı buluyor' dedim."],
 	"selim2": ["res://sesler/selim_02.mp3", "SELİM", "Kim dalga geçecek seninle, başkasıdır o."],
 	"amir3": ["res://sesler/amir_03.mp3", "AMİR", "Çıkıver oradan iki adım, bakıver şuna. Çoluk çocuk geçiyor o yoldan, biri düşer eder Allah korusun, başımıza iş almayalım. Kapatıver kapağı da raporu düşelim sisteme."],
 	"selim3": ["res://sesler/selim_03.mp3", "SELİM", "Tamam, anladım; iki dakikaya gidip oturturum kapağı yerine. Başımıza iş açılmasın, halledip haber veririm sana."],
 	"mirilti": ["res://sesler/selim_05.mp3", "SELİM", "Kim açar ki bunu bu saatte..."],
 	"ses": ["res://sesler/selim_06.mp3", "SELİM", "Bu... bu ne sesi?"],
 	# iç ses: alp okuyunca sesler/ klasörüne bu adlarla konur; dosya yokken yalnız altyazı çıkar
-	"ic05": ["res://sesler/selim_ic_05.mp3", "SELİM", "Geldik. Yine bu kulübe."],
-	"ic06": ["res://sesler/selim_ic_06.mp3", "SELİM", "Kayıt açık... kim izleyecekse."],
+	"ic05": ["res://sesler/selim_ic_04b.mp3", "SELİM", "Geldik. Yine bu kulübe."],   # alp'in selim_ic_04 kaydının ikinci yarısı
+	"ic06": ["res://sesler/selim_ic_05.mp3", "SELİM", "Kayıt açık... kim izleyecekse."],   # alp bu satırı selim_ic_05 adıyla kaydetti
 	"ic07": ["res://sesler/selim_ic_07.mp3", "SELİM", "Kanalı kim değiştirdi şimdi..."],
 	"ic08": ["res://sesler/selim_ic_08.mp3", "SELİM", "Hadi bakalım. İki dakika."],
 	# 1. gece: kulübede bir şey olmaz, sabah olur, Selim eve döner

@@ -21,18 +21,18 @@ const SATIRLAR := {
 	"ic01": ["res://sesler/selim_ic_01.mp3", "Bu ışık da hep bozuk zaten."],
 	"ic02": ["res://sesler/selim_ic_02.mp3", "Dolapta ne kaldıysa artık..."],
 	"ic03": ["res://sesler/selim_ic_03.mp3", "Fatura da gelmiş. Sonra bakarım."],
-	"ic04": ["res://sesler/selim_ic_04.mp3", "Tamam abi, tamam... ne zaman geç kaldım ki."],
+	"ic04": ["res://sesler/selim_ic_04a.mp3", "Tamam abi, tamam... ne zaman geç kaldım ki."],   # alp'in kaydının ilk yarısı; ikinci yarısı kulübede
 	# rüyadaki kadın (alp'in metni); ses dosyaları gelene kadar yalnız altyazı
-	"ruya_sonra": ["res://sesler/selim_ruya_sonra.mp3", "Yine o siktiri boktan rüya... Her gece aynı."],
+	"ruya_sonra": ["res://sesler/selim_ruya_sonra.mp3", "Yine o siktir boktan rüya... Her gece aynı."],
 	"ruya01": ["res://sesler/ruya_01.mp3", "Hoş geldin canım...", "KADIN"],
 	"ruya02": ["res://sesler/ruya_02.mp3", "Burayı seviyorsun, değil mi? İyi ki geldin.", "KADIN"],
-	"ruya03": ["res://sesler/ruya_03.mp3", "Seni çok özledim.", "KADIN"],
+	"ruya03": ["res://sesler/ruya_03.mp3", "Seni o kadar çok özledim ki...", "KADIN"],
 	"ruya04": ["res://sesler/ruya_04.mp3", "Ama ben gittiğimden beri hiçbir şey yapmamışsın Selim.", "KADIN"],
-	"ruya05": ["res://sesler/ruya_05.mp3", "Hani hayatına devam edecektin? Bu ne depresyonluk böyle...", "KADIN"],
+	"ruya05": ["res://sesler/ruya_05.mp3", "Hani hayatına devam edecektin? Bu ne hal böyle...", "KADIN"],
 	"ruya06": ["res://sesler/ruya_06.mp3", "Ne kadar zayıflamışsın sen.", "KADIN"],
-	"ruya07": ["res://sesler/ruya_07.mp3", "Senin suçun değildi. Duyuyor musun? Senin suçun değildi.", "KADIN"],
-	"ruya08": ["res://sesler/ruya_08.mp3", "Beni unutma. Ve biraz yaşa... Benim için.", "KADIN"],
-	"ruya09": ["res://sesler/ruya_09.mp3", "Aşağıda bekliyorsun, biliyorum. Ama yukarıdaki de sendin.", "KADIN"],
+	"ruya07": ["res://sesler/ruya_08.mp3", "Senin suçun değildi diyorum. Duyuyor musun beni? Senin suçun değildi.", "KADIN"],   # kayıtlarda 07 ve 08 yer değiştirmiş
+	"ruya08": ["res://sesler/ruya_07.mp3", "Beni unutma, ne olur. Ve biraz olsun yaşa... Sadece benim için.", "KADIN"],
+	"ruya09": ["res://sesler/ruya_09.mp3", "Selim... Aşağıda bekliyorsun, biliyorum. Ama yukarıdaki de sendin.", "KADIN"],
 	"ruya10": ["res://sesler/ruya_10.mp3", "Selim!", "KADIN"],
 	"ruya11": ["res://sesler/ruya_11.mp3", "Selim!!", "KADIN"],
 	"ruya12": ["res://sesler/ruya_12.mp3", "SELİM!!!", "KADIN"],
@@ -2006,7 +2006,12 @@ func _soyle(anahtar: String) -> float:
 	_soylenenler[anahtar] = true
 	var s: Array = SATIRLAR[anahtar]
 	var kim: String = s[2] if s.size() > 2 else "SELİM"
-	var akis: AudioStream = load(s[0]) if ResourceLoader.exists(s[0]) else null
+	var yol: String = s[0]
+	# 2. gecenin rüyası: alp'in ruya2_01..12 kayıtları varsa onlar çalar (sıra anahtarın numarasıdır)
+	if anahtar.begins_with("ruya") and anahtar.substr(4).is_valid_int() and _gece() >= 2:
+		var ikinci := "res://sesler/ruya2_%s.mp3" % anahtar.substr(4)
+		if ResourceLoader.exists(ikinci): yol = ikinci
+	var akis: AudioStream = load(yol) if ResourceLoader.exists(yol) else null
 	var sure := 2.6 if kim == "SELİM" else 2.2 + str(s[1]).length() * 0.06
 	if akis:
 		ses_selim.stream = akis
