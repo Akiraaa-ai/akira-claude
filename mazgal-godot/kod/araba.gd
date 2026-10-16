@@ -43,8 +43,7 @@ func _ready() -> void:
 
 ## Camlar: yağmur damlaları birikir, ön camda silecekler geçtikçe silinir; motor yeni çalışınca kenarları buğulu.
 const CAM_SHADER := """shader_type spatial;
-render_mode blend_mix, depth_draw_opaque, cull_disabled, unshaded;
-uniform sampler2D ekran : hint_screen_texture, filter_linear_mipmap;
+render_mode blend_mix, depth_draw_never, cull_disabled, unshaded;
 uniform float silecek_zaman = 0.0;
 uniform float silecek = 0.0;
 uniform float silecek_bos = 0.0;
@@ -96,11 +95,14 @@ void fragment() {
 	// buğu: kenarlardan başlar, motor ısındıkça çekilir
 	float kenar = on_cam ? smoothstep(20.0, 45.0, abs(yerel.z)) + smoothstep(85.0, 100.0, yerel.y) : 0.6;
 	float b = clamp(bugu * (0.15 + kenar), 0.0, 0.7);
-	vec3 duz = textureLod(ekran, SCREEN_UV, b * 3.0).rgb;
-	vec3 arka = textureLod(ekran, SCREEN_UV - egim * 0.05, 1.5 + b * 2.0).rgb;
-	vec3 c = mix(duz * 0.92, arka * 1.2 + vec3(0.015), damla);
-	c = mix(c, vec3(0.1, 0.105, 0.11) + c * 0.75, b * 0.35);
-	ALBEDO = c;
+	// cam saydam: şehir doğrudan camın ardından görünür. Ekran görüntüsü okunmaz; camı ekran görüntüsüyle
+	// boyamak şehri karanlık ve bulanık gösteriyordu, üstelik her karede ekranın kopyası alınıyordu.
+	// damla: ışığı yakalayan kenarı parlak, ortası hafif
+	float parilti = clamp(0.35 + dot(normalize(egim + vec2(0.0001)), vec2(-0.6, 0.8)) * 0.5, 0.0, 1.0);
+	vec3 sis = vec3(0.1, 0.105, 0.11);
+	vec3 damla_renk = vec3(0.4, 0.43, 0.5) * (0.3 + parilti * 0.8);
+	ALBEDO = mix(sis, damla_renk, damla);
+	ALPHA = max(damla * 0.16, 0.04 + b * 0.35);
 }
 """
 var cam_mat: ShaderMaterial
