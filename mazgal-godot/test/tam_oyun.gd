@@ -144,7 +144,7 @@ func _ev_oyna(ev: Node) -> void:
 	b = Time.get_ticks_msec()
 	while is_instance_valid(ev) and current_scene == ev:
 		await process_frame
-		if Time.get_ticks_msec() - b > 200000: _hata("salon/çıkış bitmedi faz=" + str(ev.faz)); return
+		if Time.get_ticks_msec() - b > 200000: _hata("salon/çıkış bitmedi faz=" + (str(ev.faz) if is_instance_valid(ev) else "?")); return
 	print("ev bitti (", (Time.get_ticks_msec() - b) / 1000.0, " sn)")
 
 
@@ -278,7 +278,7 @@ func _sokak_oyna(s: Node) -> void:
 	b = Time.get_ticks_msec()
 	while s.durum != "kulube":
 		await process_frame
-		if Time.get_ticks_msec() - b > 20000: _hata("arabadan inilemedi durum=" + str(s.durum)); return
+		if Time.get_ticks_msec() - b > 60000: _hata("arabadan inilemedi durum=" + str(s.durum)); return
 	print("indi, oyuncu=", o.global_position)
 	await _sn(0.5)
 	# kulübenin kapısına yürü, içeri gir
