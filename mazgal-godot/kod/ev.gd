@@ -22,6 +22,20 @@ const SATIRLAR := {
 	"ic02": ["res://sesler/selim_ic_02.mp3", "Dolapta ne kaldıysa artık..."],
 	"ic03": ["res://sesler/selim_ic_03.mp3", "Fatura da gelmiş. Sonra bakarım."],
 	"ic04": ["res://sesler/selim_ic_04.mp3", "Tamam abi, tamam... ne zaman geç kaldım ki."],
+	# rüyadaki kadın (alp'in metni); ses dosyaları gelene kadar yalnız altyazı
+	"ruya_sonra": ["res://sesler/selim_ruya_sonra.mp3", "Yine o siktiri boktan rüya... Her gece aynı."],
+	"ruya01": ["res://sesler/ruya_01.mp3", "Hoş geldin canım...", "KADIN"],
+	"ruya02": ["res://sesler/ruya_02.mp3", "Burayı seviyorsun, değil mi? İyi ki geldin.", "KADIN"],
+	"ruya03": ["res://sesler/ruya_03.mp3", "Seni çok özledim.", "KADIN"],
+	"ruya04": ["res://sesler/ruya_04.mp3", "Ama ben gittiğimden beri hiçbir şey yapmamışsın Selim.", "KADIN"],
+	"ruya05": ["res://sesler/ruya_05.mp3", "Hani hayatına devam edecektin? Bu ne depresyonluk böyle...", "KADIN"],
+	"ruya06": ["res://sesler/ruya_06.mp3", "Ne kadar zayıflamışsın sen.", "KADIN"],
+	"ruya07": ["res://sesler/ruya_07.mp3", "Senin suçun değildi. Duyuyor musun? Senin suçun değildi.", "KADIN"],
+	"ruya08": ["res://sesler/ruya_08.mp3", "Beni unutma. Ve biraz yaşa... Benim için.", "KADIN"],
+	"ruya09": ["res://sesler/ruya_09.mp3", "Aşağıda bekliyorsun, biliyorum. Ama yukarıdaki de sendin.", "KADIN"],
+	"ruya10": ["res://sesler/ruya_10.mp3", "Selim!", "KADIN"],
+	"ruya11": ["res://sesler/ruya_11.mp3", "Selim!!", "KADIN"],
+	"ruya12": ["res://sesler/ruya_12.mp3", "SELİM!!!", "KADIN"],
 }
 
 # Odaların dünyadaki yerleri (ev.tscn ile aynı)
@@ -214,6 +228,7 @@ func _ready() -> void:
 	_tv_sehpasi()
 	_saat_kur()
 	_aile_fotografi()
+	_foto_duvari()
 	_mutfak_erzak()
 	_paket_kur()
 	_dus_kur()
@@ -248,7 +263,8 @@ func _ready() -> void:
 	var d := get_node_or_null("/root/Duraklat")
 	var nokta: String = str(d.baslangic_noktasi) if d else ""
 	if d: d.baslangic_noktasi = ""
-	_gec(nokta if nokta in KAYIT_NOKTALARI else "uyanis")
+	# yeni oyun ve eve dönüş: Selim uyanmadan önce rüya görür
+	_gec(nokta if nokta in KAYIT_NOKTALARI else "ruya")
 
 
 # ---------------------------------------------------------------- akış
@@ -262,6 +278,7 @@ func _gec(ad: String) -> void:
 		var d := get_node_or_null("/root/Duraklat")
 		if d: d.kayit_noktasi(scene_file_path, ad)
 	match ad:
+		"ruya": _ruya_kur()
 		"banyo": _banyo_basla()
 		"mutfak": _mutfak_basla()
 		"salon_kapisi": _salon_basla()
@@ -284,6 +301,7 @@ func _process(dt: float) -> void:
 	ft += dt
 	sallanti = 1.0
 	match faz:
+		"ruya": _ruya(dt)
 		"uyanis": _uyanis()
 		"oyun": _oyun_kamera(dt)
 		"s_lavabo": _s_lavabo()
@@ -321,13 +339,204 @@ func _arka_muzik(dt: float) -> void:
 	if ses_arka == null or ses_arka.stream == null:
 		return
 	var hedef := -80.0
-	if faz != "uyanis" and not faz in ["yayin", "geri", "saat", "cikis"]:
+	if not faz in ["ruya", "uyanis", "yayin", "geri", "saat", "cikis"]:
 		hedef = ARKA_SES
 	if hedef > -80.0 and not ses_arka.playing:
 		ses_arka.play()
 	ses_arka.volume_db = move_toward(ses_arka.volume_db, hedef, dt * (8.0 if hedef > ses_arka.volume_db else 20.0))
 	if ses_arka.playing and ses_arka.volume_db <= -79.0 and hedef <= -80.0:
 		ses_arka.stop()
+
+
+# ---------------------------------------------------------------- rüya (alp'in metni)
+## Bembeyaz, ışıl ışıl bir yer; kimse yok, yavaş bir piyano. Görünmeyen bir kadın konuşur.
+## Sonra piyano kesilir, ışık titrer, yağmur başlar; kadın Selim'e bağırır, fren, çarpma, karanlık.
+## Bir saniyelik sessizlikten sonra alarm çalar, Selim nefes nefese uyanır.
+## Rüya evden çok yukarıda kurulur; sis ve ışık evi göstermez. Hepsi ışık efekti, model yok.
+const RUYA_MERKEZ := Vector3(0, 600, 0)
+const RUYA_SIRA := [
+	["ruya01", 1.6], ["ruya02", 1.6], ["ruya03", 3.0],
+	["ruya04", 1.6], ["ruya05", 1.6], ["ruya06", 3.0],
+	["ruya07", 1.8], ["ruya08", 1.8], ["ruya09", 2.6],
+]
+var _ruya_kok: Node3D
+var _ruya_env: Environment
+var _ev_env: Environment
+var _ruya_gunes: DirectionalLight3D
+var ses_piyano: AudioStreamPlayer
+var ses_ruya_yagmur: AudioStreamPlayer
+var _ruya_sira := 0
+var _ruya_sonraki := 3.5
+var _ruya_kirilma := -1.0   # piyanonun kesildiği an
+
+func _ruya_kur() -> void:
+	_ruya_kok = Node3D.new()
+	_ruya_kok.name = "Ruya"
+	add_child(_ruya_kok)
+	_ruya_kok.position = RUYA_MERKEZ
+	# gökyüzü: tepede açık mavi, ufukta altın beyazı
+	var gok := ProceduralSkyMaterial.new()
+	gok.sky_top_color = Color(0.62, 0.78, 1.0)
+	gok.sky_horizon_color = Color(1.0, 0.94, 0.84)
+	gok.ground_bottom_color = Color(1.0, 0.96, 0.9)
+	gok.ground_horizon_color = Color(1.0, 0.94, 0.86)
+	gok.sun_angle_max = 40.0
+	gok.sun_curve = 0.08
+	gok.sky_energy_multiplier = 1.1
+	var sky := Sky.new()
+	sky.sky_material = gok
+	var e := Environment.new()
+	e.background_mode = Environment.BG_SKY
+	e.sky = sky
+	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	e.ambient_light_energy = 1.2
+	e.tonemap_mode = Environment.TONE_MAPPER_ACES
+	e.tonemap_exposure = 0.85
+	e.glow_enabled = true
+	e.glow_intensity = 1.1
+	e.glow_bloom = 0.12
+	e.glow_hdr_threshold = 0.85
+	e.fog_enabled = true
+	e.fog_light_color = Color(1.0, 0.95, 0.88)
+	e.fog_density = 0.02
+	e.fog_sky_affect = 0.7
+	e.fog_sun_scatter = 0.7
+	e.adjustment_enabled = true
+	e.adjustment_saturation = 1.08
+	_ruya_env = e
+	var ortam := $Ortam as WorldEnvironment
+	_ev_env = ortam.environment
+	ortam.environment = _ruya_env
+	_ruya_gunes = DirectionalLight3D.new()
+	_ruya_gunes.light_color = Color(1.0, 0.9, 0.75)
+	_ruya_gunes.light_energy = 1.4
+	_ruya_gunes.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY
+	_ruya_gunes.rotation_degrees = Vector3(-12.0, 160.0, 0.0)
+	_ruya_kok.add_child(_ruya_gunes)
+	$Aksam.visible = false
+	# havada süzülen ışık tozları ve birkaç büyük, yumuşak ışık küresi
+	_ruya_kok.add_child(_isik_tozu(500, 0.05, Vector3(10, 5, 10), 9.0))
+	_ruya_kok.add_child(_isik_tozu(40, 0.7, Vector3(14, 6, 14), 12.0))
+	ses_piyano = AudioStreamPlayer.new(); add_child(ses_piyano)
+	var piyano := "res://sesler/ruya_piyano.mp3" if ResourceLoader.exists("res://sesler/ruya_piyano.mp3") else "res://sesler/muzik_4.mp3"
+	if ResourceLoader.exists(piyano):
+		ses_piyano.stream = load(piyano)
+		ses_piyano.volume_db = -40.0
+		ses_piyano.play()
+	ses_ruya_yagmur = AudioStreamPlayer.new(); add_child(ses_ruya_yagmur)
+	if ResourceLoader.exists("res://sesler/yagmur.mp3"):
+		ses_ruya_yagmur.stream = load("res://sesler/yagmur.mp3")
+	ses_ruya_yagmur.volume_db = -60.0
+	_ruya_sira = 0
+	_ruya_sonraki = 3.5
+	_ruya_kirilma = -1.0
+	karartma = 1.0
+
+
+func _isik_tozu(adet: int, boy: float, alan: Vector3, omur: float) -> GPUParticles3D:
+	var p := GPUParticles3D.new()
+	p.amount = adet
+	p.lifetime = omur
+	p.preprocess = omur
+	p.visibility_aabb = AABB(-alan * 1.5, alan * 3.0)
+	p.position = Vector3(0, 0, -6)
+	var m := ParticleProcessMaterial.new()
+	m.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	m.emission_box_extents = alan
+	m.direction = Vector3(0, 1, 0)
+	m.spread = 180.0
+	m.initial_velocity_min = 0.02
+	m.initial_velocity_max = 0.12
+	m.gravity = Vector3(0, 0.03, 0)
+	m.scale_min = 0.5
+	m.scale_max = 1.5
+	var g := Gradient.new()
+	g.set_color(0, Color(1, 1, 1, 0)); g.set_color(1, Color(1, 1, 1, 0))
+	g.add_point(0.25, Color(1, 1, 1, 1)); g.add_point(0.75, Color(1, 1, 1, 1))
+	var gt := GradientTexture1D.new(); gt.gradient = g
+	m.color_ramp = gt
+	p.process_material = m
+	var q := QuadMesh.new()
+	q.size = Vector2(boy, boy)
+	var parilti := Gradient.new()
+	parilti.set_color(0, Color(1, 0.96, 0.85, 1)); parilti.set_color(1, Color(1, 0.9, 0.7, 0))
+	var d := GradientTexture2D.new(); d.gradient = parilti; d.width = 64; d.height = 64
+	d.fill = GradientTexture2D.FILL_RADIAL; d.fill_from = Vector2(0.5, 0.5); d.fill_to = Vector2(0.5, 0.0)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	mat.vertex_color_use_as_albedo = true
+	mat.albedo_texture = d
+	mat.albedo_color = Color(1, 1, 1, 0.55 if boy > 0.3 else 0.9)
+	q.material = mat
+	p.draw_pass_1 = q
+	return p
+
+
+func _ruya(dt: float) -> void:
+	# kamera ışığın içinde çok yavaş süzülür, güneşe doğru hafifçe döner
+	var ileri := Vector3(sin(ft * 0.03) * 0.6, sin(ft * 0.21) * 0.08, -ft * 0.18)
+	var goz := RUYA_MERKEZ + ileri
+	var bak := goz + Vector3(sin(ft * 0.05) * 0.4 + 0.25, 0.12 + sin(ft * 0.09) * 0.05, -1.0)
+	var sars := 0.0
+	if _ruya_kirilma >= 0.0:
+		sars = clampf((ft - _ruya_kirilma - 2.0) / 4.0, 0.0, 1.0)
+	goz += Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * 0.01 * sars
+	kamera.look_at_from_position(goz, bak, Vector3.UP)
+	kamera.rotation.z = sin(ft * 0.11) * 0.02
+	if _ruya_kirilma < 0.0:
+		# beyazdan açılır, piyano yükselir
+		karartma = 1.0 - smoothstep(0.3, 3.0, ft)
+		if ses_piyano.stream: ses_piyano.volume_db = move_toward(ses_piyano.volume_db, -9.0, dt * 12.0)
+		if ft >= _ruya_sonraki:
+			if _ruya_sira < RUYA_SIRA.size():
+				var sat: Array = RUYA_SIRA[_ruya_sira]
+				_ruya_sonraki = ft + _soyle(sat[0]) + float(sat[1])
+				_ruya_sira += 1
+			else:
+				# piyano aniden kesilir, ışık titrer, yağmur gelir
+				_ruya_kirilma = ft
+				ses_piyano.stop()
+				if ses_ruya_yagmur.stream: ses_ruya_yagmur.play()
+		return
+	var k := ft - _ruya_kirilma
+	ses_ruya_yagmur.volume_db = move_toward(ses_ruya_yagmur.volume_db, -6.0, dt * 30.0)
+	# ışık titrer ve söner, gökyüzü griye döner
+	var titre := 1.0 if randf() < 0.75 else randf_range(0.15, 0.6)
+	_ruya_env.tonemap_exposure = lerpf(0.85, 0.3, smoothstep(0.0, 5.0, k)) * titre
+	_ruya_gunes.light_energy = lerpf(1.4, 0.1, smoothstep(0.0, 4.0, k)) * titre
+	_ruya_env.fog_light_color = Color(1.0, 0.95, 0.88).lerp(Color(0.25, 0.27, 0.3), smoothstep(0.0, 5.0, k))
+	_ruya_env.adjustment_saturation = lerpf(1.08, 0.3, smoothstep(0.0, 5.0, k))
+	for c in [[1.4, "ruya10"], [2.9, "ruya11"], [4.3, "ruya12"]]:
+		if k > float(c[0]) and not _soylenenler.has(c[1]): _soyle(c[1])
+	if k > 5.8 and not _eylem.has("fren"):
+		_eylem["fren"] = true
+		_ses_cal("fren", 0.0)
+	if k > 7.3 and not _eylem.has("carpma"):
+		_eylem["carpma"] = true
+		_ses_cal("carpma", 2.0)
+		# ani kararma, sessizlik
+		karartma = 1.0
+		ses_ruya_yagmur.stop()
+		ses_selim.stop()
+		altyazi.visible = false
+	if k > 7.3:
+		karartma = 1.0
+	if k > 8.5:
+		_ruya_bitir()
+		_gec("uyanis")
+		_ses_cal("irkilme", -2.0)
+
+
+func _ruya_bitir() -> void:
+	if _ruya_kok: _ruya_kok.queue_free()
+	_ruya_kok = null
+	($Ortam as WorldEnvironment).environment = _ev_env
+	$Aksam.visible = true
+	if ses_piyano: ses_piyano.stop()
+	if ses_ruya_yagmur: ses_ruya_yagmur.stop()
 
 
 # ---------------------------------------------------------------- 1. uyanma (sinematik)
@@ -379,6 +588,7 @@ func _uyanis() -> void:
 	# nefes, iç çekiş, çarşaf, yatak, yalın ayak adımlar
 	if ft > 2.0 and not _eylem.has("nefes"):
 		_eylem["nefes"] = true; _ses_cal("nefes_agir", -6.0)
+	if ft > 10.4 and not _soylendi("ruya_sonra"): _soyle("ruya_sonra")
 	if ft > 9.2 and not _eylem.has("ic_cekis"):
 		_eylem["ic_cekis"] = true; _ses_cal("ic_cekis", -4.0)
 	if ft > 9.8 and not _eylem.has("carsaf"):
@@ -827,11 +1037,44 @@ func _s_tel_birak() -> void:
 			kapi_salon_giris, _giris_yolu(KAPI_SALON_GIRIS, Vector3(36.6, 0, 3.8), 0.0), "salon_kapisi")
 
 
+## Selim salona girince önce koltuğun üstündeki fotoğraf duvarına bakar (yaklaşık 30 sn), resimleri
+## tek tek gezer; sonra koltuğa oturur ve TV sinematiği başlar.
+const FOTO_SURE := 30.0
+const F_COCUK := Vector3(33.16, 2.28, 0.76)
+const F_VERANDA := Vector3(33.16, 1.66, 0.76)
+const F_DUGUN := Vector3(33.16, 2.01, 0.02)
+const F_AILE := Vector3(33.16, 2.01, -1.13)
+const F_SEVGILI := Vector3(33.16, 2.28, -2.02)
+const F_VESIKA := Vector3(33.16, 1.66, -2.02)
+
 func _s_koltuk() -> void:
-	_yol([[0.0, _bas_konum, _bas_bakis], [1.8, Vector3(34.5, 1.5, 0.2), KOLTUK + Vector3(-0.3, -0.5, -0.2)], [3.2, KOLTUK + Vector3(0, 0, 0.05), EKRAN + Vector3(0, -0.05, 0)]], ft)
-	if ft > 2.4 and not _eylem.has("k_cok"):
+	var dur := Vector3(35.3, 1.62, -0.1)
+	var yakin := Vector3(34.75, 1.6, 0.2)
+	if ft < FOTO_SURE:
+		_yol([[0.0, _bas_konum, _bas_bakis],
+			[2.2, dur, Vector3(33.16, 1.9, -0.6)],
+			[4.4, dur, Vector3(33.16, 1.95, -0.6)],
+			[6.4, yakin, F_COCUK],
+			[9.6, yakin + Vector3(-0.05, -0.01, 0), F_COCUK + Vector3(0, -0.02, 0)],
+			[11.0, yakin, F_VERANDA],
+			[14.0, yakin + Vector3(-0.03, 0, 0.02), F_VERANDA + Vector3(0, 0.02, 0)],
+			[16.0, Vector3(34.7, 1.6, -0.35), F_DUGUN],
+			[20.5, Vector3(34.62, 1.58, -0.35), F_DUGUN + Vector3(0, -0.03, 0)],
+			[22.4, Vector3(34.7, 1.6, -0.9), F_AILE],
+			[25.0, Vector3(34.68, 1.6, -0.95), F_AILE + Vector3(0, -0.02, 0)],
+			[26.6, Vector3(34.75, 1.6, -1.35), F_SEVGILI],
+			[28.0, Vector3(34.75, 1.6, -1.4), F_VESIKA],
+			[FOTO_SURE, Vector3(34.75, 1.6, -1.4), F_VESIKA + Vector3(0, -0.04, 0)]], ft)
+		if ft > 18.0 and not _eylem.has("f_ic"):
+			_eylem["f_ic"] = true; _ses_cal("ic_cekis", -6.0)
+		if ft > 23.5 and not _eylem.has("f_nefes"):
+			_eylem["f_nefes"] = true; _ses_cal("nefes_agir", -12.0)
+		return
+	var k := ft - FOTO_SURE
+	_yol([[0.0, Vector3(34.75, 1.6, -1.4), F_VESIKA + Vector3(0, -0.04, 0)], [1.2, Vector3(34.6, 1.55, -0.6), KOLTUK + Vector3(-0.3, -0.5, -0.2)], [2.8, Vector3(34.5, 1.5, 0.2), KOLTUK + Vector3(-0.3, -0.5, -0.2)], [4.2, KOLTUK + Vector3(0, 0, 0.05), EKRAN + Vector3(0, -0.05, 0)]], k)
+	if k > 3.4 and not _eylem.has("k_cok"):
 		_eylem["k_cok"] = true; _ses_cal("koltuk", -6.0)
-	if ft >= 3.2:
+	if k >= 4.2:
 		# kapı arkasından kapanır, TV sinematiği başlar
 		_zaman.erase("salon_kapi")
 		_zaman["salon_kapa"] = T
@@ -1253,6 +1496,79 @@ func _aile_fotografi() -> void:
 	tuval.set_surface_override_material(0, m)
 
 
+## Salonun koltuk üstündeki duvarı Selim'in fotoğraf duvarı: modelin ikinci büyük çerçevesine düğün
+## fotoğrafı konur, alp'in çerçeve modeli küçültülmeden kopyalanıp yanlara dört küçük çerçeve olarak asılır.
+## Duvar x = 33.16'da, odaya +x yönüne bakar; odadan bakınca sol taraf +z.
+const FOTO_DUGUN := "res://modeller2/seliminevi/foto_dugun.jpg"
+const FOTO_KUCUK := [
+	["res://modeller2/seliminevi/foto_cocuk_vesikalik.jpg", Vector3(33.16, 2.28, 0.76)],
+	["res://modeller2/seliminevi/foto_cocuk_veranda.jpg", Vector3(33.16, 1.66, 0.76)],
+	["res://modeller2/seliminevi/foto_sevgili.jpg", Vector3(33.16, 2.28, -2.02)],
+	["res://modeller2/seliminevi/foto_vesikalik.jpg", Vector3(33.16, 1.66, -2.02)],
+]
+const FOTO_KUCUK_BOY := 0.52                       # küçük çerçevelerin dış yüksekliği (m)
+var foto_noktalari: Array[Vector3] = []             # Selim'in baktığı resimlerin ortaları
+
+func _foto_duvari() -> void:
+	var cerceve := $Salon.find_child("Plane_002_Material_006_0", true, false) as MeshInstance3D
+	var tuval := $Salon.find_child("Plane_002_Material_012_0", true, false) as MeshInstance3D
+	var tuval2 := $Salon.find_child("Plane_004_Material_013_0", true, false) as MeshInstance3D
+	if tuval2 and ResourceLoader.exists(FOTO_DUGUN):
+		_tuvale_resim(tuval2, tuval2.global_transform, load(FOTO_DUGUN))
+		foto_noktalari.append((tuval2.global_transform * tuval2.get_aabb()).get_center())
+	if tuval:
+		foto_noktalari.append((tuval.global_transform * tuval.get_aabb()).get_center())
+	if cerceve == null or tuval == null:
+		return
+	var dis: AABB = cerceve.global_transform * cerceve.get_aabb()
+	var ic: AABB = tuval.global_transform * tuval.get_aabb()
+	var orta := dis.get_center()
+	for f in FOTO_KUCUK:
+		if not ResourceLoader.exists(f[0]):
+			continue
+		var tex: Texture2D = load(f[0])
+		# fotoğrafın en/boy oranına göre çerçeve: tuvalin oranı resminkine eşitlenir
+		var oran := float(tex.get_width()) / float(tex.get_height())
+		var sy := FOTO_KUCUK_BOY / dis.size.y
+		var sz := (ic.size.y * sy * oran) / ic.size.z
+		var hedef: Vector3 = f[1]
+		var don := Transform3D(Basis.from_scale(Vector3(1, sy, sz)), hedef) * Transform3D(Basis(), -orta)
+		var c := cerceve.duplicate() as MeshInstance3D
+		var t := tuval.duplicate() as MeshInstance3D
+		$Salon.add_child(c); $Salon.add_child(t)
+		c.global_transform = don * cerceve.global_transform
+		t.global_transform = don * tuval.global_transform
+		_tuvale_resim(t, tuval.global_transform, tex)
+		foto_noktalari.append(hedef)
+
+
+## Tuval düzleminin UV'si dünyadaki konumdan yeniden hesaplanır: odadan bakınca resmin solu +z,
+## üstü +y. Böylece modelin kendi (ters) UV'sine bakılmadan resim tam tuvale oturur.
+func _tuvale_resim(mi: MeshInstance3D, xf: Transform3D, tex: Texture2D) -> void:
+	var kaynak := mi.mesh
+	var yeni := ArrayMesh.new()
+	for s in kaynak.get_surface_count():
+		var d := kaynak.surface_get_arrays(s)
+		var v: PackedVector3Array = d[Mesh.ARRAY_VERTEX]
+		var g := PackedVector3Array()
+		for p in v: g.append(xf * p)
+		var zmin := INF; var zmax := -INF; var ymin := INF; var ymax := -INF
+		for p in g:
+			zmin = minf(zmin, p.z); zmax = maxf(zmax, p.z); ymin = minf(ymin, p.y); ymax = maxf(ymax, p.y)
+		var uv := PackedVector2Array()
+		for p in g:
+			uv.append(Vector2((zmax - p.z) / maxf(zmax - zmin, 0.0001), (ymax - p.y) / maxf(ymax - ymin, 0.0001)))
+		d[Mesh.ARRAY_TEX_UV] = uv
+		yeni.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, d)
+	mi.mesh = yeni
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = tex
+	m.roughness = 0.55
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	for s in yeni.get_surface_count():
+		mi.set_surface_override_material(s, m)
+
+
 ## Mutfak modelindeki oturma eşyaları odaya göre çok iri geliyor: her biri kendi tabanının ortası
 ## etrafında gerçek boyuna küçültülür (masa 75 cm, koltuk 90 cm, hasır sehpa 59 cm, tabure 52 cm).
 const MUTFAK_MOBILYA := {"Stol_Main": 0.58, "Divanus": 0.6, "Divan": 0.7, "Styl": 0.6}
@@ -1542,18 +1858,20 @@ func _daktilo_guncelle() -> void:
 				_daktilo.erase(l)
 
 
-func _soyle(anahtar: String) -> void:
+func _soyle(anahtar: String) -> float:
 	_soylenenler[anahtar] = true
 	var s: Array = SATIRLAR[anahtar]
+	var kim: String = s[2] if s.size() > 2 else "SELİM"
 	var akis: AudioStream = load(s[0]) if ResourceLoader.exists(s[0]) else null
-	var sure := 2.6
+	var sure := 2.6 if kim == "SELİM" else 2.2 + str(s[1]).length() * 0.06
 	if akis:
 		ses_selim.stream = akis
 		ses_selim.play()
 		sure = akis.get_length() + 0.6
-	altyazi.text = tr("SELİM") + ": " + tr(s[1])
+	altyazi.text = tr(kim) + ": " + tr(s[1])
 	altyazi.visible = _altyazi_acik()
 	_altyazi_bitis = T + sure
+	return sure
 
 
 func _sesler_kur() -> void:
@@ -2545,6 +2863,20 @@ func _yedek_ses(ad: String) -> AudioStream:
 				var t := float(i) / hiz
 				var tik := (randf() * 2.0 - 1.0) * (exp(-t * 90.0) + exp(-maxf(t - 0.18, 0.0) * 90.0) * float(t > 0.18) * 0.7)
 				o.append(tik * 0.7 + sin(TAU * 100.0 * t) * 0.05 * smoothstep(0.2, 0.4, t))
+			return _wav(o, hiz)
+		"fren":
+			# lastik çığlığı: titreyen, alçalan tiz bir ses
+			for i in int(hiz * 1.6):
+				var t := float(i) / hiz
+				var f := 2600.0 - t * 700.0 + sin(t * 90.0) * 120.0
+				o.append((sin(TAU * f * t) * 0.35 + (randf() * 2.0 - 1.0) * 0.25) * smoothstep(0.0, 0.08, t) * (1.0 - smoothstep(1.3, 1.6, t)))
+			return _wav(o, hiz)
+		"carpma":
+			var dusuk := 0.0
+			for i in int(hiz * 1.4):
+				var t := float(i) / hiz
+				dusuk = lerpf(dusuk, randf() * 2.0 - 1.0, 0.25)
+				o.append(clampf((sin(TAU * 55.0 * t) * 0.9 + dusuk * 1.2 + (randf() * 2.0 - 1.0) * 0.5 * exp(-t * 6.0)) * exp(-t * 3.5), -1.0, 1.0))
 			return _wav(o, hiz)
 		"telefon_masa", "dolap", "sandalye":
 			return _tok_sesi(140.0 if ad == "telefon_masa" else 90.0, 0.35, 1.0)

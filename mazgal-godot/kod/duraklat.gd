@@ -34,6 +34,8 @@ var _bus_sayac := 0.0
 var _en: Translation
 ## Kayıttan devam edilince sahnenin başlayacağı nokta; sahne okuyup boşaltır.
 var baslangic_noktasi := ""
+## Kaçıncı gece: 1. gece kulübede bir şey olmaz, Selim eve dönüp yatar; 2. gece mazgal açılır.
+var gece := 1
 var _kayit_ikon: Control
 var _kayit_ikon_t := 0.0
 var _yukleme: Control
@@ -380,6 +382,7 @@ func kayit_noktasi(sahne: String, nokta: String) -> void:
 	var c := ConfigFile.new()
 	c.set_value("kayit", "sahne", sahne)
 	c.set_value("kayit", "nokta", nokta)
+	c.set_value("kayit", "gece", gece)
 	c.set_value("kayit", "zaman", Time.get_datetime_string_from_system())
 	c.save(KAYIT)
 	_kayit_ikon_t = 2.6
@@ -393,10 +396,12 @@ func kayittan_devam() -> void:
 	var c := ConfigFile.new()
 	if c.load(KAYIT) != OK: return
 	baslangic_noktasi = str(c.get_value("kayit", "nokta", ""))
+	gece = int(c.get_value("kayit", "gece", 1))
 	yukle(str(c.get_value("kayit", "sahne", ILK_SAHNE)), "KAYIT YÜKLENİYOR...")
 
 func yeni_oyun() -> void:
 	baslangic_noktasi = ""
+	gece = 1
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(KAYIT))
 
 ## Sahneyi arkada yükler; bu sırada siyah ekranda yazı ve ince bir çubuk görünür.

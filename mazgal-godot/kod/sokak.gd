@@ -194,7 +194,13 @@ const SATIRLAR := {
 	"ic06": ["res://sesler/selim_ic_06.mp3", "SELİM", "Kayıt açık... kim izleyecekse."],
 	"ic07": ["res://sesler/selim_ic_07.mp3", "SELİM", "Kanalı kim değiştirdi şimdi..."],
 	"ic08": ["res://sesler/selim_ic_08.mp3", "SELİM", "Hadi bakalım. İki dakika."],
+	# 1. gece: kulübede bir şey olmaz, sabah olur, Selim eve döner
+	"ic09": ["res://sesler/selim_ic_09.mp3", "SELİM", "Yine bir şey olmadı... Sabah olmuş bile."],
+	"ic10": ["res://sesler/selim_ic_10.mp3", "SELİM", "Eve gidip biraz uyuyayım."],
 }
+## Selim'in evinin önü: araba ilk gece buradan kalkar, eve dönünce buraya park edilir.
+const EV_PARK := Vector3(-14.0, 0.0, 30.0)
+var eve_donus := false
 const Eller := preload("res://kod/eller.gd")
 const Kagit := preload("res://kod/kagit.gd")
 var _iz_son := Vector3(1e9, 0, 0)
@@ -382,14 +388,16 @@ func _surus(dt: float) -> void:
 	if absf(araba.hiz) > 1.0: surus_suresi += dt
 	if surus_suresi > 4.0 and not _soylenen.has("araba1"): _soyle("araba1")
 	if surus_suresi > 15.0 and not _soylenen.has("araba2"): _soyle("araba2")
-	var kulubeye := Vector2(araba.global_position.x - KULUBE_PARK.x, araba.global_position.z - KULUBE_PARK.z).length()
+	var hedef := EV_PARK if eve_donus else KULUBE_PARK
+	var kulubeye := Vector2(araba.global_position.x - hedef.x, araba.global_position.z - hedef.z).length()
 	if kulubeye < PARK_YARICAP and absf(araba.hiz) < 1.5:
 		_ipucu("E  Arabadan in", 0.0)
 		if Input.is_action_just_pressed("etkiles"):
-			_inise_basla()
+			if eve_donus: _eve_var()
+			else: _inise_basla()
 	elif ipucu.text == "E  Arabadan in":
 		_ipucu("", 0.0)
-	if kulubeye < 30.0 and not _soylenen.has("kulube_ipucu"):
+	if kulubeye < 30.0 and not _soylenen.has("kulube_ipucu") and not eve_donus:
 		_soylenen["kulube_ipucu"] = true
 		_ipucu("Kulübenin önüne park et", 6.0)
 
@@ -668,6 +676,8 @@ func _kulube() -> void:
 				_otur_bas = oyuncu_kamera.global_position
 		4:
 			_bekleme(dt_durum - float(_k_zaman["otur"]))
+		6:
+			_vardiya_bitti(dt_durum - float(_k_zaman["vardiya"]))
 		5:
 			# telefon çalıyor; oturduğu yerden açar
 			if _e_bak("telefon", _telefon.global_position + Vector3(0, 0.05, 0), "Telefonu aç", 2.0, false):
@@ -678,6 +688,59 @@ func _kulube() -> void:
 				_konusma_sira = 0; _satir_bitis = T_simdi() + 0.8
 				_kisa_ses(_kapi_sesi(), _telefon.global_position, 2.2, -12.0)
 				_gec("konusma")
+
+
+func _gece() -> int:
+	var d := get_node_or_null("/root/Duraklat")
+	return int(d.gece) if d else 2
+
+
+## 1. gece: uzun bir uyuklama, gözler açıldığında saat sabaha dayanmış; hiçbir şey olmamıştır.
+## Selim kalkar, arabasına dönüp eve gider.
+func _vardiya_bitti(v: float) -> void:
+	siyah.modulate.a = smoothstep(0.0, 1.8, v) * (1.0 - smoothstep(4.0, 5.6, v))
+	if v > 2.0 and not _soylenen.has("sabah"):
+		_soylenen["sabah"] = true
+		bodycam.saat_ilerlet(5.0 * 3600.0)
+		_kanal_degistir("kar")
+	if v > 6.0 and not _soylenen.has("ic09"): _soyle("ic09")
+	if v > 10.0 and not _soylenen.has("ic10"): _soyle("ic10")
+	if v > 12.5 and not _soylenen.has("kalkti"):
+		_soylenen["kalkti"] = true
+		siyah.modulate.a = 0.6
+		var kapi := _k(KAPI_MENTESE + Vector3(0.5, 0, 0))
+		oyuncu.global_rotation.y = atan2(-(kapi.x - oyuncu.global_position.x), -(kapi.z - oyuncu.global_position.z))
+		(oyuncu.get_node("Kafa") as Node3D).rotation = Vector3.ZERO
+		oyuncu_kamera.transform = Transform3D.IDENTITY
+		_oyuncuyu_dondur(false)
+		eve_donus = true
+		_k_zaman.erase("kapi_kapan")   # kulübenin kapısı açılır
+		_soylenen.erase("kola_uzandi")
+		_ipucu("Arabana dön", 0.0)
+		_rota_i = 0
+		_gec("yuruyus")
+
+
+## Eve varınca: ekran kararır, ev sahnesi 2. gecenin rüyasıyla başlar.
+func _eve_var() -> void:
+	_ipucu("", 0.0)
+	araba.surulebilir = false
+	araba.hiz = 0.0
+	araba.motoru_calistir(false)
+	araba.silecek_acik = false
+	_kisa_ses(_kontak_sesi(), araba.global_position + Vector3(0, 0.8, 0), 1.0, -10.0)
+	_gec("eve_varis")
+	var tw := create_tween()
+	tw.tween_property(siyah, "modulate:a", 1.0, 2.5)
+	tw.tween_callback(func() -> void:
+		var d := get_node_or_null("/root/Duraklat")
+		if d == null:
+			get_tree().change_scene_to_file("res://sahneler/ev.tscn")
+			return
+		d.gece = 2
+		d.kayit_noktasi("res://sahneler/ev.tscn", "ruya")
+		d.baslangic_noktasi = "ruya"
+		d.yukle("res://sahneler/ev.tscn", ""))
 
 
 ## Kulübenin kendi yerel noktasını dünyaya çevirir.
@@ -739,6 +802,11 @@ func _bekleme(t: float) -> void:
 			_soylenen["uyuklama%.1f" % a] = true
 			bodycam.saat_ilerlet(randf_range(9.0, 14.0) * 60.0)
 	siyah.modulate.a = kapak
+	if t > 28.0 and _gece() == 1:
+		# 1. gece telefon çalmaz: Selim uyuklar, uyandığında sabah olmuştur
+		_adim = 6
+		_k_zaman["vardiya"] = dt_durum
+		return
 	if t > 28.0 and not _zil.playing and not _soylenen.has("cevap"):
 		_zil.play()
 		bodycam.bozul(0.6, 0.4)
@@ -891,7 +959,7 @@ func _kulube_guncelle(dt: float) -> void:
 			if not _vizilti.playing: _vizilti.play()
 	# kapı: içeri girince arkadan kapanır, konuşma bitince açılır
 	var hedef := 1.0 if (_k_zaman.has("kapi_kapan") and dt_durum >= float(_k_zaman["kapi_kapan"]) and durum == "kulube") or durum == "konusma" else _kapi_k
-	if durum == "mazgala": hedef = 0.0
+	if durum == "mazgala" or (eve_donus and durum == "yuruyus"): hedef = 0.0
 	if not is_equal_approx(_kapi_k, hedef):
 		var once := _kapi_k
 		_kapi_k = move_toward(_kapi_k, hedef, dt * 1.2)
@@ -1383,28 +1451,37 @@ func _tarif_guncelle() -> void:
 	else:
 		tarif.text = ""
 
+func _rota() -> Array:
+	if not eve_donus: return ROTA
+	var r := ROTA.duplicate()
+	r.reverse()
+	r.append(EV_PARK)
+	return r
+
 func _surus_tarifi() -> String:
+	var rota := _rota()
+	var ad := "Ev" if eve_donus else "Kulübe"
 	var p := araba.global_position
-	while _rota_i < ROTA.size() - 1 and Vector2(p.x - ROTA[_rota_i].x, p.z - ROTA[_rota_i].z).length() < 10.0:
+	while _rota_i < rota.size() - 1 and Vector2(p.x - rota[_rota_i].x, p.z - rota[_rota_i].z).length() < 10.0:
 		_rota_i += 1
 	# köşeyi kestiyse de sonraki caddeye girmiş sayılır
-	for j in range(_rota_i + 1, ROTA.size()):
-		var y := Geometry3D.get_closest_point_to_segment(Vector3(p.x, 0, p.z), ROTA[j - 1], ROTA[j])
+	for j in range(_rota_i + 1, rota.size()):
+		var y := Geometry3D.get_closest_point_to_segment(Vector3(p.x, 0, p.z), rota[j - 1], rota[j])
 		if Vector2(p.x - y.x, p.z - y.z).length() < 8.0: _rota_i = j
-	var h: Vector3 = ROTA[_rota_i]
+	var h: Vector3 = rota[_rota_i]
 	var uzak := Vector2(p.x - h.x, p.z - h.z).length()
-	var son := _rota_i == ROTA.size() - 1
+	var son := _rota_i == rota.size() - 1
 	if son and uzak < PARK_YARICAP: return ""
 	var yon := _yon_adi(-araba.global_basis.z, h - p, true)
 	if yon != "ileride":
-		return tr("Kulübe: %s") % tr(yon)
+		return tr(ad + ": %s") % tr(yon)
 	var m := int(maxf(10.0, round(uzak / 10.0) * 10.0))
 	if son:
-		return tr("Kulübe: %d m ileride, sağda") % m
-	var a: Vector3 = ROTA[_rota_i - 1] if _rota_i > 0 else p
-	var d1 := h - a; var d2: Vector3 = ROTA[_rota_i + 1] - h
+		return tr(ad + ": %d m ileride") % m if eve_donus else tr("Kulübe: %d m ileride, sağda") % m
+	var a: Vector3 = rota[_rota_i - 1] if _rota_i > 0 else p
+	var d1 := h - a; var d2: Vector3 = rota[_rota_i + 1] - h
 	var sola := d1.cross(d2).y > 0.0
-	return tr("Kulübe: %d m sonra sola dön") % m if sola else tr("Kulübe: %d m sonra sağa dön") % m
+	return tr(ad + ": %d m sonra sola dön") % m if sola else tr(ad + ": %d m sonra sağa dön") % m
 
 ## hedefin bakılan yöne göre nerede olduğu; sürüşte "sola dön", yürürken "solunda"
 func _yon_adi(ileri: Vector3, hedef: Vector3, surus: bool) -> String:
