@@ -34,6 +34,13 @@ func _init() -> void:
 	var sokak: Node = await _sahne_bekle("res://sahneler/sokak.tscn")
 	if sokak == null: return
 	await _sokak_oyna(sokak)
+	# 1. gece kulübede bir şey olmaz: Selim eve döner, ev rüyayla yeniden başlar, 2. gece mazgal açılır
+	if current_scene and current_scene.scene_file_path == "res://sahneler/ev.tscn":
+		print("2. gece başlıyor, gece=", d.gece)
+		await _ev_oyna(current_scene)
+		sokak = await _sahne_bekle("res://sahneler/sokak.tscn")
+		if sokak == null: return
+		await _sokak_oyna(sokak)
 	print("BİTTİ hata=", hata)
 	quit()
 
@@ -79,14 +86,14 @@ func _ev_oyna(ev: Node) -> void:
 	var b := Time.get_ticks_msec()
 	while ev.faz != "oyun":
 		await process_frame
-		if Time.get_ticks_msec() - b > 90000: _hata("uyanış bitmedi, faz=" + str(ev.faz)); return
+		if Time.get_ticks_msec() - b > 240000: _hata("uyanış bitmedi, faz=" + str(ev.faz)); return
 	print("uyanış bitti (", (Time.get_ticks_msec() - b) / 1000.0, " sn) eşyalar=", ev._esyalar.keys())
 	var sira := ["yatak_kapi", "banyo_kapi", "banyo_isik", "lavabo", "dus", "banyo_cikis", "mutfak_kapi", "buzdolabi", "dolap", "masa", "telefon", "salon_kapi", "koltuk"]
 	var gezildi := {}
 	var bekleme := Time.get_ticks_msec()
 	while is_instance_valid(ev) and ev.faz != "salon" and ev.faz != "yayin" and ev.faz != "saat" and ev.faz != "cikis":
 		await process_frame
-		if Time.get_ticks_msec() - bekleme > 120000:
+		if Time.get_ticks_msec() - bekleme > 300000:
 			_hata("evde ilerlenemedi: faz=" + str(ev.faz) + " eşyalar=" + str(ev._esyalar.keys()))
 			return
 		if ev.faz == "tel_kaydir":
@@ -238,33 +245,8 @@ func _bak(ev: Node, h: Vector3) -> void:
 func _sokak_oyna(s: Node) -> void:
 	var o: CharacterBody3D = s.oyuncu
 	await _sn(1.0)
-	# arabaya yürü
-	var kol: Vector3 = s.araba.global_transform * Vector3(-1.06, 0.95, -0.05)
-	# sürücü kapısı arabanın öbür yanında: oyuncu gibi arabanın arkasından dolaşır
-	for yer in [Vector3(1.6, 0, 3.2), Vector3(-1.9, 0, 3.2), Vector3(-1.9, 0, 0.3)]:
-		var h: Vector3 = s.araba.global_transform * yer
-		var kare := 0   # yavaş çizimde de yetsin diye süre fizik karesiyle sayılır
-		while Vector2(h.x - o.global_position.x, h.z - o.global_position.z).length() > 0.4 and kare < 600:
-			kare += 1
-			o.global_rotation.y = atan2(-(h.x - o.global_position.x), -(h.z - o.global_position.z))
-			Input.action_press("ileri")
-			await physics_frame
-		Input.action_release("ileri")
 	var b := Time.get_ticks_msec()
-	while s.durum == "yuruyus":
-		var d := kol - o.global_position
-		o.global_rotation.y = atan2(-d.x, -d.z)
-		var kam: Camera3D = s.oyuncu_kamera
-		var kd := (kol - kam.global_position).normalized()
-		(o.get_node("Kafa") as Node3D).rotation.x = asin(kd.y)
-		if Vector2(d.x, d.z).length() > 1.3: Input.action_press("ileri")
-		else: Input.action_release("ileri")
-		await process_frame
-		if s.e_yazi.visible and s.e_yazi.get_meta("ad", "") == "araba":
-			Input.action_release("ileri")
-			Input.action_press("etkiles"); await process_frame; await process_frame; Input.action_release("etkiles")
-			await _sn(0.5)
-		if Time.get_ticks_msec() - b > 40000: _hata("arabaya binilemedi, oyuncu=" + str(o.global_position) + " kapı=" + str(kol)); return
+	if not await _arabaya_bin(s, o): return
 	print("arabaya binildi (", (Time.get_ticks_msec() - b) / 1000.0, " sn)")
 	while s.durum != "surus": await process_frame
 	# kısa sürüş, sonra kulübenin önüne (yol bulma yok, ışınla)
@@ -303,6 +285,9 @@ func _sokak_oyna(s: Node) -> void:
 			await _sn(0.2)
 			if Time.get_ticks_msec() - b > 20000: _hata("kulübede '" + str(adim[0]) + "' adımında E çıkmadı, oyuncu=" + str(o.global_position) + " e=" + str(s.e_yazi.visible)); return
 		print("kulübe adımı geçti: ", adim[0], " -> ", s._adim)
+	if s._gece() == 1:
+		await _gece1_eve(s, o)
+		return
 	b = Time.get_ticks_msec()
 	while s._adim < 5:
 		await process_frame
@@ -364,6 +349,62 @@ func _sokak_oyna(s: Node) -> void:
 		if Time.get_ticks_msec() - b > 60000: _hata("düşüş/karanlık bitmedi durum=" + str(s.durum)); return
 	await process_frame
 	print("düşüşten sonra sahne: ", current_scene.scene_file_path if current_scene else "yok")
+
+
+func _arabaya_bin(s: Node, o: CharacterBody3D) -> bool:
+	# arabaya yürü
+	var kol: Vector3 = s.araba.global_transform * Vector3(-1.06, 0.95, -0.05)
+	# sürücü kapısı arabanın öbür yanında: oyuncu gibi arabanın arkasından dolaşır
+	for yer in [Vector3(1.6, 0, 3.2), Vector3(-1.9, 0, 3.2), Vector3(-1.9, 0, 0.3)]:
+		var h: Vector3 = s.araba.global_transform * yer
+		var kare := 0   # yavaş çizimde de yetsin diye süre fizik karesiyle sayılır
+		while Vector2(h.x - o.global_position.x, h.z - o.global_position.z).length() > 0.4 and kare < 600:
+			kare += 1
+			o.global_rotation.y = atan2(-(h.x - o.global_position.x), -(h.z - o.global_position.z))
+			Input.action_press("ileri")
+			await physics_frame
+		Input.action_release("ileri")
+	var b := Time.get_ticks_msec()
+	while s.durum == "yuruyus":
+		var d := kol - o.global_position
+		o.global_rotation.y = atan2(-d.x, -d.z)
+		var kam: Camera3D = s.oyuncu_kamera
+		var kd := (kol - kam.global_position).normalized()
+		(o.get_node("Kafa") as Node3D).rotation.x = asin(kd.y)
+		if Vector2(d.x, d.z).length() > 1.3: Input.action_press("ileri")
+		else: Input.action_release("ileri")
+		await process_frame
+		if s.e_yazi.visible and s.e_yazi.get_meta("ad", "") == "araba":
+			Input.action_release("ileri")
+			Input.action_press("etkiles"); await process_frame; await process_frame; Input.action_release("etkiles")
+			await _sn(0.5)
+		if Time.get_ticks_msec() - b > 40000: _hata("arabaya binilemedi, oyuncu=" + str(o.global_position) + " kapı=" + str(kol)); return false
+	return true
+
+
+## 1. gece: vardiya biter, Selim kalkar, arabaya yürür, eve sürer, E ile iner.
+func _gece1_eve(s: Node, o: CharacterBody3D) -> void:
+	var b := Time.get_ticks_msec()
+	while not s.eve_donus or s.durum != "yuruyus":
+		await process_frame
+		if Time.get_ticks_msec() - b > 120000: _hata("1. gece vardiya bitmedi adım=" + str(s._adim) + " durum=" + str(s.durum)); return
+	print("vardiya bitti (", (Time.get_ticks_msec() - b) / 1000.0, " sn), ipucu='", s.ipucu.text, "'")
+	await _sn(0.5)
+	for yer in [Vector3(-0.6, 0, -1.5), Vector3(-0.6, 0, -2.9)]:
+		await _yuru(s, o, s._k(yer), 6.0, 0.3)
+	if not await _arabaya_bin(s, o): return
+	while s.durum != "surus": await process_frame
+	Input.action_press("ileri"); await _sn(2.0); Input.action_release("ileri")
+	await _sn(2.0)
+	s.araba.global_position = s.EV_PARK + Vector3(0, 0.5, 0); s.araba.hiz = 0.0
+	await _sn(1.0)
+	b = Time.get_ticks_msec()
+	while s.durum == "surus":
+		Input.action_press("etkiles"); await process_frame; await process_frame; Input.action_release("etkiles")
+		await _sn(0.3)
+		if Time.get_ticks_msec() - b > 20000: _hata("evin önünde inilemedi ipucu='" + s.ipucu.text + "'"); return
+	print("eve varıldı, durum=", s.durum)
+	if await _sahne_bekle("res://sahneler/ev.tscn") == null: return
 
 
 func _yanan(s: Node) -> int:
