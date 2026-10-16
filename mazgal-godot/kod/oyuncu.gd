@@ -35,8 +35,21 @@ func _unhandled_input(e: InputEvent) -> void:
 			fener_bos.emit()
 			return
 		fener.visible = not fener.visible
+		_fener_tik()
 	elif e is InputEventMouseButton and e.pressed:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+# el feneri düğmesi (sesler/fener.mp3)
+var _fener_ses: AudioStreamPlayer
+func _fener_tik() -> void:
+	if not ResourceLoader.exists("res://sesler/fener.mp3"): return
+	if _fener_ses == null:
+		_fener_ses = AudioStreamPlayer.new()
+		_fener_ses.stream = load("res://sesler/fener.mp3")
+		_fener_ses.volume_db = -6.0
+		add_child(_fener_ses)
+	_fener_ses.pitch_scale = 1.0 if fener.visible else 0.92
+	_fener_ses.play()
 
 # duraklatma menüsündeki fare hassasiyeti ayarı
 func _fare_carpani() -> float:

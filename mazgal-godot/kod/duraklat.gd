@@ -74,6 +74,7 @@ func duraklat() -> void:
 	acik = true
 	_onceki_fare = Input.mouse_mode
 	get_tree().paused = true
+	_muzik_surdur()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_kok.visible = true
 	_ana.visible = true; _ayar.visible = false
@@ -83,6 +84,7 @@ func devam() -> void:
 	acik = false
 	_kok.visible = false
 	get_tree().paused = false
+	_menu_muzigi_dur()
 	Input.mouse_mode = _onceki_fare if _onceki_fare != Input.MOUSE_MODE_VISIBLE else Input.MOUSE_MODE_CAPTURED
 	_kaydet()
 
@@ -90,6 +92,7 @@ func _git(sahne: String) -> void:
 	acik = false
 	_kok.visible = false
 	get_tree().paused = false
+	_menu_muzigi_dur()
 	_kaydet()
 	get_tree().change_scene_to_file(sahne)
 
@@ -470,3 +473,35 @@ func _kayit_arayuzu_kur() -> void:
 	_yukleme_cubuk.position = Vector2.ZERO; _yukleme_cubuk.size = Vector2(0, 4)
 	alt.add_child(_yukleme_cubuk)
 	_yukleme.visible = false
+
+
+# ---------------------------------------------------------------- duraklatınca müzik
+## Oyun durunca çalan müzik (radyo, arka plan müziği) kesilmez; hiç müzik çalmıyorsa menü müziği başlar.
+const MENU_MUZIGI := "res://sesler/muzik_2.mp3"
+var _menu_muzik: AudioStreamPlayer
+
+func _muzik_mu(p: Node) -> bool:
+	var akis: AudioStream = p.get("stream")
+	if akis == null: return false
+	var yol := akis.resource_path.get_file()
+	return yol.begins_with("muzik_") or yol.begins_with("radyo")
+
+func _muzik_surdur() -> void:
+	var caliyor := false
+	var sahne := get_tree().current_scene
+	if sahne:
+		for p in sahne.find_children("*", "AudioStreamPlayer", true, false) + sahne.find_children("*", "AudioStreamPlayer3D", true, false):
+			if _muzik_mu(p):
+				p.process_mode = Node.PROCESS_MODE_ALWAYS
+				if p.get("playing") and float(p.get("volume_db")) > -60.0: caliyor = true
+	if caliyor or not ResourceLoader.exists(MENU_MUZIGI): return
+	if _menu_muzik == null:
+		_menu_muzik = AudioStreamPlayer.new()
+		_menu_muzik.process_mode = Node.PROCESS_MODE_ALWAYS
+		_menu_muzik.stream = load(MENU_MUZIGI)
+		add_child(_menu_muzik)
+	_menu_muzik.volume_db = -16.0
+	_menu_muzik.play()
+
+func _menu_muzigi_dur() -> void:
+	if _menu_muzik and _menu_muzik.playing: _menu_muzik.stop()

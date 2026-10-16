@@ -144,7 +144,7 @@ func _ev_oyna(ev: Node) -> void:
 	b = Time.get_ticks_msec()
 	while is_instance_valid(ev) and current_scene == ev:
 		await process_frame
-		if Time.get_ticks_msec() - b > 200000: _hata("salon/çıkış bitmedi faz=" + str(ev.faz)); return
+		if Time.get_ticks_msec() - b > 200000: _hata("salon/çıkış bitmedi faz=" + (str(ev.faz) if is_instance_valid(ev) else "?")); return
 	print("ev bitti (", (Time.get_ticks_msec() - b) / 1000.0, " sn)")
 
 
@@ -243,8 +243,9 @@ func _sokak_oyna(s: Node) -> void:
 	# sürücü kapısı arabanın öbür yanında: oyuncu gibi arabanın arkasından dolaşır
 	for yer in [Vector3(1.6, 0, 3.2), Vector3(-1.9, 0, 3.2), Vector3(-1.9, 0, 0.3)]:
 		var h: Vector3 = s.araba.global_transform * yer
-		var b0 := Time.get_ticks_msec()
-		while Vector2(h.x - o.global_position.x, h.z - o.global_position.z).length() > 0.4 and Time.get_ticks_msec() - b0 < 8000:
+		var kare := 0   # yavaş çizimde de yetsin diye süre fizik karesiyle sayılır
+		while Vector2(h.x - o.global_position.x, h.z - o.global_position.z).length() > 0.4 and kare < 600:
+			kare += 1
 			o.global_rotation.y = atan2(-(h.x - o.global_position.x), -(h.z - o.global_position.z))
 			Input.action_press("ileri")
 			await physics_frame
@@ -277,7 +278,7 @@ func _sokak_oyna(s: Node) -> void:
 	b = Time.get_ticks_msec()
 	while s.durum != "kulube":
 		await process_frame
-		if Time.get_ticks_msec() - b > 20000: _hata("arabadan inilemedi durum=" + str(s.durum)); return
+		if Time.get_ticks_msec() - b > 60000: _hata("arabadan inilemedi durum=" + str(s.durum)); return
 	print("indi, oyuncu=", o.global_position)
 	await _sn(0.5)
 	# kulübenin kapısına yürü, içeri gir

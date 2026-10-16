@@ -29,6 +29,8 @@ func _ready() -> void:
 	if Engine.is_editor_hint(): return
 	_guvenlik_zemini()
 	_sinir_duvarlari()
+	_park_arabalari.call_deferred()
+	_posta_kutusu()
 	if has_meta("arkaplan"): return   # ana menünün arkasındaki görüntü
 	_yolculuk_kur()
 
@@ -49,6 +51,97 @@ func _arabalari_kaldir() -> void:
 			yeni.add_surface_from_arrays(eski.surface_get_primitive_type(i), eski.surface_get_arrays(i))
 			yeni.surface_set_material(yeni.get_surface_count() - 1, eski.surface_get_material(i))
 		(m as MeshInstance3D).mesh = yeni
+
+# Şehir modelindeki eski arabaların yerlerine alp'in gönderdiği araç paketlerinden park halinde arabalar.
+# [x, z, yön] (yön derece); ikinci şehir kopyasında aynı yerler SEHIR_BOY kadar kuzeyde tekrar edilir.
+const ARAC_PAKETI := "res://modeller2/şehiriçin arabalar/low_poly_vehicle_mini_pack.glb"
+const ARAC_PAKETI2 := "res://modeller2/şehiriçin arabalar/low_poly_vehicle_mini_pack_2.glb"
+const PARK_YERLERI := [
+	[-107.3, -69.4, 0.0], [-107.3, -50.1, 180.0], [-92.8, -3.4, 0.0], [-84.7, -3.4, 180.0], [-74.1, -3.4, 0.0],
+	[-78.7, -91.5, 180.0], [-59.7, 13.2, 0.0], [-59.7, 22.85, 0.0], [-59.7, 27.15, 180.0], [-59.7, -34.4, 0.0],
+	[-59.7, 43.9, 180.0], [-21.1, -39.3, 180.0], [-19.1, -27.85, 0.0], [-19.1, -23.55, 0.0], [-15.7, 44.3, 180.0],
+	[-5.3, -91.5, 0.0], [5.3, 61.9, 180.0], [5.5, -91.5, 180.0], [28.3, -57.2, 0.0], [32.0, -35.9, 180.0],
+	[32.1, -22.0, 0.0], [32.1, -68.7, 180.0],
+]
+const PARK_MODELLERI := [
+	[ARAC_PAKETI, "sedan_body"], [ARAC_PAKETI2, "muscle_body_001"], [ARAC_PAKETI, "pickup_body_001"],
+	[ARAC_PAKETI2, "suv_body_002"], [ARAC_PAKETI, "van_body_extra1"], [ARAC_PAKETI, "sedan_body_002"],
+	[ARAC_PAKETI2, "muscle_body_003"], [ARAC_PAKETI2, "suv_body"], [ARAC_PAKETI, "sedan_body_001"],
+	[ARAC_PAKETI, "pickup_body_002"], [ARAC_PAKETI2, "muscle_body"], [ARAC_PAKETI, "van_body_extra1_003"],
+	[ARAC_PAKETI, "sedan_body_003"], [ARAC_PAKETI2, "suv_body_001"],
+]
+
+func _park_arabalari() -> void:
+	var paketler := {}
+	for y in [ARAC_PAKETI, ARAC_PAKETI2]:
+		if ResourceLoader.exists(y): paketler[y] = (load(y) as PackedScene).instantiate()
+	if paketler.is_empty(): return
+	await get_tree().physics_frame
+	var uzay := get_world_3d().direct_space_state
+	var ana := Node3D.new(); ana.name = "ParkArabalari"; add_child(ana)
+	var govde := StaticBody3D.new(); govde.name = "ParkCarpisma"; ana.add_child(govde)
+	var sira := 0
+	for kopya in [0.0, -SEHIR_BOY]:
+		for p: Array in PARK_YERLERI:
+			var m: Array = PARK_MODELLERI[sira % PARK_MODELLERI.size()]
+			sira += 1
+			if not paketler.has(m[0]): continue
+			var kaynak := (paketler[m[0]] as Node).find_child(m[1], true, false) as Node3D
+			if kaynak == null: continue
+			var yer := Vector3(p[0], 0.0, float(p[1]) + kopya)
+			var q := PhysicsRayQueryParameters3D.create(yer + Vector3(0, 6, 0), yer + Vector3(0, -3, 0))
+			var r := uzay.intersect_ray(q)
+			if not r.is_empty(): yer.y = r.position.y
+			_arac_koy(kaynak, paketler[m[0]], yer, float(p[2]), ana, govde)
+	for k in paketler: (paketler[k] as Node).free()
+
+func _arac_koy(kaynak: Node3D, kok: Node, yer: Vector3, aci: float, ana: Node3D, govde: StaticBody3D) -> void:
+	var don := Transform3D.IDENTITY
+	var n: Node = kaynak
+	while n != kok:
+		don = (n as Node3D).transform * don
+		n = n.get_parent()
+	var kutu := AABB()
+	var ilk := true
+	for mi in kaynak.find_children("*", "MeshInstance3D", true, false) + ([kaynak] if kaynak is MeshInstance3D else []):
+		var t := Transform3D.IDENTITY
+		var c: Node = mi
+		while c != kaynak:
+			t = (c as Node3D).transform * t
+			c = c.get_parent()
+		var k: AABB = (don * t) * (mi as MeshInstance3D).get_aabb()
+		kutu = k if ilk else kutu.merge(k)
+		ilk = false
+	var tut := Node3D.new(); tut.name = kaynak.name
+	ana.add_child(tut)
+	var kopya := kaynak.duplicate() as Node3D
+	kopya.transform = don
+	tut.add_child(kopya)
+	tut.rotation_degrees.y = aci
+	var alt := Vector3(kutu.get_center().x, kutu.position.y, kutu.get_center().z)
+	tut.position = yer - tut.basis * alt
+	for mi in tut.find_children("*", "MeshInstance3D", true, false):
+		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	# çarpışma: aracın kutusu
+	var cs := CollisionShape3D.new(); var b := BoxShape3D.new()
+	b.size = kutu.size; cs.shape = b
+	cs.transform = Transform3D(tut.basis, tut.position + tut.basis * kutu.get_center())
+	govde.add_child(cs)
+
+# Kulübenin masasında iki katlı evrak/mektup sepeti (alp'in double_letter_box modeli)
+const POSTA_KUTUSU := "res://modeller2/klübe/double_letter_box.glb"
+func _posta_kutusu() -> void:
+	if not ResourceLoader.exists(POSTA_KUTUSU) or not has_node("Kulube"): return
+	var m: Node3D = (load(POSTA_KUTUSU) as PackedScene).instantiate()
+	m.name = "PostaKutusu"
+	$Kulube.add_child(m)
+	m.scale = Vector3.ONE * POSTA_OLCEK
+	m.position = POSTA_YERI
+	m.rotation_degrees = POSTA_DONUS
+
+const POSTA_OLCEK := 1.2
+const POSTA_YERI := Vector3(0.86, 1.14, -1.52)
+const POSTA_DONUS := Vector3(0, 90, 0)
 
 # şehrin altında görünmez düz zemin: modelde boşluk olan yerden aşağı düşülmez
 func _guvenlik_zemini() -> void:
@@ -803,7 +896,10 @@ func _kulube_guncelle(dt: float) -> void:
 		var once := _kapi_k
 		_kapi_k = move_toward(_kapi_k, hedef, dt * 1.2)
 		_kapi_dondur(smoothstep(0.0, 1.0, _kapi_k))
-		if once == 0.0 or once == 1.0: _kisa_ses(_kapi_sesi(), _k(KAPI_MENTESE) + Vector3(0, 1, 0), 1.6 if hedef < 0.5 else 1.0, -10.0)
+		if once == 0.0 or once == 1.0:
+			# açılış: alp'in kapı sesi (sesler/kapi_ac.mp3); kapanış: kısa vuruş
+			if hedef < 0.5 and ResourceLoader.exists("res://sesler/kapi_ac.mp3"): _kisa_ses(load("res://sesler/kapi_ac.mp3"), _k(KAPI_MENTESE) + Vector3(0, 1, 0), 1.0, -6.0)
+			else: _kisa_ses(_kapi_sesi(), _k(KAPI_MENTESE) + Vector3(0, 1, 0), 1.6 if hedef < 0.5 else 1.0, -10.0)
 	if _ktv_vp: _ktv_guncelle(dt)
 	if _vizilti and durum in ["mazgala", "kenar", "dusus", "karanlik"]:
 		_vizilti.volume_db = move_toward(_vizilti.volume_db, -60.0, dt * 10.0)
@@ -1161,7 +1257,9 @@ func _kenar(dt: float) -> void:
 			_kisa_ses(_kapi_sesi(), _kenar_lamba.global_position, 3.5, -16.0)
 	# feneri hazırsa Selim onu açar
 	var fener := oyuncu.get_node("Kafa/Kamera/Fener") as SpotLight3D
-	if t > 2.8 and _pil_takildi and not fener.visible: fener.visible = true
+	if t > 2.8 and _pil_takildi and not fener.visible:
+		fener.visible = true
+		if oyuncu.has_method("_fener_tik"): oyuncu.call("_fener_tik")
 	if t > 3.5 and not _soylenen.has("ses"): _soyle("ses")
 	if t > 5.6 and not _soylenen.has("itildi"):
 		_soylenen["itildi"] = true

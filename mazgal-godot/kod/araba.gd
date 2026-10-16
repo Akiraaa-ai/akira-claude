@@ -123,10 +123,217 @@ func _camlari_duzelt() -> void:
 			var mat := mi.mesh.surface_get_material(i)
 			if mat and "glass" in mat.resource_name.to_lower():
 				mi.set_surface_override_material(i, cam_mat)
+				_silecek_ara(mi, i)
+	_silecekleri_kur()
 	_silecek_ses = AudioStreamPlayer3D.new()
 	_silecek_ses.position = Vector3(0, 1.0, -1.0); _silecek_ses.volume_db = -12.0
 	_silecek_ses.stream = _silecek_sesi()
 	add_child(_silecek_ses)
+
+## Silecek kolları. Camdaki silinme (CAM_SHADER) ile aynı mil noktaları ve aynı hareketi kullanır:
+## ön cam, cam mesh'inin kendi koordinatlarında (72, 68) çizgisinden yukarı doğru uzanır, iki mil z=-22 ve z=20'de.
+const SILECEK_MIL := [-22.0, 20.0]
+const SILECEK_BOY := 42.0
+var _on_cam: MeshInstance3D
+var _on_cam_say := 0
+var _cam_yukari := Vector3(0, 1, 0)   # mesh yerelinde, camın alt kenarından yukarı doğru
+var _cam_disari := Vector3(1, 0, 0)
+var _silecek_kollar: Array[Node3D] = []
+
+func _silecek_ara(mi: MeshInstance3D, yuzey: int) -> void:
+	var a := mi.mesh.surface_get_arrays(yuzey)
+	var vs: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
+	var ns: PackedVector3Array = a[Mesh.ARRAY_NORMAL]
+	var say := 0
+	var yon := Vector2.ZERO
+	for k in vs.size():
+		var v := vs[k]
+		if v.x > 30.0 and v.y > 64.0 and ns[k].x > 0.25:
+			say += 1
+			yon += (Vector2(v.x, v.y) - Vector2(72.0, 68.0)).normalized()
+	if say > _on_cam_say:
+		_on_cam_say = say
+		_on_cam = mi
+		yon = yon.normalized()
+		_cam_yukari = Vector3(yon.x, yon.y, 0.0)
+		_cam_disari = Vector3(-yon.y, yon.x, 0.0)
+		if _cam_disari.x < 0.0: _cam_disari = -_cam_disari
+
+func _silecekleri_kur() -> void:
+	if _on_cam == null: return
+	for m in model.find_children("*", "MeshInstance3D", true, false):
+		if m != _on_cam: _sabit_silecekleri_sil(m as MeshInstance3D)
+	var metal := StandardMaterial3D.new()
+	metal.albedo_color = Color(0.035, 0.035, 0.04)
+	metal.metallic = 0.6; metal.roughness = 0.45
+	var lastik := StandardMaterial3D.new()
+	lastik.albedo_color = Color(0.015, 0.015, 0.015)
+	lastik.roughness = 0.9
+	for z: float in SILECEK_MIL:
+		var mil := Node3D.new()
+		mil.position = Vector3(72.0, 68.0, z) + _cam_disari * 1.6
+		_on_cam.add_child(mil)
+		# kol: milden uca uzanan ince metal çubuk; ucun dış yarısında lastikli süpürge
+		var kol := _kutu(Vector3(SILECEK_BOY, 0.9, 1.1), Vector3(SILECEK_BOY * 0.5, 0.0, 0.0), metal, mil)
+		kol.name = "Kol"
+		_kutu(Vector3(SILECEK_BOY * 0.62, 1.1, 1.7), Vector3(SILECEK_BOY * 0.64, -0.7, 0.0), metal, mil)
+		_kutu(Vector3(SILECEK_BOY * 0.6, 0.8, 0.5), Vector3(SILECEK_BOY * 0.64, -1.5, 0.0), lastik, mil)
+		var kapak := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = 1.6; cm.bottom_radius = 2.0; cm.height = 1.6; cm.material = metal
+		kapak.mesh = cm
+		kapak.rotation_degrees.z = 90.0
+		mil.add_child(kapak)
+		_silecek_kollar.append(mil)
+	_silecek_yerlestir()
+
+## Modelin gövdesi tek parça: içinden iki şey ayrılır. Hareket etmeyen eski silecekler (ön camın hemen
+## dışında duran küçük, kopuk parçalar) silinir; direksiyon simidi ayrı bir parça yapılır ki dönebilsin.
+const DIREKSIYON_YERI := Vector3(-0.485, 0.985, -0.55)   # araba yerelinde simidin ortası
+const DIREKSIYON_ORAN := 4.0                            # teker açısının kaç katı simit döner
+var _direksiyon: Node3D
+var _direksiyon_eksen := Vector3.FORWARD
+var _par := PackedInt32Array()
+
+func _kok(i: int) -> int:
+	while _par[i] != i:
+		_par[i] = _par[_par[i]]
+		i = _par[i]
+	return i
+
+func _birlestir(a: int, b: int) -> void:
+	var ra := _kok(a); var rb := _kok(b)
+	if ra != rb: _par[rb] = ra
+
+func _sabit_silecekleri_sil(mi: MeshInstance3D) -> void:
+	if not mi.mesh is ArrayMesh: return
+	var cam_tr := _on_cam.global_transform.affine_inverse() * mi.global_transform
+	var araba_tr := global_transform.affine_inverse() * mi.global_transform
+	var yeni := ArrayMesh.new()
+	var degisti := false
+	for s in mi.mesh.get_surface_count():
+		var a := mi.mesh.surface_get_arrays(s)
+		var vs: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
+		var idx: PackedInt32Array = a[Mesh.ARRAY_INDEX] if a[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+		if idx.size() == 0:
+			yeni.add_surface_from_arrays(mi.mesh.surface_get_primitive_type(s), a, (mi.mesh as ArrayMesh).surface_get_blend_shape_arrays(s), {}, mi.mesh.surface_get_format(s))
+			yeni.surface_set_material(s, mi.mesh.surface_get_material(s))
+			continue
+		# parçalar: aynı konumdaki köşeler ve aynı üçgenin köşeleri birleşir
+		_par.resize(vs.size())
+		for i in vs.size(): _par[i] = i
+		var konum := {}
+		for i in vs.size():
+			var k := vs[i].snapped(Vector3.ONE * 0.001)
+			if konum.has(k): _birlestir(konum[k], i)
+			else: konum[k] = i
+		for t in range(0, idx.size(), 3):
+			_birlestir(idx[t], idx[t + 1]); _birlestir(idx[t], idx[t + 2])
+		# her parçanın üçgen sayısı, cam yerelinde ve araba yerelinde kutusu, camın dışına uzaklığı
+		var bilgi := {}
+		for i in vs.size():
+			var r := _kok(i)
+			var c := cam_tr * vs[i]
+			var w := araba_tr * vs[i]
+			var d := (c - Vector3(72.0, 68.0, c.z)).dot(_cam_disari)
+			if not bilgi.has(r): bilgi[r] = [0, AABB(c, Vector3.ZERO), AABB(w, Vector3.ZERO), d]
+			var bi: Array = bilgi[r]
+			bi[1] = (bi[1] as AABB).expand(c); bi[2] = (bi[2] as AABB).expand(w); bi[3] = minf(bi[3], d)
+		for t in range(0, idx.size(), 3): bilgi[_kok(idx[t])][0] += 1
+		var sil := {}
+		var simit := -1
+		for r in bilgi:
+			var bi: Array = bilgi[r]
+			var cb: AABB = bi[1]
+			var ab: AABB = bi[2]
+			if bi[0] <= 400 and bi[3] > -1.5 and cb.position.x > 56.0 and cb.end.x < 78.0 and cb.position.y > 60.0 and cb.end.y < 78.0 and cb.size.z < 45.0 and absf(cb.get_center().z) < 50.0:
+				sil[r] = true
+			elif bi[0] > 1000 and ab.size.x > 0.3 and ab.size.x < 0.55 and ab.size.y > 0.3 and ab.size.y < 0.55 and ab.get_center().distance_to(DIREKSIYON_YERI) < 0.2:
+				simit = r
+		if sil.is_empty() and simit < 0:
+			yeni.add_surface_from_arrays(mi.mesh.surface_get_primitive_type(s), a, (mi.mesh as ArrayMesh).surface_get_blend_shape_arrays(s), {}, mi.mesh.surface_get_format(s))
+			yeni.surface_set_material(s, mi.mesh.surface_get_material(s))
+			continue
+		degisti = true
+		var kalan := PackedInt32Array()
+		var simit_idx := PackedInt32Array()
+		for t in range(0, idx.size(), 3):
+			var r := _kok(idx[t])
+			if sil.has(r): continue
+			if r == simit:
+				simit_idx.append(idx[t]); simit_idx.append(idx[t + 1]); simit_idx.append(idx[t + 2])
+			else:
+				kalan.append(idx[t]); kalan.append(idx[t + 1]); kalan.append(idx[t + 2])
+		if simit >= 0: _simit_kur(mi, a, simit_idx, araba_tr, mi.mesh.surface_get_material(s), mi.get_surface_override_material(s))
+		a[Mesh.ARRAY_INDEX] = kalan
+		# biçim bayrakları (8 kemik ağırlığı vb.) korunmazsa iskeletli gövde bozulur
+		yeni.add_surface_from_arrays(mi.mesh.surface_get_primitive_type(s), a, (mi.mesh as ArrayMesh).surface_get_blend_shape_arrays(s), {}, mi.mesh.surface_get_format(s))
+		yeni.surface_set_material(s, mi.mesh.surface_get_material(s))
+	_par.clear()
+	if degisti:
+		var eski := []
+		for s in mi.mesh.get_surface_count(): eski.append(mi.get_surface_override_material(s))
+		mi.mesh = yeni
+		for s in eski.size():
+			if eski[s]: mi.set_surface_override_material(s, eski[s])
+
+## Direksiyon simidi: gövdeden ayrılan üçgenler, simidin ortasındaki bir mil etrafında döner.
+func _simit_kur(mi: MeshInstance3D, a: Array, simit_idx: PackedInt32Array, araba_tr: Transform3D, mat: Material, ust_mat: Material) -> void:
+	var vs: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
+	# simidin dört ucu (araba yerelinde): en üst/alt ve en sol/sağ köşeler, ekseni bunlardan çıkar
+	var ust := Vector3.ZERO; var alt := Vector3.ZERO; var sol := Vector3.ZERO; var sag := Vector3.ZERO
+	var ilk := true
+	var kutu := AABB()
+	for i in simit_idx:
+		var w := araba_tr * vs[i]
+		if ilk:
+			ust = w; alt = w; sol = w; sag = w; kutu = AABB(w, Vector3.ZERO); ilk = false
+		kutu = kutu.expand(w)
+		if w.y > ust.y: ust = w
+		if w.y < alt.y: alt = w
+		if w.x < sol.x: sol = w
+		if w.x > sag.x: sag = w
+	var eksen := (sag - sol).cross(ust - alt).normalized()
+	if eksen.z < 0.0: eksen = -eksen   # sürücüye doğru
+	var orta := araba_tr.affine_inverse() * kutu.get_center()
+	_direksiyon_eksen = (araba_tr.basis.inverse() * eksen).normalized()
+	var b := []
+	b.resize(Mesh.ARRAY_MAX)
+	for k in [Mesh.ARRAY_VERTEX, Mesh.ARRAY_NORMAL, Mesh.ARRAY_TANGENT, Mesh.ARRAY_COLOR, Mesh.ARRAY_TEX_UV, Mesh.ARRAY_TEX_UV2]:
+		b[k] = a[k]
+	b[Mesh.ARRAY_INDEX] = simit_idx
+	var m := ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, b)
+	m.surface_set_material(0, mat)
+	_direksiyon = Node3D.new()
+	_direksiyon.name = "Direksiyon"
+	_direksiyon.position = orta
+	mi.add_child(_direksiyon)
+	var simit := MeshInstance3D.new()
+	simit.mesh = m
+	simit.position = -orta
+	if ust_mat: simit.set_surface_override_material(0, ust_mat)
+	_direksiyon.add_child(simit)
+
+func _kutu(boy: Vector3, yer: Vector3, mat: Material, ana: Node3D) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new(); bm.size = boy; bm.material = mat
+	mi.mesh = bm
+	mi.position = yer
+	ana.add_child(mi)
+	return mi
+
+## Kolun açısı: shader'daki gibi th = (1 - cos(2π u)) / 2; th=0 +z yönü, th=1 -z yönü, arada cam boyunca yukarı.
+func _silecek_yerlestir() -> void:
+	var u := fmod(_silecek_t, 1.4) / 1.4
+	var aci := PI * (1.0 - cos(TAU * u)) * 0.5
+	var ileri := Vector3(0, 0, 1) * cos(aci) + _cam_yukari * sin(aci)
+	for mil in _silecek_kollar:
+		# kolun yerel x'i ileri, y'si camın dışına doğru
+		var x := ileri.normalized()
+		var y := _cam_disari
+		mil.basis = Basis(x, y, x.cross(y).normalized())
+
 
 ## Silecek lastiğinin camda sürtünmesi: kısa, kuru bir sürtme ve sonunda tok bir vuruş.
 func _silecek_sesi() -> AudioStream:
@@ -156,6 +363,7 @@ func _camlar(dt: float) -> void:
 	else:
 		_silecek_bos += dt
 	if _motor_acik: _bugu = maxf(0.05, _bugu - dt * 0.012)
+	_silecek_yerlestir()
 	cam_mat.set_shader_parameter("silecek_zaman", _silecek_t)
 	cam_mat.set_shader_parameter("silecek", 1.0 if _silecek_t > 0.0 else 0.0)
 	cam_mat.set_shader_parameter("silecek_bos", _silecek_bos)
@@ -252,6 +460,7 @@ func _tekerler(dt: float) -> void:
 		if ad.begins_with("F"): q = q * Quaternion(Vector3(0, 0, 1), direksiyon)
 		q = q * Quaternion(Vector3(0, 1, 0), teker_aci)
 		_iskelet.set_bone_pose_rotation(i, q)
+	if _direksiyon: _direksiyon.basis = Basis(_direksiyon_eksen, direksiyon * DIREKSIYON_ORAN)
 
 func _kapilar(dt: float) -> void:
 	if _iskelet == null: return
