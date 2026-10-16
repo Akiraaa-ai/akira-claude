@@ -82,13 +82,16 @@ func _sahne_bekle(yol: String) -> Node:
 
 
 # ---------------------------------------------------------------- ev
+var _holde_yuruldu := {}
+
 func _ev_oyna(ev: Node) -> void:
 	var b := Time.get_ticks_msec()
 	while ev.faz != "oyun":
 		await process_frame
 		if Time.get_ticks_msec() - b > 240000: _hata("uyanış bitmedi, faz=" + str(ev.faz)); return
 	print("uyanış bitti (", (Time.get_ticks_msec() - b) / 1000.0, " sn) eşyalar=", ev._esyalar.keys())
-	var sira := ["yatak_kapi", "banyo_kapi", "banyo_isik", "lavabo", "dus", "banyo_cikis", "mutfak_kapi", "buzdolabi", "dolap", "masa", "telefon", "salon_kapi", "koltuk"]
+	_holde_yuruldu.clear()
+	var sira := ["hol_banyo", "hol_mutfak", "hol_salon", "yatak_kapi", "banyo_kapi", "banyo_isik", "lavabo", "dus", "banyo_cikis", "mutfak_kapi", "buzdolabi", "dolap", "masa", "telefon", "salon_kapi", "koltuk"]
 	var gezildi := {}
 	var bekleme := Time.get_ticks_msec()
 	while is_instance_valid(ev) and ev.faz != "salon" and ev.faz != "yayin" and ev.faz != "saat" and ev.faz != "cikis":
@@ -116,13 +119,22 @@ func _ev_oyna(ev: Node) -> void:
 		if not gezildi.has(oda):
 			gezildi[oda] = true
 			await _gez(ev, oda)
+		# holde: kapıya giden yolu yürür (hol köşeli, düz gidilmez)
+		if ev._hol_hedef != "" and not _holde_yuruldu.has(ev._hol_hedef):
+			var hh: String = ev._hol_hedef
+			_holde_yuruldu[hh] = true
+			print("holde yürüyor: ", hh, " başlangıç ", ev.oyuncu.global_position)
+			for n: Vector3 in ev.HOL_ROTA[hh]:
+				await _ev_yuru(ev, n, 20000)
+				if not ev._icerde(ev.oyuncu.global_position): _hata("holde alan dışı: " + str(ev.oyuncu.global_position))
+			print("hol yolu bitti: ", ev.oyuncu.global_position)
 		var hedef := ""
 		for ad in sira:
 			if ev._esyalar.has(ad): hedef = ad; break
 		if hedef == "":
 			if ev._esyalar.size() > 0: hedef = ev._esyalar.keys()[0]
 			else: continue
-		if hedef.ends_with("_kapi"): _son_kapi = ev._esyalar[hedef][0]
+		if hedef.ends_with("_kapi") or hedef.begins_with("hol_"): _son_kapi = ev._esyalar[hedef][0]
 		var ok: bool = await _git_bak_bas(ev, hedef)
 		if not ok and _son_kapi != Vector3.INF:
 			# oyuncu gibi önce kapıdan geçer, sonra yeniden dener
@@ -151,7 +163,7 @@ func _ev_oyna(ev: Node) -> void:
 	b = Time.get_ticks_msec()
 	while is_instance_valid(ev) and current_scene == ev:
 		await process_frame
-		if Time.get_ticks_msec() - b > 200000: _hata("salon/çıkış bitmedi faz=" + (str(ev.faz) if is_instance_valid(ev) else "?")); return
+		if Time.get_ticks_msec() - b > 420000: _hata("salon/çıkış bitmedi faz=" + (str(ev.faz) if is_instance_valid(ev) else "?")); return
 	print("ev bitti (", (Time.get_ticks_msec() - b) / 1000.0, " sn)")
 
 
@@ -225,9 +237,9 @@ func _git_bak_bas(ev: Node, ad: String) -> bool:
 	return false
 
 
-func _ev_yuru(ev: Node, h: Vector3) -> void:
+func _ev_yuru(ev: Node, h: Vector3, sure := 6000) -> void:
 	var b := Time.get_ticks_msec()
-	while Vector2(h.x - ev.oyuncu.global_position.x, h.z - ev.oyuncu.global_position.z).length() > 0.3 and Time.get_ticks_msec() - b < 6000:
+	while Vector2(h.x - ev.oyuncu.global_position.x, h.z - ev.oyuncu.global_position.z).length() > 0.3 and Time.get_ticks_msec() - b < sure:
 		_bak(ev, Vector3(h.x, ev.kamera.global_position.y, h.z))
 		Input.action_press("ileri")
 		await physics_frame

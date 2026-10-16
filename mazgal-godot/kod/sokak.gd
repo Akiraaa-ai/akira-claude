@@ -79,7 +79,7 @@ func _park_arabalari() -> void:
 	await get_tree().physics_frame
 	var uzay := get_world_3d().direct_space_state
 	var ana := Node3D.new(); ana.name = "ParkArabalari"; add_child(ana)
-	var govde := StaticBody3D.new(); govde.name = "ParkCarpisma"; ana.add_child(govde)
+	var park_govde := StaticBody3D.new(); park_govde.name = "ParkCarpisma"; ana.add_child(park_govde)
 	var sira := 0
 	for kopya in [0.0, -SEHIR_BOY]:
 		for p: Array in PARK_YERLERI:
@@ -92,10 +92,10 @@ func _park_arabalari() -> void:
 			var q := PhysicsRayQueryParameters3D.create(yer + Vector3(0, 6, 0), yer + Vector3(0, -3, 0))
 			var r := uzay.intersect_ray(q)
 			if not r.is_empty(): yer.y = r.position.y
-			_arac_koy(kaynak, paketler[m[0]], yer, float(p[2]), ana, govde)
+			_arac_koy(kaynak, paketler[m[0]], yer, float(p[2]), ana, park_govde)
 	for k in paketler: (paketler[k] as Node).free()
 
-func _arac_koy(kaynak: Node3D, kok: Node, yer: Vector3, aci: float, ana: Node3D, govde: StaticBody3D) -> void:
+func _arac_koy(kaynak: Node3D, kok: Node, yer: Vector3, aci: float, ana: Node3D, park_govde: StaticBody3D) -> void:
 	var don := Transform3D.IDENTITY
 	var n: Node = kaynak
 	while n != kok:
@@ -126,7 +126,7 @@ func _arac_koy(kaynak: Node3D, kok: Node, yer: Vector3, aci: float, ana: Node3D,
 	var cs := CollisionShape3D.new(); var b := BoxShape3D.new()
 	b.size = kutu.size; cs.shape = b
 	cs.transform = Transform3D(tut.basis, tut.position + tut.basis * kutu.get_center())
-	govde.add_child(cs)
+	park_govde.add_child(cs)
 
 # Kulübenin masasında iki katlı evrak/mektup sepeti (alp'in double_letter_box modeli)
 const POSTA_KUTUSU := "res://modeller2/klübe/double_letter_box.glb"
@@ -202,6 +202,8 @@ const SATIRLAR := {
 const EV_PARK := Vector3(-14.0, 0.0, 30.0)
 var eve_donus := false
 const Eller := preload("res://kod/eller.gd")
+const Govde := preload("res://kod/govde.gd")
+var govde: Govde       # Selim'in gövdesi: yalnızca gölgesi görünür
 const Kagit := preload("res://kod/kagit.gd")
 var _iz_son := Vector3(1e9, 0, 0)
 var _iz_sayi := 0
@@ -240,6 +242,8 @@ func _yolculuk_kur() -> void:
 	oyuncu = $Selim
 	oyuncu_kamera = $Selim/Kafa/Kamera
 	oyuncu_kamera.current = true
+	govde = Govde.new()
+	add_child(govde)
 	_arayuz_kur()
 	ses_selim = AudioStreamPlayer.new(); add_child(ses_selim)
 	ses_kapi = AudioStreamPlayer3D.new(); ses_kapi.stream = _kapi_sesi(); ses_kapi.unit_size = 4.0; add_child(ses_kapi)
@@ -281,6 +285,10 @@ func _kulubeden_basla() -> void:
 func _process(dt: float) -> void:
 	if Engine.is_editor_hint() or oyuncu == null: return
 	dt_durum += dt
+	# gövde yürürken görünür (arabada, otururken, düşerken gizli)
+	govde.visible = (durum == "yuruyus" or durum == "mazgala" or durum == "kulube") and oyuncu.is_physics_processing()
+	if govde.visible:
+		govde.guncelle(oyuncu.global_position, oyuncu.global_rotation.y, dt)
 	_physics_ugultu()
 	if durum != "dusus" and durum != "karanlik":
 		siyah.modulate.a = move_toward(siyah.modulate.a, 0.0, dt * 0.6)
@@ -583,7 +591,7 @@ const KULUBE_ESYALARI := [
 	["res://modeller2/klübe/kul_tablasi.glb", Vector3(0.8, 1.14, -1.02), 0.0, 1.0],
 	["res://modeller2/klübe/termos.glb", Vector3(0.95, 1.14, -0.15), 0.0, 1.0],
 	["res://modeller2/klübe/cay_bardagi.glb", Vector3(0.7, 1.14, -0.25), 0.0, 1.0],
-	["res://modeller2/klübe/sandalye.glb", Vector3(0.05, 0.0, -0.95), -90.0, 1.0],
+	["res://modeller2/klübe/sandalye.glb", Vector3(0.05, 0.0, -0.95), 90.0, 1.0],   # Antarct1c, Sketchfab Standard; önü +z
 	["res://modeller2/klübe/aski.glb", Vector3(-1.32, 1.7, -0.6), 90.0, 1.0],
 ]
 const YAGMURLU_CAM := """shader_type spatial;
