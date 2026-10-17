@@ -742,7 +742,16 @@ func _kulube() -> void:
 				_k_zaman["otur"] = dt_durum
 				_otur_bas = oyuncu_kamera.global_position
 		4:
-			_bekleme(dt_durum - float(_k_zaman["otur"]))
+			# oturunca önce bir sigara yakar, sonra TV'ye bakıp bekler
+			var t := dt_durum - float(_k_zaman["otur"])
+			if t < SIGARA_BAS or _sigara == null:
+				_bekleme(t)
+				return
+			if not _soylenen.has("sigara_kur"):
+				_soylenen["sigara_kur"] = true
+				_sigara.kur(oyuncu_kamera, eller, _sigara_paketi.global_position if _sigara_paketi else _k(SIGARA_PAKETI_YERI))
+			if not _sigara.oynat(t - SIGARA_BAS): return
+			_bekleme(t - Sigara.SURE)
 		6:
 			_vardiya_bitti(dt_durum - float(_k_zaman["vardiya"]))
 		5:
@@ -916,6 +925,11 @@ func _kulube_kur() -> void:
 		n.position = e[1]; n.rotation_degrees.y = e[2]; n.scale = Vector3.ONE * float(e[3])
 		if str(e[0]).get_file().begins_with("bodycam"): _bodycam_model = n
 		if str(e[0]).get_file().begins_with("kul_tablasi"): _duman_kur(n.global_position + Vector3(0, 0.03, 0))
+	# masada sigara paketi; Selim oturunca bir tane yakar
+	_sigara_paketi = _model_koy(SIGARA_PAKETI, [], 0.0, SIGARA_PAKETI_YERI, 25.0)
+	if _sigara == null:
+		_sigara = Sigara.new()
+		add_child(_sigara)
 	# alp'in modeller2/modeller2'ye attığı eşyalar: masada yaka kamerası, termos ve çay bardağı
 	if _bodycam_model == null: _bodycam_model = _model_koy(YENI_MODELLER + "vintage_camera.glb", [], 0.0, BODYCAM_YERI, 90.0)
 	_model_koy(YENI_MODELLER + "rusty_canister_and_thermos.glb", ["Thermos_001_ThermosTX_001_0"], 0.30, Vector3(0.95, 1.14, -0.15), 0.0)
@@ -929,6 +943,12 @@ func _kulube_kur() -> void:
 
 
 const YENI_MODELLER := "res://modeller2/modeller2/"
+const Sigara := preload("res://kod/sigara.gd")
+const SIGARA_PAKETI := "res://modeller2/seliminevi/sigara/sigara_paketi.gltf"
+const SIGARA_PAKETI_YERI := Vector3(0.62, 1.14, -0.62)
+const SIGARA_BAS := 2.0     # oturduktan kaç saniye sonra
+var _sigara: Node3D
+var _sigara_paketi: Node3D
 
 ## Kulübeye dik duran eşya: modelin yalnızca `parcalar` adlı yüzeyleri kalır (boşsa hepsi), boyu `boy`
 ## metre olur (0 ise modelin kendi ölçüsü), alt yüzünün ortası kulübedeki `yer`e oturur.

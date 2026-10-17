@@ -69,6 +69,7 @@ const BOY_FARK := 0.14
 const Eller := preload("res://kod/eller.gd")
 const Govde := preload("res://kod/govde.gd")
 const Kagit := preload("res://kod/kagit.gd")
+const Sigara := preload("res://kod/sigara.gd")
 
 # Modeller (alp'in gönderdiği dosyalar)
 const KAPI_MODELI := "res://modeller2/seliminevi/doors_stylish_glass_door.glb"
@@ -356,6 +357,7 @@ func _process(dt: float) -> void:
 		"s_tel_al": _s_tel_al()
 		"tel_kaydir": _tel_kaydir()
 		"s_tel_birak": _s_tel_birak()
+		"s_sigara": _s_sigara()
 		"s_koltuk": _s_koltuk()
 		"salon": _salon()
 		"yayin": _yayin()
@@ -1161,17 +1163,40 @@ func _s_tel_birak() -> void:
 		_tel_ekran(false)
 		eller.birak("sag", 0.6)
 	if ft >= 3.4:
-		# kalkar, mutfak kapısını karanlığa doğru iter, holde gözünü açar; salona kendi yürür
-		var bas := Vector3(27.4, 1.25, 1.85) + Vector3(0.1, 0.3, 0.2)
-		_gecis_basla([[0.0, bas, Vector3(29, 1.4, 2.6)],
-				[1.1, Vector3(27.6, 1.62, 2.5), Vector3(28.6, 1.3, 2.55)],
-				[2.5, Vector3(27.65, 1.62, 2.52), Vector3(29.2, 1.45, 2.55)],
-				[3.5, Vector3(28.5, 1.62, 2.55), Vector3(30.0, 1.45, 2.55)]],
-			kapi_mutfak, Vector2(1.3, 2.3), 3.5,
-			null, [], "hol:salon_kapisi")
-		_gecis["karart"] = 0.7
-		_gecis["hol_kapi"] = kapi_hol_mutfak
-		_gecis["hol_yer"] = KAPI_HOL_MUTFAK
+		# telefonu bırakınca masada bir sigara yakar
+		_gec("s_sigara")
+
+
+## Mutfak masasında sigara: paketten alır, çakmakla yakar, birkaç nefes çeker; sonra kalkıp çıkar.
+var sigara: Node3D
+
+func _s_sigara() -> void:
+	var otur := Vector3(27.4, 1.25, 1.85)
+	var pk := ($SigaraPaketi as Node3D).global_position if has_node("SigaraPaketi") else KASE + Vector3(0.24, 0.0, -0.16)
+	if not _eylem.has("sg_kur"):
+		_eylem["sg_kur"] = true
+		if sigara == null:
+			sigara = Sigara.new()
+			add_child(sigara)
+		sigara.kur(kamera, eller, pk)
+	_yol([[0.0, otur + Vector3(0.1, 0.3, 0.2), Vector3(29, 1.4, 2.6)], [0.9, otur, pk], [2.4, otur, pk + Vector3(-0.3, 0.55, -0.3)],
+		[8.0, otur + Vector3(0, -0.02, 0), Vector3(26.2, 1.15, 0.6)], [14.0, otur + Vector3(0.02, -0.03, 0), Vector3(25.8, 1.2, 1.0)],
+		[Sigara.SURE, otur, Vector3(26.0, 1.15, 0.9)]], ft)
+	if sigara.oynat(ft):
+		_mutfaktan_cik(otur, Vector3(26.0, 1.15, 0.9))
+
+
+## Kalkar, mutfak kapısını karanlığa doğru iter, holde gözünü açar; salona kendi yürür.
+func _mutfaktan_cik(bas: Vector3, bakis: Vector3) -> void:
+	_gecis_basla([[0.0, bas, bakis],
+			[1.1, Vector3(27.6, 1.62, 2.5), Vector3(28.6, 1.3, 2.55)],
+			[2.5, Vector3(27.65, 1.62, 2.52), Vector3(29.2, 1.45, 2.55)],
+			[3.5, Vector3(28.5, 1.62, 2.55), Vector3(30.0, 1.45, 2.55)]],
+		kapi_mutfak, Vector2(1.3, 2.3), 3.5,
+		null, [], "hol:salon_kapisi")
+	_gecis["karart"] = 0.7
+	_gecis["hol_kapi"] = kapi_hol_mutfak
+	_gecis["hol_yer"] = KAPI_HOL_MUTFAK
 
 
 ## Selim salona girince önce koltuğun üstündeki fotoğraf duvarına bakar (yaklaşık 30 sn), resimleri
