@@ -192,7 +192,7 @@ func _dugum_eklendi(n: Node) -> void:
 		_oynaticilar.append(n)
 	if n == get_tree().current_scene or n is WorldEnvironment:
 		_kaliteyi_uygula.call_deferred(n)
-	elif n is Light3D or n is GPUParticles3D:
+	elif n is Light3D or n is GPUParticles3D or n is Camera3D:
 		_dugum_kalitesi.call_deferred(n)
 
 ## Düşük ayarda (zayıf ekran kartları için) ikincil ışıkların gölgesi kapanır, yağmur damlası azalır.
@@ -203,6 +203,21 @@ func _dugum_kalitesi(n: Node) -> void:
 		if not l.has_meta("asil_golge"): l.set_meta("asil_golge", l.shadow_enabled)
 		var onemli := l.name == "Fener" or l.name == "Ampul" or l.name == "TVIsigi"
 		l.shadow_enabled = bool(l.get_meta("asil_golge")) and (kalite >= 1 or onemli)
+		# uzaktaki sokak lambaları düşük ayarda daha erken söner: ekran kartı aynı anda daha az ışık hesaplar
+		if l.distance_fade_enabled:
+			if not l.has_meta("asil_solma"): l.set_meta("asil_solma", Vector3(l.distance_fade_begin, l.distance_fade_length, l.distance_fade_shadow))
+			var a: Vector3 = l.get_meta("asil_solma")
+			var k: float = [0.45, 0.75, 1.0, 1.0][kalite]
+			l.distance_fade_begin = a.x * k; l.distance_fade_length = a.y * k; l.distance_fade_shadow = a.z * k
+	elif n is DirectionalLight3D:
+		var d := n as DirectionalLight3D
+		if not d.has_meta("asil_mesafe"): d.set_meta("asil_mesafe", d.directional_shadow_max_distance)
+		d.directional_shadow_max_distance = minf(d.get_meta("asil_mesafe"), [40.0, 70.0, 100.0, 100.0][kalite])
+	elif n is Camera3D:
+		# sis zaten uzağı örter; düşük ayarda kamera o kadar uzağı çizmez
+		var c := n as Camera3D
+		if not c.has_meta("asil_uzak"): c.set_meta("asil_uzak", c.far)
+		c.far = minf(c.get_meta("asil_uzak"), [180.0, 260.0, 4000.0, 4000.0][kalite])
 	elif n is GPUParticles3D:
 		(n as GPUParticles3D).amount_ratio = [0.35, 0.6, 1.0, 1.0][kalite]
 
@@ -228,7 +243,7 @@ func _kaliteyi_uygula(kok: Node) -> void:
 		if kalite == 0 and env.get_meta("asil_hacim"):
 			env.fog_density = maxf(env.fog_density, env.volumetric_fog_density * 0.6)
 			env.fog_light_color = env.volumetric_fog_albedo * 0.12
-	for n in kok.find_children("*", "Light3D", true, false) + kok.find_children("*", "GPUParticles3D", true, false):
+	for n in kok.find_children("*", "Light3D", true, false) + kok.find_children("*", "GPUParticles3D", true, false) + kok.find_children("*", "Camera3D", true, false):
 		_dugum_kalitesi(n)
 	var vp := get_viewport()
 	vp.msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X, Viewport.MSAA_8X][kalite]
@@ -282,7 +297,7 @@ void fragment() {
 	_ana.add_child(_etiket("●  DURAKLATILDI", 22, Color(0.85, 0.2, 0.18)))
 	_ana.add_child(_dugme("DEVAM ET", devam))
 	_ana.add_child(_dugme("AYARLAR", func() -> void: _ana.visible = false; _ayar.visible = true))
-	_ana.add_child(_dugme("BAŞTAN BAŞLA", func() -> void: _git(ILK_SAHNE)))
+	_ana.add_child(_dugme("BAŞTAN BAŞLA", func() -> void: yeni_oyun(); _git(ILK_SAHNE)))
 	_ana.add_child(_dugme("ANA MENÜ", func() -> void: _git(ANA_MENU)))
 	_ana.add_child(_dugme("OYUNDAN ÇIK", func() -> void: _kaydet(); get_tree().quit()))
 	_ana.add_child(_etiket("ESC  DEVAM ET", 16, Color(0.5, 0.5, 0.46)))

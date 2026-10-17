@@ -52,8 +52,11 @@ func _ready() -> void:
 func _carpisma_kur() -> void:
 	_carpisma = GPUParticlesCollisionHeightField3D.new()
 	_carpisma.size = Vector3(48, 40, 48)
-	_carpisma.resolution = GPUParticlesCollisionHeightField3D.RESOLUTION_512
-	_carpisma.update_mode = GPUParticlesCollisionHeightField3D.UPDATE_MODE_ALWAYS
+	# düşük ayarda daha kaba yükseklik haritası; yalnızca kamera hareket edince yeniden çizilir
+	var d := get_node_or_null("/root/Duraklat")
+	var dusuk: bool = d != null and int(d.get("kalite")) == 0
+	_carpisma.resolution = GPUParticlesCollisionHeightField3D.RESOLUTION_256 if dusuk else GPUParticlesCollisionHeightField3D.RESOLUTION_512
+	_carpisma.update_mode = GPUParticlesCollisionHeightField3D.UPDATE_MODE_WHEN_MOVED
 	_carpisma.follow_camera_enabled = true
 	add_child.call_deferred(_carpisma)
 

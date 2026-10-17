@@ -30,20 +30,32 @@ const FENER := [
 	Vector3(25.40, 8.50, 35.00), Vector3(25.40, 8.50, 46.40),
 ]
 
-func _ready() -> void:
-	var parilti := _parilti_malzemesi()
-	# şehrin ikinci kopyası kuzeyde (sokak.gd SEHIR_BOY); lambaları da aynı kaymayla kopyalanır
-	for kayma in [Vector3.ZERO, Vector3(0, 0, -164.7771)]:
-		for p in KOLLU: _lamba(p + kayma + Vector3(0, -0.12, 0), parilti, 0.5)
-		for p in FENER: _lamba(p + kayma + Vector3(0, -0.25, 0), parilti, 0.65)
+const Sokak := preload("res://kod/sokak.gd")
+var _parilti: Material
 
-func _lamba(bas: Vector3, parilti: Material, boy: float) -> void:
+func _ready() -> void:
+	_parilti = _parilti_malzemesi()
+	# konumlar ölçeksiz şehirden; şehir Sokak.OLCEK kadar büyütüldüğü için ışıklar da o oranda yer değiştirir
+	# şehrin ikinci kopyası kuzeyde (sokak.gd SEHIR_BOY); lambaları da aynı kaymayla kopyalanır
+	for kayma in [Vector3.ZERO, Vector3(0, 0, -Sokak.SEHIR_BOY)]:
+		for p in KOLLU: _lamba((p + kayma) * Sokak.OLCEK + Vector3(0, -0.12, 0), _parilti, 0.5)
+		for p in FENER: _lamba((p + kayma) * Sokak.OLCEK + Vector3(0, -0.25, 0), _parilti, 0.65)
+
+## şehrin kenarlarına kopyalanan bir bloğun lambaları (sokak.gd _kenarlari_doldur); gölgesiz, çok sayıda oldukları için
+func kopya_lambalar(blok: Array, pay: float, kayma: Vector3) -> void:
+	for liste in [KOLLU, FENER]:
+		for p: Vector3 in liste:
+			if p.x < blok[0] - pay or p.x > blok[1] + pay or p.z < blok[2] - pay or p.z > blok[3] + pay: continue
+			var l := _lamba((p + kayma) * Sokak.OLCEK + Vector3(0, -0.12 if liste == KOLLU else -0.25, 0), _parilti, 0.5 if liste == KOLLU else 0.65)
+			l.shadow_enabled = false
+
+func _lamba(bas: Vector3, parilti: Material, boy: float) -> SpotLight3D:
 	var l := SpotLight3D.new()
 	l.position = bas
 	l.rotation_degrees.x = -90.0
 	l.light_color = Color(1.0, 0.68, 0.32)
 	l.light_energy = 14.0
-	l.spot_range = 18.0
+	l.spot_range = 18.0 * Sokak.OLCEK
 	l.spot_angle = 62.0
 	l.spot_attenuation = 0.9
 	l.shadow_enabled = true
@@ -70,6 +82,7 @@ func _lamba(bas: Vector3, parilti: Material, boy: float) -> void:
 	g.position = bas
 	add_child(g)
 	l.set_meta("parilti", g)
+	return l
 
 func _parilti_malzemesi() -> StandardMaterial3D:
 	var grad := Gradient.new()

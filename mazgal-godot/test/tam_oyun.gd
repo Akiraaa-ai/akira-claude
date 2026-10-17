@@ -186,6 +186,10 @@ func _oda(ev: Node) -> String:
 ## Odanın ortasından sekiz yöne yürür; ayağının altında zemin yoksa ya da alanın dışına çıktıysa yazar.
 func _gez(ev: Node, oda: String) -> void:
 	var bas: Vector3 = ev.oyuncu.global_position
+	# holden girilen odada oyuncu kapı eşiğindedir; arkasından kapanan kapı ışınlanınca içine düşmesin diye odanın ortasından gezilir
+	if not (ev._kutular as Array).is_empty():
+		var orta: Vector3 = (ev._kutular[0] as AABB).get_center()
+		bas = Vector3(orta.x, bas.y, orta.z)
 	var yaw_bas: float = ev._yaw
 	for i in 8:
 		var aci := i * TAU / 8.0

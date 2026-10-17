@@ -21,18 +21,18 @@ const SATIRLAR := {
 	"ic01": ["res://sesler/selim_ic_01.mp3", "Bu ışık da hep bozuk zaten."],
 	"ic02": ["res://sesler/selim_ic_02.mp3", "Dolapta ne kaldıysa artık..."],
 	"ic03": ["res://sesler/selim_ic_03.mp3", "Fatura da gelmiş. Sonra bakarım."],
-	"ic04": ["res://sesler/selim_ic_04.mp3", "Tamam abi, tamam... ne zaman geç kaldım ki."],
+	"ic04": ["res://sesler/selim_ic_04a.mp3", "Tamam abi, tamam... ne zaman geç kaldım ki."],   # alp'in kaydının ilk yarısı; ikinci yarısı kulübede
 	# rüyadaki kadın (alp'in metni); ses dosyaları gelene kadar yalnız altyazı
-	"ruya_sonra": ["res://sesler/selim_ruya_sonra.mp3", "Yine o siktiri boktan rüya... Her gece aynı."],
+	"ruya_sonra": ["res://sesler/selim_ruya_sonra.mp3", "Yine o siktir boktan rüya... Her gece aynı."],
 	"ruya01": ["res://sesler/ruya_01.mp3", "Hoş geldin canım...", "KADIN"],
 	"ruya02": ["res://sesler/ruya_02.mp3", "Burayı seviyorsun, değil mi? İyi ki geldin.", "KADIN"],
-	"ruya03": ["res://sesler/ruya_03.mp3", "Seni çok özledim.", "KADIN"],
+	"ruya03": ["res://sesler/ruya_03.mp3", "Seni o kadar çok özledim ki...", "KADIN"],
 	"ruya04": ["res://sesler/ruya_04.mp3", "Ama ben gittiğimden beri hiçbir şey yapmamışsın Selim.", "KADIN"],
-	"ruya05": ["res://sesler/ruya_05.mp3", "Hani hayatına devam edecektin? Bu ne depresyonluk böyle...", "KADIN"],
+	"ruya05": ["res://sesler/ruya_05.mp3", "Hani hayatına devam edecektin? Bu ne hal böyle...", "KADIN"],
 	"ruya06": ["res://sesler/ruya_06.mp3", "Ne kadar zayıflamışsın sen.", "KADIN"],
-	"ruya07": ["res://sesler/ruya_07.mp3", "Senin suçun değildi. Duyuyor musun? Senin suçun değildi.", "KADIN"],
-	"ruya08": ["res://sesler/ruya_08.mp3", "Beni unutma. Ve biraz yaşa... Benim için.", "KADIN"],
-	"ruya09": ["res://sesler/ruya_09.mp3", "Aşağıda bekliyorsun, biliyorum. Ama yukarıdaki de sendin.", "KADIN"],
+	"ruya07": ["res://sesler/ruya_08.mp3", "Senin suçun değildi diyorum. Duyuyor musun beni? Senin suçun değildi.", "KADIN"],   # kayıtlarda 07 ve 08 yer değiştirmiş
+	"ruya08": ["res://sesler/ruya_07.mp3", "Beni unutma, ne olur. Ve biraz olsun yaşa... Sadece benim için.", "KADIN"],
+	"ruya09": ["res://sesler/ruya_09.mp3", "Selim... Aşağıda bekliyorsun, biliyorum. Ama yukarıdaki de sendin.", "KADIN"],
 	"ruya10": ["res://sesler/ruya_10.mp3", "Selim!", "KADIN"],
 	"ruya11": ["res://sesler/ruya_11.mp3", "Selim!!", "KADIN"],
 	"ruya12": ["res://sesler/ruya_12.mp3", "SELİM!!!", "KADIN"],
@@ -41,7 +41,7 @@ const SATIRLAR := {
 # Odaların dünyadaki yerleri (ev.tscn ile aynı)
 const SALON := Vector3(36, 0, 0)
 const KOLTUK := Vector3(33.7, 1.12, -0.45)        # Selim'in koltuktaki göz hizası
-const EKRAN := Vector3(38.228, 0.84, -0.4)        # TV ekranının ortası
+const EKRAN := Vector3(38.548, 0.85, -0.4)        # TV ekranının ortası
 const SAAT_YERI := Vector3(38.885, 2.05, -0.4)     # duvar saati (TV'nin üstünde)
 const KASE := Vector3(27.4, 0.625, 1.06)            # Nesquik kâsesinin yeri (model gelince konacak)
 const TEL_YATAK := Vector3(-1.5, 0.652, 0.8)        # uyanınca telefon yatağın üstünde
@@ -59,9 +59,9 @@ const DOLAP := Vector3(24.38, 1.9, -3.1)            # mutfağın üst dolabı (N
 const BUZDOLABI_MODELI := "res://modeller2/seliminevi/buzdolabi.glb"   # alp gönderince
 const BUZDOLABI_YERI := Vector3(24.2, 1.0, 2.4)
 # Oyuncunun dolaşabileceği alanlar (odalar ve kapının önündeki koridor)
-const BANYO_ALAN := [AABB(Vector3(11.08, 0, -3.35), Vector3(0.84, 3, 1.95)), AABB(Vector3(10.95, 0, -1.5), Vector3(2.1, 3, 1.32)), AABB(Vector3(10.95, 0, -0.3), Vector3(0.8, 3, 2.5))]   # kapı önündeki dar koridor + banyo (duş kabininin camları dışında)
-const MUTFAK_ALAN := [AABB(Vector3(23.7, 0, -3.6), Vector3(4.25, 3, 6.9)), AABB(Vector3(27.9, 0, 2.27), Vector3(0.9, 3, 0.56))]   # mutfak + kapı aralığı (hola HOL_ALAN[4] ile bağlanır)
-const SALON_ALAN := [AABB(Vector3(33.3, 0, -2.7), Vector3(5.4, 3, 5.5)), AABB(Vector3(36.29, 0, 2.7), Vector3(0.62, 3, 1.55))]   # salon + kapı aralığı
+const BANYO_ALAN := [AABB(Vector3(10.95, 0, -1.3), Vector3(2.1, 3, 1.12)), AABB(Vector3(10.95, 0, -0.3), Vector3(0.92, 3, 2.5))]   # banyo (duş kabininin camları dışında)
+const MUTFAK_ALAN := [AABB(Vector3(23.7, 0, -3.5), Vector3(4.15, 3, 6.8))]
+const SALON_ALAN := [AABB(Vector3(33.3, 0, -2.7), Vector3(5.4, 3, 5.5))]
 const YURUME := 1.7
 const GOZ := 1.48
 ## Sinematik yollar 1.62 göz hizasıyla yazıldı; Selim kısaltıldı, ayakta duran kareler bu kadar alçalır.
@@ -69,47 +69,43 @@ const BOY_FARK := 0.14
 const Eller := preload("res://kod/eller.gd")
 const Govde := preload("res://kod/govde.gd")
 const Kagit := preload("res://kod/kagit.gd")
+const Sigara := preload("res://kod/sigara.gd")
 
 # Modeller (alp'in gönderdiği dosyalar)
 const KAPI_MODELI := "res://modeller2/seliminevi/doors_stylish_glass_door.glb"
 const SAAT_MODELI := "res://modeller2/seliminevi/vintage_wooden_wall_clock_- (1).glb"
 const SEHPA_MODELI := "res://modeller2/seliminevi/tv_stand.glb"
 const PAKET_MODELI := "res://modeller2/seliminevi/sigara/sigara_paketi.gltf"
-# Oda kapıları: [kapı ortası, yaw (yerel +x geçiş yönü), aynalı, karanlık perde hangi yanda (yerel x: +1, -1, 0 yok)].
-# Hepsi tuğla hola açılır.
+# Kapılar: [kapı ortası, yaw (yerel +x geçiş yönü), aynalı, arkasındaki karanlık hangi yanda (yerel x: +1, -1, 0 yok)].
+# Yatak odası kapısı tuğla hola açılır. Öbür odalar evde başka yerlerde durur: holdeki kapı ve odanın
+# kendi kapısı karanlığa açılır, Selim karanlığa adım atınca öbür tarafta gözünü açar. Her geçişte tek kapı.
 const KAPI_YATAK := [Vector3(3.30, 0.0, 1.6), 0.0, false, 0.0]
-const KAPI_MUTFAK := [Vector3(28.33, 0.0, 2.55), 180.0, true, 0.0]
-const KAPI_SALON := [Vector3(36.6, 0.0, 2.935), 90.0, false, 0.0]
-const KAPI_BANYO_GIRIS := [Vector3(11.49, -0.01, -3.575), 90.0, false, 0.0]   # banyonun önündeki küçük antrenin kapısı
+const KAPI_MUTFAK := [Vector3(28.33, 0.0, 2.55), 180.0, true, -1.0]
+const KAPI_SALON := [Vector3(36.6, 0.0, 2.935), 90.0, false, -1.0]
+const KAPI_HOL_BANYO := [Vector3(7.46, 0.0, 1.8), 0.0, false, 1.0]
+const KAPI_HOL_MUTFAK := [Vector3(5.4, 0.0, 0.34), 90.0, false, 1.0]
+const KAPI_HOL_SALON := [Vector3(5.4, 0.0, 3.26), -90.0, false, 1.0]
+const BANYO_KARANLIK := [Vector3(10.5, -0.01, -3.1), Vector3(12.2, 2.45, -1.56)]   # banyo kapısının dışı
 
-# Tuğla hol (Selim'in odasının tuğlası): yatak odası, banyo, mutfak ve salon kapıları buna açılır.
-# Dikdörtgenler [x0, z0, x1, z1]: holün iç yüzü. Odalar evde ayrı yerlerde durduğu için hol odaların
-# güneyinden uzun bir koridor olarak geçer, kollarla kapılara bağlanır.
+# Tuğla hol (Selim'in odasının tuğlası): küçük bir dikdörtgen. Batıda yatak odası, doğuda banyo,
+# kuzeyde mutfak, güneyde salon kapısı. Dikdörtgenler [x0, z0, x1, z1]: holün iç yüzü.
 const HOL := [
-	[3.36, 0.9, 4.96, 5.3],      # yatak odası kapısının önü
-	[3.36, 3.7, 37.6, 5.3],      # uzun hol
-	[9.0, -5.1, 10.6, 3.7],      # banyoya giden kol (banyonun batısından kuzeye)
-	[9.0, -5.1, 12.3, -3.62],    # banyo kapısının önü
-	[28.42, 1.95, 30.02, 3.7],   # mutfak kapısının önü
-	[35.95, 3.02, 37.25, 3.7],   # salon kapısının önü
+	[3.36, 0.4, 7.4, 3.2],
 ]
-# Holün oda kapılarının bulunduğu kenarları: duvarda kapı boşluğu kalır. [kenar, sabit, kapının ortası]
-const HOL_KAPILAR := [["-x", 3.36, 1.6], ["-x", 28.42, 2.55], ["-z", 3.02, 36.6], ["+z", -3.62, 11.49]]
-# kapı eşiklerinde odanın zemini ile hol arasında kalan aralık
-const HOL_ESIK := [[3.2, 1.0, 3.4, 2.2], [28.28, 2.0, 28.45, 3.1], [36.0, 2.86, 37.2, 3.05]]
+# Holün kapılarının bulunduğu kenarları: duvarda kapı boşluğu kalır. [kenar, sabit, kapının ortası]
+const HOL_KAPILAR := [["-x", 3.36, 1.6], ["+x", 7.4, 1.8], ["-z", 0.4, 5.4], ["+z", 3.2, 5.4]]
+# kapı eşiğinde yatak odasının zemini ile hol arasında kalan aralık
+const HOL_ESIK := [[3.2, 1.0, 3.4, 2.2]]
 const HOL_TAVAN := 2.6
-const HOL_LAMBALAR := [Vector3(4.16, 2.3, 2.2), Vector3(7.0, 2.3, 4.5), Vector3(9.8, 2.3, 0.2), Vector3(9.8, 2.3, -4.35),
-	Vector3(14.5, 2.3, 4.5), Vector3(20.5, 2.3, 4.5), Vector3(26.0, 2.3, 4.5), Vector3(29.2, 2.3, 2.8), Vector3(32.5, 2.3, 4.5), Vector3(36.6, 2.3, 4.5)]
-const HOL_TITREYEN := 5   # bu ampul arada bir çakıp söner
+const HOL_LAMBALAR := [Vector3(4.5, 2.3, 1.8), Vector3(6.4, 2.3, 1.8)]
+const HOL_TITREYEN := 1   # bu ampul arada bir çakıp söner
 # oyuncunun holde dolaşabileceği yer (duvarlardan 0.28 m içeride)
-const HOL_ALAN := [AABB(Vector3(3.64, 0, 1.0), Vector3(1.04, 3, 4.02)), AABB(Vector3(3.64, 0, 3.98), Vector3(33.58, 3, 1.04)),
-	AABB(Vector3(9.28, 0, -4.82), Vector3(1.04, 3, 9.3)), AABB(Vector3(9.28, 0, -4.82), Vector3(2.74, 3, 0.92)),
-	AABB(Vector3(28.7, 0, 2.23), Vector3(1.04, 3, 2.3)), AABB(Vector3(36.23, 0, 3.3), Vector3(0.74, 3, 1.2))]
+const HOL_ALAN := [AABB(Vector3(3.64, 0, 0.68), Vector3(3.48, 3, 2.24))]
 # hol kapılarına giden yol (test botu için; oyuncu kendi yürür)
 const HOL_ROTA := {
-	"banyo": [Vector3(4.16, 0, 4.5), Vector3(9.8, 0, 4.5), Vector3(9.8, 0, -4.35), Vector3(10.9, 0, -4.35)],
-	"mutfak": [Vector3(9.8, 0, -4.35), Vector3(9.8, 0, 4.5), Vector3(29.2, 0, 4.5), Vector3(29.2, 0, 3.2)],
-	"salon_kapisi": [Vector3(36.6, 0, 4.5)],
+	"banyo": [Vector3(6.5, 0, 1.8)],
+	"mutfak": [Vector3(5.4, 0, 1.2)],
+	"salon_kapisi": [Vector3(5.4, 0, 2.4)],
 }
 const KAPI_EN := 1.07
 const KAPI_BOY := 2.14
@@ -163,6 +159,11 @@ var tv_ust: ColorRect
 var tv_zemin: ColorRect
 var tv_acik := false
 var tv_t := 0.0
+## Yayından önce TV'de sıradan bir program (alp): yerel kanalda hava durumu; sonra yayın bir anda araya girer.
+const PROGRAM_SURE := 9.0
+var tv_program: Control
+var _program_kayan: Label
+var ses_program: AudioStreamPlayer
 var _tv_kare: Array = []
 var _fotolar := {}
 
@@ -180,9 +181,10 @@ var _ibre_dinlenme := {}   # ibre -> [saatin içindeki duruşu, 12'den saat yön
 var kapi_yatak: Node3D
 var kapi_mutfak: Node3D
 var kapi_salon: Node3D
-var kapi_banyo_giris: Node3D
+var kapi_hol_banyo: Node3D
+var kapi_hol_mutfak: Node3D
+var kapi_hol_salon: Node3D
 var _hol_hedef := ""
-var _holden := false          # odaya holden kapıya basılarak girildi: oyuncu yerinde kalır
 var _kapanacak := {}          # menteşe -> kapanmaya başladığı an
 var _hol_lambalar: Array[OmniLight3D] = []
 var _uzaklasinca := {}        # açık kalan kapı -> true: Selim kanadın süpürdüğü yerden uzaklaşınca kapanır
@@ -200,12 +202,14 @@ var buhar: GPUParticles3D
 
 # oynanabilir kısım
 var eller: Eller
-var govde: Govde       # Selim'in gövdesi: yalnızca gölgesi görünür
+var govde: Govde       # Selim'in gövdesi: aşağı bakınca görünür, başın yalnızca gölgesi
 var oyuncu: CharacterBody3D
 var _yaw := 0.0
 var _pitch := 0.0
 var _kutular: Array = []
 var _oturuyor := false
+## evden çıkarken merdiven boşluğunda oyuncu kendi iner: yer ışınla bulunur, oda sınırları kalkar
+var _merdivende := false
 var _otur_konum := Vector3.ZERO
 var _bob := 0.0
 var _adim_t := 0.0
@@ -229,6 +233,8 @@ var tel_ekran_mi: MeshInstance3D
 var _kaydirilan := 0
 var ses_alarm: AudioStreamPlayer
 var ses_titresim: AudioStreamPlayer
+var ses_ambiyans: AudioStreamPlayer
+var ses_saat_tik: AudioStreamPlayer
 var _ses_havuz: Array[AudioStreamPlayer] = []
 var _sesler := {}
 var gorev_yazi: Label
@@ -254,7 +260,6 @@ func _ready() -> void:
 	_kabuk(Vector3(-2.855, 0, -2.855) + SALON, Vector3(2.855, 4.2, 2.855) + SALON, {"+x": beton_x, "+z": beton_z}, beton_x, {"+z": KAPI_SALON[0].x})
 	kapi_yatak = _kapi_kur(KAPI_YATAK)
 	kapi_mutfak = _kapi_kur(KAPI_MUTFAK)
-	kapi_mutfak.set_meta("yon", -1.0)   # holden itilince mutfağa doğru açılır, holü kapatmaz
 	kapi_salon = _kapi_kur(KAPI_SALON)
 	_banyo_kapisi_kur()
 	_dus_kapisi_kur()
@@ -263,15 +268,21 @@ func _ready() -> void:
 	_aile_fotografi()
 	_foto_duvari()
 	_mutfak_erzak()
+	_yeni_esyalar()
 	_paket_kur()
 	_dus_kur()
 	_ayna_kur()
-	# tuğla hol ve banyonun önündeki küçük antre
+	# tuğla hol; holdeki kapılar Selim'den öteye, karanlığa doğru itilerek açılır
 	var tahta := _duvar_malzemesi($YatakOdasi, "Plane_Material_001_0", 0.3)
 	var siva := _duvar_malzemesi($YatakOdasi, "Plane_004_Material_004_0", 0.25)
 	_hol_kur(tugla, tahta, siva)
-	_koridor(Vector3(10.88, -0.01, -3.55), Vector3(12.1, 2.45, -1.52), "+z", true, tugla, tahta, siva)
-	kapi_banyo_giris = _kapi_kur(KAPI_BANYO_GIRIS)
+	_ampuller_kur()
+	_tablolar_kur()
+	kapi_hol_banyo = _kapi_kur(KAPI_HOL_BANYO)
+	kapi_hol_mutfak = _kapi_kur(KAPI_HOL_MUTFAK)
+	kapi_hol_salon = _kapi_kur(KAPI_HOL_SALON)
+	for k: Node3D in [kapi_hol_banyo, kapi_hol_mutfak, kapi_hol_salon]: k.set_meta("yon", -1.0)
+	_karanlik_kutu(self, BANYO_KARANLIK[0], BANYO_KARANLIK[1], "+z")
 	_arayuz_kur()
 	_oyun_arayuzu_kur()
 	_damla_kur()
@@ -287,7 +298,9 @@ func _ready() -> void:
 	eller = Eller.new()
 	kamera.add_child(eller)
 	govde = Govde.new()
-	govde.yelek = false     # evde iş yeleği yok
+	govde.yelek = true      # modelde yeleğin altında gövde yok; alp gövdenin görünmesini istedi
+	govde.goz = GOZ
+	govde.eller = eller
 	add_child(govde)
 	# "Devam Et" ile gelindiyse kaydedilen noktadan başlar
 	var d := get_node_or_null("/root/Duraklat")
@@ -319,22 +332,30 @@ func _gec(ad: String) -> void:
 		"yayin":
 			tv_acik = true
 			tv_t = 0.0
-			ses_anlatici.play()
-			ses_muzik.play()
+			# önce sıradan program; anlatıcı ve müzik yayın araya girince başlar (_tv_guncelle)
+			if ses_program: ses_program.play()
 			_crt_ac(true)
 
 
 func _process(dt: float) -> void:
 	if _bitti:
 		return
+	_ampul_parla()
 	T += dt
 	ft += dt
 	sallanti = 1.0
+	# TV ve telefon ekranları yalnızca görünürken çizilir (zayıf ekran kartlarında boşa iş yapılmasın)
+	if tv_vp and tv_ust:
+		var tv_calisiyor := tv_acik or float((tv_ust.material as ShaderMaterial).get_shader_parameter("acilis")) > 0.01
+		tv_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS if tv_calisiyor else SubViewport.UPDATE_DISABLED
+	if tel_vp and tel_ekran_mi:
+		tel_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS if tel_ekran_mi.is_visible_in_tree() else SubViewport.UPDATE_DISABLED
 	# gövde yalnızca serbest yürürken: oturma, yatma, sinematiklerde gölgesi kafayla uyuşmaz
 	govde.visible = faz == "oyun"
 	if govde.visible:
+		govde.gorunur = not _oturuyor
 		var kp := kamera.global_position
-		govde.guncelle(Vector3(kp.x, 0.0, kp.z), kamera.global_rotation.y, dt)
+		govde.guncelle(Vector3(kp.x, oyuncu.global_position.y if _merdivende else 0.0, kp.z), kamera.global_rotation.y, dt)
 	match faz:
 		"ruya": _ruya(dt)
 		"uyanis": _uyanis()
@@ -348,12 +369,14 @@ func _process(dt: float) -> void:
 		"s_tel_al": _s_tel_al()
 		"tel_kaydir": _tel_kaydir()
 		"s_tel_birak": _s_tel_birak()
+		"s_sigara": _s_sigara()
 		"s_koltuk": _s_koltuk()
 		"salon": _salon()
 		"yayin": _yayin()
 		"geri": _geri()
 		"saat": _saat()
 		"cikis": _cikis()
+		"dis_kapi": _dis_kapi()
 	siyah.color.a = clampf(karartma, 0.0, 1.0)
 	_tv_guncelle(dt)
 	_daktilo_guncelle()
@@ -374,7 +397,7 @@ func _arka_muzik(dt: float) -> void:
 	if ses_arka == null or ses_arka.stream == null:
 		return
 	var hedef := -80.0
-	if not faz in ["ruya", "uyanis", "yayin", "geri", "saat", "cikis"]:
+	if not faz in ["ruya", "uyanis", "yayin", "geri", "saat", "cikis", "dis_kapi"] and not _merdivende:
 		hedef = ARKA_SES
 	if hedef > -80.0 and not ses_arka.playing:
 		ses_arka.play()
@@ -384,15 +407,26 @@ func _arka_muzik(dt: float) -> void:
 
 
 # ---------------------------------------------------------------- rüya (alp'in metni)
-## Bembeyaz, ışıl ışıl bir yer; kimse yok, yavaş bir piyano. Görünmeyen bir kadın konuşur.
-## Sonra piyano kesilir, ışık titrer, yağmur başlar; kadın Selim'e bağırır, fren, çarpma, karanlık.
+## Güneşli bir gün: Selim eski arabasıyla şehrin ortasındaki caddede ağır ağır gider, yavaş bir piyano.
+## Yan koltuktaki kadın hiç görünmez (kamera hep yola bakar), yalnızca sesi duyulur.
+## Sonra piyano kesilir, gök kararır, yağmur başlar; karşıdan farlar gelir, kadın Selim'e bağırır, fren, çarpma, karanlık.
 ## Bir saniyelik sessizlikten sonra alarm çalar, Selim nefes nefese uyanır.
-## Rüya evden çok yukarıda kurulur; sis ve ışık evi göstermez. Hepsi ışık efekti, model yok.
+## Rüya evden çok yukarıda kurulur: alp'in şehri (tek kopya, 1,4 ölçek) ve Selim'in arabası.
 const RUYA_MERKEZ := Vector3(0, 600, 0)
+const Sokak := preload("res://kod/sokak.gd")
+const RUYA_ARABA := "res://modeller2/selim araba/old_car.glb"
+## orta cadde (sokak sahnesinin koordinatları): doğudan batıya, sağ şerit
+const RUYA_BAS := Vector3(44.0, 0.0, -1.3)
+const RUYA_SON := Vector3(-150.0, 0.0, -1.3)
+var _ruya_araba: Node3D
+var _ruya_hiz := 6.0
+var _ruya_yol := 0.0
+var _ruya_yagmur: GPUParticles3D
+var _karsi_far: Node3D
 const RUYA_SIRA := [
 	["ruya01", 1.6], ["ruya02", 1.6], ["ruya03", 3.0],
 	["ruya04", 1.6], ["ruya05", 1.6], ["ruya06", 3.0],
-	["ruya07", 1.8], ["ruya08", 1.8], ["ruya09", 2.6],
+	["ruya08", 1.8], ["ruya09", 1.8], ["ruya07", 2.6],
 ]
 var _ruya_kok: Node3D
 var _ruya_env: Environment
@@ -411,8 +445,8 @@ func _ruya_kur() -> void:
 	_ruya_kok.position = RUYA_MERKEZ
 	# gökyüzü: tepede açık mavi, ufukta altın beyazı
 	var gok := ProceduralSkyMaterial.new()
-	gok.sky_top_color = Color(0.62, 0.78, 1.0)
-	gok.sky_horizon_color = Color(1.0, 0.94, 0.84)
+	gok.sky_top_color = Color(0.36, 0.58, 0.95)
+	gok.sky_horizon_color = Color(0.92, 0.9, 0.84)
 	gok.ground_bottom_color = Color(1.0, 0.96, 0.9)
 	gok.ground_horizon_color = Color(1.0, 0.94, 0.86)
 	gok.sun_angle_max = 40.0
@@ -424,18 +458,18 @@ func _ruya_kur() -> void:
 	e.background_mode = Environment.BG_SKY
 	e.sky = sky
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	e.ambient_light_energy = 1.2
+	e.ambient_light_energy = 0.8
 	e.tonemap_mode = Environment.TONE_MAPPER_ACES
 	e.tonemap_exposure = 0.85
 	e.glow_enabled = true
-	e.glow_intensity = 1.1
+	e.glow_intensity = 0.6
 	e.glow_bloom = 0.12
 	e.glow_hdr_threshold = 0.85
 	e.fog_enabled = true
-	e.fog_light_color = Color(1.0, 0.95, 0.88)
-	e.fog_density = 0.02
-	e.fog_sky_affect = 0.7
-	e.fog_sun_scatter = 0.7
+	e.fog_light_color = Color(0.86, 0.88, 0.9)
+	e.fog_density = 0.006
+	e.fog_sky_affect = 0.4
+	e.fog_sun_scatter = 0.2
 	e.adjustment_enabled = true
 	e.adjustment_saturation = 1.08
 	_ruya_env = e
@@ -445,13 +479,12 @@ func _ruya_kur() -> void:
 	_ruya_gunes = DirectionalLight3D.new()
 	_ruya_gunes.light_color = Color(1.0, 0.9, 0.75)
 	_ruya_gunes.light_energy = 1.4
-	_ruya_gunes.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY
-	_ruya_gunes.rotation_degrees = Vector3(-12.0, 160.0, 0.0)
+	_ruya_gunes.shadow_enabled = true
+	_ruya_gunes.directional_shadow_max_distance = 120.0
+	_ruya_gunes.rotation_degrees = Vector3(-38.0, 120.0, 0.0)
 	_ruya_kok.add_child(_ruya_gunes)
 	$Aksam.visible = false
-	# havada süzülen ışık tozları ve birkaç büyük, yumuşak ışık küresi
-	_ruya_kok.add_child(_isik_tozu(500, 0.05, Vector3(10, 5, 10), 9.0))
-	_ruya_kok.add_child(_isik_tozu(40, 0.7, Vector3(14, 6, 14), 12.0))
+	_ruya_sahne_kur()
 	ses_piyano = AudioStreamPlayer.new(); add_child(ses_piyano)
 	var piyano := "res://sesler/ruya_piyano.mp3" if ResourceLoader.exists("res://sesler/ruya_piyano.mp3") else "res://sesler/muzik_4.mp3"
 	if ResourceLoader.exists(piyano):
@@ -466,61 +499,123 @@ func _ruya_kur() -> void:
 	_ruya_sonraki = 3.5
 	_ruya_kirilma = -1.0
 	karartma = 1.0
+	# araba, kadının sözleri bitene kadar caddenin sonuna varmasın diye hız sözlerin süresine göre seçilir
+	var sure := 3.5 + 9.0
+	for sat: Array in RUYA_SIRA:
+		var yol: String = SATIRLAR[sat[0]][0]
+		sure += float(sat[1]) + (load(yol).get_length() if ResourceLoader.exists(yol) else 3.0)
+	_ruya_hiz = clampf(RUYA_BAS.distance_to(RUYA_SON) / sure, 3.0, 9.0)
+	_ruya_yol = 0.0
 
 
-func _isik_tozu(adet: int, boy: float, alan: Vector3, omur: float) -> GPUParticles3D:
+## Şehir modeli ve Selim'in arabası; şehirdeki eski model arabalar sokak sahnesindeki gibi çıkarılır.
+func _ruya_sahne_kur() -> void:
+	var sehir := Node3D.new()
+	sehir.name = "RuyaSehir"
+	_ruya_kok.add_child(sehir)
+	# sokak.tscn'deki Sehir düğümü (180° dönük, kaydırılmış) ve sokak.gd'deki ölçek
+	sehir.transform = Transform3D(Basis.from_scale(Vector3.ONE * Sokak.OLCEK), Vector3.ZERO) * Transform3D(Basis(Vector3.UP, PI), Vector3(-14.5, 0, -43.75))
+	for yol: String in Sokak.SEHIR_DOSYALARI:
+		if ResourceLoader.exists(yol):
+			sehir.add_child((load(yol) as PackedScene).instantiate())
+			break
+	for m in sehir.find_children("*", "MeshInstance3D", true, false):
+		var eski := (m as MeshInstance3D).mesh as ArrayMesh
+		if eski == null: continue
+		var kalan := []
+		for i in eski.get_surface_count():
+			var mat := eski.surface_get_material(i)
+			if mat and mat.resource_name in Sokak.ARABA_MALZEMELERI: continue
+			kalan.append(i)
+		if kalan.size() == eski.get_surface_count(): continue
+		var yeni := ArrayMesh.new()
+		for i in kalan:
+			yeni.add_surface_from_arrays(eski.surface_get_primitive_type(i), eski.surface_get_arrays(i))
+			yeni.surface_set_material(yeni.get_surface_count() - 1, eski.surface_get_material(i))
+		(m as MeshInstance3D).mesh = yeni
+	_ruya_araba = Node3D.new()
+	_ruya_araba.name = "RuyaAraba"
+	_ruya_kok.add_child(_ruya_araba)
+	if ResourceLoader.exists(RUYA_ARABA):
+		var model: Node3D = (load(RUYA_ARABA) as PackedScene).instantiate()
+		# sokak.tscn'deki Araba/Model dönüşü: arabanın önü -z
+		model.transform = Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(0, 0, 0.08))
+		_ruya_araba.add_child(model)
+	# yağmur (kırılmaya kadar kapalı) ve karşıdan gelen farlar
+	_ruya_yagmur = _yagmur_parcacik()
+	_ruya_yagmur.emitting = false
+	_ruya_kok.add_child(_ruya_yagmur)
+	_karsi_far = Node3D.new()
+	_karsi_far.visible = false
+	_ruya_kok.add_child(_karsi_far)
+	for x in [-0.65, 0.65]:
+		var f := SpotLight3D.new()
+		f.light_color = Color(1.0, 0.93, 0.8)
+		f.light_energy = 14.0
+		f.spot_range = 45.0
+		f.spot_angle = 28.0
+		f.position = Vector3(x, 1.0, 0)
+		_karsi_far.add_child(f)
+		var o := OmniLight3D.new()   # farın kendisi: gözü alan parlak nokta
+		o.light_color = Color(1.0, 0.95, 0.85)
+		o.light_energy = 3.0
+		o.omni_range = 1.2
+		o.position = Vector3(x, 1.0, -0.2)
+		_karsi_far.add_child(o)
+	_ruya_arac_koy(0.0)
+
+
+func _yagmur_parcacik() -> GPUParticles3D:
 	var p := GPUParticles3D.new()
-	p.amount = adet
-	p.lifetime = omur
-	p.preprocess = omur
-	p.visibility_aabb = AABB(-alan * 1.5, alan * 3.0)
-	p.position = Vector3(0, 0, -6)
+	p.amount = 3000
+	p.lifetime = 1.0
+	p.visibility_aabb = AABB(Vector3(-20, -20, -20), Vector3(40, 30, 40))
 	var m := ParticleProcessMaterial.new()
 	m.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-	m.emission_box_extents = alan
-	m.direction = Vector3(0, 1, 0)
-	m.spread = 180.0
-	m.initial_velocity_min = 0.02
-	m.initial_velocity_max = 0.12
-	m.gravity = Vector3(0, 0.03, 0)
-	m.scale_min = 0.5
-	m.scale_max = 1.5
-	var g := Gradient.new()
-	g.set_color(0, Color(1, 1, 1, 0)); g.set_color(1, Color(1, 1, 1, 0))
-	g.add_point(0.25, Color(1, 1, 1, 1)); g.add_point(0.75, Color(1, 1, 1, 1))
-	var gt := GradientTexture1D.new(); gt.gradient = g
-	m.color_ramp = gt
+	m.emission_box_extents = Vector3(14, 1, 14)
+	m.direction = Vector3(0.05, -1, 0)
+	m.spread = 2.0
+	m.initial_velocity_min = 14.0
+	m.initial_velocity_max = 17.0
+	m.gravity = Vector3(0, -9.8, 0)
 	p.process_material = m
-	var q := QuadMesh.new()
-	q.size = Vector2(boy, boy)
-	var parilti := Gradient.new()
-	parilti.set_color(0, Color(1, 0.96, 0.85, 1)); parilti.set_color(1, Color(1, 0.9, 0.7, 0))
-	var d := GradientTexture2D.new(); d.gradient = parilti; d.width = 64; d.height = 64
-	d.fill = GradientTexture2D.FILL_RADIAL; d.fill_from = Vector2(0.5, 0.5); d.fill_to = Vector2(0.5, 0.0)
 	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	mat.vertex_color_use_as_albedo = true
-	mat.albedo_texture = d
-	mat.albedo_color = Color(1, 1, 1, 0.55 if boy > 0.3 else 0.9)
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(0.7, 0.75, 0.85, 0.18)
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
+	var q := QuadMesh.new()
+	q.size = Vector2(0.012, 0.45)
 	q.material = mat
 	p.draw_pass_1 = q
 	return p
 
 
+## Arabayı caddede ilerletir; kamera sürücü koltuğunda (sokak.tscn'deki Araba/Kamera), hep yola bakar.
+func _ruya_arac_koy(sars: float) -> void:
+	var yon := (RUYA_SON - RUYA_BAS).normalized()
+	var p := RUYA_MERKEZ + RUYA_BAS + yon * _ruya_yol
+	var b := Basis(Vector3.UP, atan2(-yon.x, -yon.z))
+	_ruya_araba.global_transform = Transform3D(b, p)
+	var goz := p + b * Vector3(-0.45, 1.32 + sin(ft * 3.1) * 0.006, -0.1)
+	# baş hafifçe sağa sola, ama yan koltuğa dönmez
+	var bak_yon := Basis(Vector3.UP, sin(ft * 0.13) * 0.07 + sin(ft * 0.31) * 0.03) * (b * Vector3(0, -0.06, -1))
+	goz += Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.012 * sars
+	kamera.look_at_from_position(goz, goz + bak_yon, Vector3.UP)
+	kamera.rotation.z += sin(ft * 0.7) * 0.006
+	if _ruya_yagmur: _ruya_yagmur.global_position = p + Vector3(0, 9, 0) + yon * 6.0
+
+
 func _ruya(dt: float) -> void:
-	# kamera ışığın içinde çok yavaş süzülür, güneşe doğru hafifçe döner
-	var ileri := Vector3(sin(ft * 0.03) * 0.6, sin(ft * 0.21) * 0.08, -ft * 0.18)
-	var goz := RUYA_MERKEZ + ileri
-	var bak := goz + Vector3(sin(ft * 0.05) * 0.4 + 0.25, 0.12 + sin(ft * 0.09) * 0.05, -1.0)
 	var sars := 0.0
+	var hiz := _ruya_hiz
 	if _ruya_kirilma >= 0.0:
-		sars = clampf((ft - _ruya_kirilma - 2.0) / 4.0, 0.0, 1.0)
-	goz += Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * 0.01 * sars
-	kamera.look_at_from_position(goz, bak, Vector3.UP)
-	kamera.rotation.z = sin(ft * 0.11) * 0.02
+		var k0 := ft - _ruya_kirilma
+		sars = clampf((k0 - 2.0) / 4.0, 0.0, 1.0)
+		# fren: 5.8'den sonra araba sert yavaşlar
+		hiz = _ruya_hiz * (1.0 - smoothstep(5.8, 6.8, k0) * 0.85)
+	_ruya_yol = minf(_ruya_yol + hiz * dt, RUYA_BAS.distance_to(RUYA_SON))
+	_ruya_arac_koy(sars)
 	if _ruya_kirilma < 0.0:
 		# beyazdan açılır, piyano yükselir
 		karartma = 1.0 - smoothstep(0.3, 3.0, ft)
@@ -538,11 +633,25 @@ func _ruya(dt: float) -> void:
 		return
 	var k := ft - _ruya_kirilma
 	ses_ruya_yagmur.volume_db = move_toward(ses_ruya_yagmur.volume_db, -6.0, dt * 30.0)
+	if _ruya_yagmur and k > 0.8: _ruya_yagmur.emitting = true
+	_ruya_env.sky.sky_material.set("sky_top_color", Color(0.36, 0.58, 0.95).lerp(Color(0.12, 0.13, 0.15), smoothstep(0.0, 4.0, k)))
+	_ruya_env.sky.sky_material.set("sky_horizon_color", Color(0.92, 0.9, 0.84).lerp(Color(0.2, 0.21, 0.23), smoothstep(0.0, 4.0, k)))
+	_ruya_env.fog_density = lerpf(0.006, 0.03, smoothstep(0.0, 5.0, k))
+	# karşıdan, Selim'in şeridine doğru farlar: 7.3'te çarpışırlar
+	if k > 3.0 and _karsi_far:
+		var yon := (RUYA_SON - RUYA_BAS).normalized()
+		var biz := _ruya_araba.global_position
+		var uzak := lerpf(70.0, 1.5, smoothstep(3.0, 7.3, k) * smoothstep(3.0, 7.3, k) * 0.4 + clampf((k - 3.0) / 4.3, 0.0, 1.0) * 0.6)
+		_karsi_far.visible = true
+		# son anda farlar arabanın içini bembeyaz doldurur
+		for l in _karsi_far.get_children():
+			if l is SpotLight3D: (l as SpotLight3D).light_energy = 14.0 * (1.0 + 4.0 * smoothstep(5.5, 7.3, k))
+		_karsi_far.global_transform = Transform3D(Basis(Vector3.UP, atan2(yon.x, yon.z)), biz + yon * uzak + Vector3(0, 0, 0.6 * smoothstep(3.0, 7.0, k)))
 	# ışık titrer ve söner, gökyüzü griye döner
 	var titre := 1.0 if randf() < 0.75 else randf_range(0.15, 0.6)
 	_ruya_env.tonemap_exposure = lerpf(0.85, 0.3, smoothstep(0.0, 5.0, k)) * titre
 	_ruya_gunes.light_energy = lerpf(1.4, 0.1, smoothstep(0.0, 4.0, k)) * titre
-	_ruya_env.fog_light_color = Color(1.0, 0.95, 0.88).lerp(Color(0.25, 0.27, 0.3), smoothstep(0.0, 5.0, k))
+	_ruya_env.fog_light_color = Color(0.86, 0.88, 0.9).lerp(Color(0.25, 0.27, 0.3), smoothstep(0.0, 5.0, k))
 	_ruya_env.adjustment_saturation = lerpf(1.08, 0.3, smoothstep(0.0, 5.0, k))
 	for c in [[1.4, "ruya10"], [2.9, "ruya11"], [4.3, "ruya12"]]:
 		if k > float(c[0]) and not _soylenenler.has(c[1]): _soyle(c[1])
@@ -572,6 +681,7 @@ func _ruya_bitir() -> void:
 	$Aksam.visible = true
 	if ses_piyano: ses_piyano.stop()
 	if ses_ruya_yagmur: ses_ruya_yagmur.stop()
+	if ses_ambiyans and ses_ambiyans.stream and not ses_ambiyans.playing: ses_ambiyans.play()
 
 
 # ---------------------------------------------------------------- 1. uyanma (sinematik)
@@ -593,8 +703,8 @@ func _uyanis() -> void:
 		[19.2, Vector3(1.6, 1.65, 1.3), Vector3(4.0, 1.45, 1.6)],
 		[20.6, Vector3(2.3, 1.65, 1.6), Vector3(4.2, 1.45, 1.6)],
 		[22.0, Vector3(3.35, 1.65, 1.6), Vector3(5.0, 1.45, 1.6)],
-		# hola çıkar, holün uzandığı yana döner
-		[23.4, Vector3(4.1, 1.62, 1.75), Vector3(4.2, 1.48, 4.2)],
+		# hola çıkar; karşısında banyonun kapısı
+		[23.4, Vector3(4.1, 1.62, 1.7), Vector3(7.0, 1.48, 1.78)],
 	], ft)
 	# göz kırpma ve bulanık açılış
 	karartma = _egri([[0, 1], [1.2, 1], [1.8, 0.4], [2.1, 0.92], [2.9, 0.2], [3.2, 0.7], [4.2, 0.0], [6.3, 0.0], [6.45, 0.85], [6.7, 0.0], [20.0, 0]], ft)
@@ -623,9 +733,11 @@ func _uyanis() -> void:
 		_eylem["geri_cek"] = true
 		eller.birak("sag", 0.9)
 	# nefes, iç çekiş, çarşaf, yatak, yalın ayak adımlar
-	if ft > 2.0 and not _eylem.has("nefes"):
+	if ft > 0.4 and not _eylem.has("nefes"):
 		_eylem["nefes"] = true; _ses_cal("nefes_agir", -6.0)
-	if ft > 10.4 and not _soylendi("ruya_sonra"): _soyle("ruya_sonra")
+	# gözünü açar açmaz, alarm daha çalarken söylenir; alarm o sırada biraz kısılır
+	if ft > 2.2 and not _soylendi("ruya_sonra"): _soyle("ruya_sonra")
+	ses_alarm.volume_db = -15.0 if ft > 2.2 and ft < ALARM_KAPAN else -9.0
 	if ft > 9.2 and not _eylem.has("ic_cekis"):
 		_eylem["ic_cekis"] = true; _ses_cal("ic_cekis", -4.0)
 	if ft > 9.8 and not _eylem.has("carsaf"):
@@ -660,55 +772,49 @@ func _hol_basla(hedef: String) -> void:
 	match hedef:
 		"banyo":
 			_gorev("Banyoya git")
-			_esya("hol_banyo", KAPI_BANYO_GIRIS[0] + Vector3(0, 1.05, 0), 2.0)
+			_esya("hol_banyo", KAPI_HOL_BANYO[0] + Vector3(0, 1.05, 0), 2.0)
 		"mutfak":
 			_gorev("Mutfağa git")
-			_esya("hol_mutfak", KAPI_MUTFAK[0] + Vector3(0, 1.05, 0), 2.0)
+			_esya("hol_mutfak", KAPI_HOL_MUTFAK[0] + Vector3(0, 1.05, 0), 2.0)
 		"salon_kapisi":
 			_gorev("Salona git")
-			_esya("hol_salon", KAPI_SALON[0] + Vector3(0, 1.05, 0), 2.0)
+			_esya("hol_salon", KAPI_HOL_SALON[0] + Vector3(0, 1.05, 0), 2.0)
 
 
-## Holden banyonun antresine: kapıyı iter, içeri girer, kapı arkasından kapanır.
-func _banyoya_gir() -> void:
-	var kapi: Vector3 = KAPI_BANYO_GIRIS[0]
-	var on := Vector3(kapi.x, 1.62, kapi.z - 0.8)
+## Holdeki kapıdan odaya: kapıyı iter, karanlığa adım atar; ekran kararır, odanın içinde gözünü açar.
+func _holden_odaya(kapi: Node3D, tanim: Array, sonraki: String) -> void:
+	var p: Vector3 = tanim[0]
+	var a := deg_to_rad(float(tanim[1]))
+	var ileri := Vector3(cos(a), 0.0, -sin(a))   # kapının yerel +x'i: holden dışarı
+	var on := Vector3(p.x, 1.62, p.z) - ileri * 0.8
 	var bas := _ham(kamera.global_position)
 	var t1 := maxf(0.9, Vector2(bas.x - on.x, bas.z - on.z).length() / 1.0)
-	var hedef := Vector3(11.55, 1.62, -3.0)
-	# kapı antreye doğru itilir (Selim'in durduğu yere süpürmez)
-	kapi_banyo_giris.set_meta("yon", 1.0)
-	_uzaklasinca[kapi_banyo_giris] = true
-	_gecis_basla([[0.0, bas, kapi + Vector3(0, 1.1, 0)],
-			[t1, on, kapi + Vector3(0, 1.25, 0.6)],
-			[t1 + 1.3, on + Vector3(0, 0, 0.05), kapi + Vector3(0, 1.35, 1.6)],
-			[t1 + 2.2, Vector3(kapi.x, 1.62, kapi.z + 0.1), Vector3(11.52, 1.45, -1.0)],
-			[t1 + 3.0, hedef, Vector3(hedef.x, GOZ + sin(-0.08), hedef.z + 1.0)]],
-		kapi_banyo_giris, Vector2(t1 + 0.1, t1 + 1.1), t1 + 3.0, null, [], "banyo")
-	_gecis["acik_kalsin"] = true
+	_gecis_basla([[0.0, bas, p + Vector3(0, 1.1, 0)],
+			[t1, on, p + Vector3(0, 1.25, 0) + ileri * 0.6],
+			[t1 + 1.3, on + ileri * 0.05, p + Vector3(0, 1.35, 0) + ileri * 1.6],
+			[t1 + 2.3, Vector3(p.x, 1.62, p.z) + ileri * 0.35, p + Vector3(0, 1.4, 0) + ileri * 2.0]],
+		kapi, Vector2(t1 + 0.1, t1 + 1.1), t1 + 2.3, null, [], sonraki)
+	_gecis["karart"] = 0.7
 
 
-## Banyo: antreden başlar. Kapı, ışık, lavabo, duş.
+## Banyo: kapının hemen içinden, karanlıkta başlar. Işık, duş, sonra lavaboda diş fırçalama.
 func _banyo_basla() -> void:
 	_saat_goster("18:20")
-	_oyuncu_yerlestir(Vector3(11.55, 0.0, -3.0), PI, BANYO_ALAN)
+	_oyuncu_yerlestir(Vector3(11.5, 0.0, -1.05), PI, BANYO_ALAN)
 	$Isiklar/BanyoLamba.light_energy = 0.0
 	_gorev("Duş al")
-	_esya("banyo_kapi", Vector3(11.48, 1.05, -1.47), 2.1)
+	_esya("banyo_isik", ISIK_DUGMESI, 1.8)
 	get_tree().create_timer(2.0, false).timeout.connect(func() -> void: if not _soylendi("ic01"): _soyle("ic01"))
 
 
-## Mutfak: kapının önünden başlar (holden gelindiyse oyuncu olduğu yerde kalır, kapı hemen açılır).
+## Mutfak: kapının hemen içinden başlar, kapı arkasında kapalı.
 func _mutfak_basla() -> void:
 	_saat_goster("19:05")
-	var kutular: Array = MUTFAK_ALAN + [HOL_ALAN[4]]
-	if _holden: _yerinde_kal(kutular)
-	else: _oyuncu_yerlestir(Vector3(29.25, 0.0, 2.5), PI * 0.5, kutular)
+	_oyuncu_yerlestir(Vector3(27.45, 0.0, 2.5), PI * 0.5, MUTFAK_ALAN)
 	_gorev("Bir şeyler ye")
 	get_tree().create_timer(2.5, false).timeout.connect(func() -> void: if not _soylendi("ic02"): _soyle("ic02"))
-	_esya("mutfak_kapi", KAPI_MUTFAK[0] + Vector3(0, 1.05, 0), 2.0)
-	if _holden: _etkiles("mutfak_kapi")
-	_holden = false
+	if ResourceLoader.exists(BUZDOLABI_MODELI): _esya("buzdolabi", BUZDOLABI_YERI, 2.0)
+	else: _esya("dolap", DOLAP, 2.0)
 	# telefon masada, ekranı kapalı
 	telefon.visible = true
 	_tel_ekran(false)
@@ -717,84 +823,57 @@ func _mutfak_basla() -> void:
 	telefon.scale = Vector3.ONE * TEL_OLCEK
 
 
-## Salon: kapının önünden başlar, koltuğa oturunca TV sinematiği başlar.
+## Salon: kapının hemen içinden başlar, koltuğa oturunca TV sinematiği başlar.
 func _salon_basla() -> void:
 	_salon_giris = T   # duvar saati salona girince 20:00'ı gösterir
 	_saat_goster("20:00")
 	$Aksam.visible = false   # gece: güneş artık pencereden vurmaz
 	($Ortam as WorldEnvironment).environment.ambient_light_energy = 0.2
-	var kutular: Array = SALON_ALAN + [HOL_ALAN[5], AABB(Vector3(35.2, 0, 3.98), Vector3(2.1, 3, 1.04))]
-	if _holden: _yerinde_kal(kutular)
-	else: _oyuncu_yerlestir(Vector3(36.6, 0.0, 4.2), 0.0, kutular)
-	_esya("salon_kapi", KAPI_SALON[0] + Vector3(0, 1.05, 0), 2.0)
-	if _holden: _etkiles("salon_kapi")
-	_holden = false
-
-
-## Holden odaya kapıya basarak girildi: oyuncu yerinde kalır, yalnızca dolaşabileceği yer değişir.
-func _yerinde_kal(kutular: Array) -> void:
-	_kutular = kutular
-	_esyalar.clear()
-	faz = "oyun"
-	ft = 0.0
-	_eylem.clear()
-	_hol_hedef = ""
+	_oyuncu_yerlestir(Vector3(36.6, 0.0, 2.2), 0.0, SALON_ALAN)
+	_esya("koltuk", KOLTUK + Vector3(0.2, -0.5, 0), 3.2)
 
 
 func _etkiles(ad: String) -> void:
 	_esya_kaldir(ad)
 	match ad:
-		"hol_banyo":
+		"hol_banyo", "hol_mutfak", "hol_salon":
 			_gorev("")
 			_hol_hedef = ""
-			_banyoya_gir()
-		"hol_mutfak":
-			_holden = true
-			_gec("mutfak")
-		"hol_salon":
-			_holden = true
-			_gec("salon_kapisi")
-		"banyo_kapi":
-			_zaman["banyo_kapi"] = T
-			_esya("banyo_isik", ISIK_DUGMESI, 1.8)
+			match ad:
+				"hol_banyo": _holden_odaya(kapi_hol_banyo, KAPI_HOL_BANYO, "banyo")
+				"hol_mutfak": _holden_odaya(kapi_hol_mutfak, KAPI_HOL_MUTFAK, "mutfak")
+				_: _holden_odaya(kapi_hol_salon, KAPI_HOL_SALON, "salon_kapisi")
 		"banyo_isik":
 			_zaman["banyo_isik"] = T
 			eller.uzan("sag", ISIK_DUGMESI + Vector3(0.04, 0, 0), 0.25)
 			get_tree().create_timer(0.45, false).timeout.connect(func() -> void: eller.birak("sag", 0.4))
 			_ses_cal("dugme", -8.0)
 			_ses_cal("floresan_tik", -6.0)
-			_esya("lavabo", LAVABO, 1.7)
-			# duşa lavaboyu beklemeden de girilebilir
 			_esya("dus", DUS_KAPI, 2.6)
 		"lavabo": _sahne("s_lavabo")
-		"dus":
-			_esya_kaldir("lavabo")
-			_sahne("s_dus")
+		"dus": _sahne("s_dus")
 		"banyo_cikis":
 			_sahne("gecis")
-			# kapı Selim'e doğru açılır: kapının süpürdüğü yerin dışında, kol tarafında durup çeker
+			# banyonun kapısı dışarı, karanlığa açılır; Selim karanlığa adım atar, holde gözünü açar
+			var on := Vector3(11.55, 1.62, -0.95)
 			_gecis_basla([[0.0, _bas_konum, _bas_bakis],
-					[1.2, Vector3(11.3, 1.62, -2.3), Vector3(11.2, 1.3, -3.6)],
-					[2.0, Vector3(10.98, 1.62, -3.12), Vector3(11.2, 1.1, -3.65)],
-					[3.1, Vector3(11.02, 1.62, -3.15), Vector3(11.5, 1.4, -4.4)],
-					[3.9, Vector3(11.49, 1.62, -3.575), Vector3(11.3, 1.5, -5.0)],
-					[4.9, Vector3(11.2, 1.62, -4.35), Vector3(8.8, 1.48, -4.4)]],
-				kapi_banyo_giris, Vector2(2.1, 3.0), 4.9,
-				null, [], "hol:mutfak")
-			_gecis["kapa"] = 4.5
+					[1.1, on, Vector3(11.6, 1.1, -1.6)],
+					[2.5, on + Vector3(0, 0, -0.05), Vector3(11.55, 1.4, -2.6)],
+					[3.5, Vector3(11.55, 1.62, -1.8), Vector3(11.55, 1.45, -3.2)]],
+				null, Vector2.ZERO, 3.5, null, [], "hol:mutfak")
+			_gecis["karart"] = 0.7
+			_gecis["hol_kapi"] = kapi_hol_banyo
+			_gecis["hol_yer"] = KAPI_HOL_BANYO
+			_zaman["banyo_kapi"] = T + 1.2
+			get_tree().create_timer(0.8, false).timeout.connect(func() -> void: eller.uzan("sag", Vector3(11.8, 1.0, -1.42), 0.4))
+			get_tree().create_timer(1.6, false).timeout.connect(func() -> void: eller.birak("sag", 0.5))
 			_gorev("")
-		"mutfak_kapi":
-			_zaman["mutfak_kapi"] = T
-			if ResourceLoader.exists(BUZDOLABI_MODELI): _esya("buzdolabi", BUZDOLABI_YERI, 2.0)
-			else: _esya("dolap", DOLAP, 2.0)
 		"buzdolabi": _sahne("s_buzdolabi")
 		"dolap": _sahne("s_dolap")
 		"masa": _sahne("s_masa")
 		"telefon": _sahne("s_tel_al")
-		"salon_kapi":
-			_zaman["salon_kapi"] = T
-			_esya("koltuk", KOLTUK + Vector3(0.2, -0.5, 0), 3.2)
 		"koltuk": _sahne("s_koltuk")
+		"dis_kapi": _gec("dis_kapi")
 
 
 ## Kilitli kısa sahne: kamera oyuncunun baktığı yerden başlar.
@@ -804,30 +883,65 @@ func _sahne(ad: String) -> void:
 	_gec(ad)
 
 
+## Duştan sonra lavaboda dişlerini fırçalar, ağzını çalkalar, aynada kendine bakar.
+## (Diş fırçası modeli gelene kadar yalnızca eli görünür.)
 func _s_lavabo() -> void:
 	var dur := Vector3(11.78, 1.6, -0.56)
-	_yol([[0.0, _bas_konum, _bas_bakis], [1.2, dur, LAVABO + Vector3(0, -0.1, 0)], [5.6, dur + Vector3(-0.08, -0.12, 0), LAVABO], [6.6, dur, AYNA], [11.0, dur + Vector3(-0.03, 0, 0), AYNA + Vector3(0, 0.02, 0)]], ft)
-	if ft > 1.0 and not _eylem.has("l_el"):
+	_yol([[0.0, _bas_konum, _bas_bakis], [1.2, dur, LAVABO + Vector3(0, -0.1, 0)], [2.4, dur, AYNA],
+		[9.0, dur + Vector3(-0.02, 0.01, 0), AYNA + Vector3(0, 0.03, 0)],
+		[9.8, dur + Vector3(-0.1, -0.16, 0), LAVABO], [11.2, dur + Vector3(-0.08, -0.12, 0), LAVABO],
+		[12.4, dur, AYNA], [14.0, dur + Vector3(-0.03, 0, 0), AYNA + Vector3(0, 0.02, 0)]], ft)
+	var f_yer := firca.global_position + Vector3(0, 0.1, 0) if firca else LAVABO + Vector3(0.12, 0.12, 0.1)
+	if ft > 0.9 and not _eylem.has("l_el"):
 		_eylem["l_el"] = true
-		eller.uzan("sag", LAVABO + Vector3(0.12, 0.12, 0.1), 0.7)
-		eller.uzan("sol", LAVABO + Vector3(0.12, 0.12, -0.12), 0.7)
-		su_hedef = 0.6
-	if ft > 2.6 and not _eylem.has("l_yuz"):
-		_eylem["l_yuz"] = true
-		eller.kamerada("sag", Vector3(0.07, -0.15, -0.24), 0.5)
-		eller.kamerada("sol", Vector3(-0.07, -0.15, -0.24), 0.5)
-		_ses_cal("su_carpma", -6.0)
-	if ft > 3.2 and not _eylem.has("l_damla"):
-		_eylem["l_damla"] = true; damla_hedef = 1.0
-	if ft > 4.2 and not _eylem.has("l_birak"):
-		_eylem["l_birak"] = true
-		eller.birak("sag", 0.6); eller.birak("sol", 0.6)
-		su_hedef = 0.0
-	# aynada kendine bakar; soğuk suyla ayna yalnızca biraz buğulanır
-	ayna_bugu = maxf(ayna_bugu, clampf((ft - 6.0) / 5.0, 0.0, 0.3)) if ft > 6.0 else ayna_bugu
-	if ft >= 11.0:
+		eller.uzan("sag", f_yer, 0.6)
+	if ft > 1.5 and not _eylem.has("l_al"):
+		_eylem["l_al"] = true
+		# sap yumruğun içinde, fırça elle birlikte döner
+		if firca: eller.tut("sag", firca, Eller.firca_tutusu(), 0.4)
+	if ft > 1.6 and not _eylem.has("l_agiz"):
+		_eylem["l_agiz"] = true
+		eller.esyayla("sag", _firca_agizda(0.0, 0.0), Eller.firca_tutusu(), 0.6)
+		eller.yumruk("sag", 1.0, 0.9)   # fırçayı tutan yumruk, başparmak sapın üstünde
+	# fırçalama: fırça ağızda kısa kısa gidip gelir
+	if ft > 2.4 and ft < 8.8:
+		var adim := int((ft - 2.4) / 0.16)
+		if not _eylem.has("f%d" % adim):
+			_eylem["f%d" % adim] = true
+			eller.esyayla("sag", _firca_agizda(1.0 if adim % 2 else -1.0, float((adim >> 2) % 2)), Eller.firca_tutusu(), 0.15)
+	if ft > 2.5 and not _eylem.has("l_ses"):
+		_eylem["l_ses"] = true; _ses_cal("dis_fircalama", -6.0)
+	if ft > 8.9 and not _eylem.has("l_birak"):
+		_eylem["l_birak"] = true; eller.birak("sag", 0.5)
+	# lavaboya eğilir, suyu açıp ağzını çalkalar
+	if ft > 9.7 and not _eylem.has("l_su"):
+		_eylem["l_su"] = true; su_hedef = 0.6
+		eller.uzan("sag", _firca_xf.origin + Vector3(0, 0.1, 0) if firca else LAVABO + Vector3(0.12, 0.12, 0.0), 0.5)
+	if ft > 10.25 and not _eylem.has("l_koy"):
+		_eylem["l_koy"] = true
+		if firca:
+			eller.tut("sag", null)
+			firca.global_transform = _firca_xf
+	if ft > 10.4 and not _eylem.has("l_calkala"):
+		_eylem["l_calkala"] = true; _ses_cal("su_carpma", -12.0)
+	if ft > 10.7 and not _eylem.has("l_cek"):
+		_eylem["l_cek"] = true; eller.birak("sag", 0.6)
+	if ft > 11.3 and not _eylem.has("l_kapa"):
+		_eylem["l_kapa"] = true; su_hedef = 0.0
+	if ft >= 14.0:
 		_oyuna_don()
-		_esya("dus", DUS_KAPI, 2.6)
+		_gorev("Mutfağa geç")
+		_esya("banyo_cikis", Vector3(11.48, 1.05, -1.47), 1.6)
+
+
+## Fırçalarken fırçanın kamera uzayındaki yeri: başı ağızda, sapı aşağıda sağda yumrukta.
+## kay: -1..1 sağa sola fırçalama, alt: 0..1 alt ve üst dişler.
+func _firca_agizda(kay: float, alt: float) -> Transform3D:
+	var y := Vector3(-0.7, 0.3, 0.65).normalized()
+	var z := Vector3(0.3, 0.4, 1.0)
+	z = (z - y * z.dot(y)).normalized()
+	var bas := Vector3(0.012 * kay, -0.1 - 0.012 * alt, -0.18)
+	return Transform3D(Basis(y.cross(z), y, z), bas - y * 0.07)
 
 
 func _s_dus() -> void:
@@ -877,8 +991,8 @@ func _s_dus() -> void:
 		damla_hedef = 0.0
 		_dus_kapisi(0.0)
 		_oyuncu_yerlestir(Vector3(11.75, 0.0, -0.9), 0.0, BANYO_ALAN)
-		_gorev("Mutfağa geç")
-		_esya("banyo_cikis", Vector3(11.48, 1.05, -1.47), 1.6)
+		_gorev("Dişlerini fırçala")
+		_esya("lavabo", LAVABO, 1.7)
 
 
 ## Duş kabini: yan camdaki kapı modelde dar ve alçaktı (0.61 x 1.45 m). Boşluk genişler, kapının
@@ -981,9 +1095,19 @@ func _kapi_kolu(mentese: Node3D) -> Vector3:
 
 
 func _gecis_oyna() -> void:
-	karartma = 0.0
 	var g := _gecis
 	var kesme: float = g["kesme"]
+	# alp: kapılardan geçerken kamera sinematiği yok. Kapının sesi gelir, Selim anında öbür tarafta,
+	# kontrol hemen ona döner. Yol kareleri yalnızca nereye varılacağını söyler.
+	if not _eylem.has("aninda"):
+		_eylem["aninda"] = true
+		_kapi_sesi(true)
+		g.erase("karart")
+		var b_yol0: Array = g["b_yol"]
+		ft = kesme + ((float(b_yol0[b_yol0.size() - 1][0]) + 0.6) if g["b_kapi"] else 0.0)
+		eller.birak("sag", 0.01)
+	# karanlığa açılan kapıdan geçerken ekran kararır
+	karartma = smoothstep(kesme - float(g["karart"]), kesme, ft) if g.has("karart") else 0.0
 	if ft < kesme:
 		_yol(g["a_yol"], ft)
 		var kapi: Node3D = g["a_kapi"]
@@ -1007,6 +1131,17 @@ func _gecis_oyna() -> void:
 		# karşı kapı yok: Selim aynı evin holüne ya da odasına geçti
 		var kapi: Node3D = g["a_kapi"]
 		if kapi and not _eylem.has("kapa") and not g.has("acik_kalsin"): _kapanacak[kapi] = T
+		if g.has("hol_yer"):
+			# holde, odanın kapısının önünde gözünü açar; kapı arkasından kapanır
+			var tn: Array = g["hol_yer"]
+			var hk: Node3D = g["hol_kapi"]
+			var a := deg_to_rad(float(tn[1]))
+			var ileri := Vector3(cos(a), 0.0, -sin(a))
+			var p: Vector3 = tn[0] - ileri * 0.75
+			kamera.look_at_from_position(Vector3(p.x, GOZ, p.z), Vector3(p.x, GOZ - 0.12, p.z) - ileri, Vector3.UP)
+			hk.set_meta("k", 1.0)
+			hk.rotation.y = PI * 0.5 * 0.95 * float(hk.get_meta("yon", 1.0))
+			_kapanacak[hk] = T
 		var sonraki: String = g["sonraki"]
 		if sonraki.begins_with("hol:"): _hol_basla(sonraki.substr(4))
 		else: _gec(sonraki)
@@ -1050,9 +1185,14 @@ func _s_dolap() -> void:
 		_eylem["do_el"] = true
 		eller.uzan("sag", DOLAP + Vector3(0.15, -0.05, 0.1), 0.7)
 		_ses_cal("dolap", -10.0)
+	if ft > 2.3 and not _eylem.has("do_al") and gevrek:
+		_eylem["do_al"] = true
+		eller.tut("sag", gevrek)
 	if ft > 2.8 and not _eylem.has("do_birak"):
 		_eylem["do_birak"] = true
-		eller.birak("sag", 0.7)
+		# kutu elde, önde tutulur; masaya kadar taşınır
+		if gevrek: eller.kamerada("sag", Vector3(0.14, -0.3, -0.42), 0.7)
+		else: eller.birak("sag", 0.7)
 	if ft >= 4.6:
 		_oyuna_don()
 		_esya("masa", Vector3(27.35, 0.6, 0.95), 1.9)
@@ -1060,10 +1200,21 @@ func _s_dolap() -> void:
 
 func _s_masa() -> void:
 	var otur := Vector3(27.4, 1.25, 1.85)
-	_yol([[0.0, _bas_konum, _bas_bakis], [1.6, Vector3(27.5, 1.6, 2.2), KASE], [2.6, otur, KASE], [9.0, otur, KASE + Vector3(0.05, 0, 0)]], ft)
+	_yol([[0.0, _bas_konum, _bas_bakis], [1.6, Vector3(27.5, 1.6, 2.2), KASE], [2.6, otur, KASE], [9.0, otur, KASE + Vector3(0.05, 0, 0)],
+			[10.0, otur, KASE + Vector3(0.18, 0, 0.08)], [12.6, otur, KASE + Vector3(0.24, 0.05, -0.04)], [ILAC_SURE + 9.0, otur, KASE + Vector3(0.05, 0, 0)]], ft)
 	if ft > 1.8 and not _eylem.has("m_sandalye"):
 		_eylem["m_sandalye"] = true; _ses_cal("sandalye", -8.0)
 	if ft > 8.7 and not _soylendi("ic03"): _soyle("ic03")
+	if ft > 2.4 and not _eylem.has("m_kutu") and gevrek and gevrek.get_parent() != null:
+		_eylem["m_kutu"] = true
+		eller.uzan("sag", KASE + Vector3(-0.2, 0.12, -0.05), 0.5)
+	if ft > 2.95 and not _eylem.has("m_kutu_birak") and _eylem.has("m_kutu"):
+		_eylem["m_kutu_birak"] = true
+		eller.tut("sag", null)
+		gevrek.global_rotation = Vector3(0, PI * 0.5, 0)
+		var gk := _dunya_kutusu(gevrek)
+		gevrek.global_position += KASE + Vector3(-0.24, -0.01, -0.1) - Vector3(gk.get_center().x, gk.position.y, gk.get_center().z)
+		eller.birak("sag", 0.5)
 	if ft > 3.0 and not _eylem.has("m_dok"):
 		_eylem["m_dok"] = true; _ses_cal("dokme", -6.0)
 	# kaşıkla yer: el kâseyle ağız arasında gidip gelir
@@ -1081,7 +1232,8 @@ func _s_masa() -> void:
 	if ft > 8.7 and not _eylem.has("m_birak"):
 		_eylem["m_birak"] = true
 		eller.birak("sag", 0.6)
-	if ft >= 9.0:
+	_ilac_ic(ft - 9.0)
+	if ft >= ILAC_SURE + 9.0:
 		_gorev("")
 		_otur(otur, KASE + Vector3(0.05, 0, 0))
 		_esya("telefon", TEL_MASA, 1.2)
@@ -1096,16 +1248,25 @@ func _s_tel_al() -> void:
 	if ft > 1.0 and not _eylem.has("t_al"):
 		_eylem["t_al"] = true
 		telefon.reparent(kamera, true)
-		_tel_ekran(true)
-		eller.kamerada("sag", Vector3(0.04, -0.19, -0.22), 0.6)
-	if ft > 1.0:
-		var k := smoothstep(1.0, 1.8, ft)
-		telefon.position = telefon.position.lerp(Vector3(0.0, -0.035, -0.215), k)
-		telefon.rotation = telefon.rotation.lerp(Vector3(deg_to_rad(-8.0), 0, 0), k)
 		telefon.scale = Vector3.ONE * TEL_OLCEK
+		_tel_ekran(true)
+		# telefon avuca oturur, el onu yüzün önüne getirir; ikisi birlikte hareket eder
+		eller.tut("sag", telefon, Eller.telefon_tutusu(), 0.5)
+		eller.esyayla("sag", _tel_elde(), Eller.telefon_tutusu(), 0.8)
+		eller.yumruk("sag", 0.65, 0.1)
 	if ft >= 2.2:
 		_gec("tel_kaydir")
 		_gorev("Fare tekerleği: kaydır")
+
+
+## Telefonun elde, kamera uzayındaki yeri: aşağıda, ortanın biraz sağında, ekranı göze dönük.
+## sallan: elin hafif titremesi.
+func _tel_elde(sallan := 0.0) -> Transform3D:
+	var merkez := Vector3(0.04 + sin(T * 0.7) * 0.003 * sallan, -0.055 + sin(T * 1.1) * 0.002 * sallan, -0.245)
+	var z := (-merkez + Vector3(0, 0.05, 0)).normalized()
+	var y := Vector3(-0.08 + sin(T * 0.9) * 0.02 * sallan, 1.0, 0.0)
+	y = (y - z * y.dot(z)).normalized()
+	return Transform3D(Basis(y.cross(z), y, z), merkez)
 
 
 ## Telefonda video kaydırır; bir süre sonra bildirim gelir, Q ile telefon masaya ters bırakılır.
@@ -1113,10 +1274,8 @@ func _tel_kaydir() -> void:
 	var otur := Vector3(27.4, 1.25, 1.85)
 	_yol([[0.0, otur + Vector3(0, -0.02, 0), Vector3(27.4, 0.65, 1.08)], [20.0, otur + Vector3(0, -0.03, 0), Vector3(27.42, 0.64, 1.1)]], ft)
 	sallanti = 0.6
-	telefon.position = Vector3(0.0, -0.035, -0.215)
-	telefon.rotation_degrees = Vector3(-8.0 + sin(T * 1.1) * 1.5, sin(T * 0.7) * 2.0, sin(T * 0.9) * 1.2)
-	eller.kamerada("sag", Vector3(0.04, -0.19, -0.22), 0.01)
-	eller.yumruk("sag", 0.45)
+	# telefon avuçta; el hafifçe sallanır, telefon onunla birlikte
+	eller.esyayla("sag", _tel_elde(1.0), Eller.telefon_tutusu(), 0.01)
 	if (_kaydirilan >= 4 or ft > 16.0) and not tel_bildirim.visible:
 		tel_bildirim.visible = true
 		_ses_cal("bildirim", -10.0)
@@ -1134,6 +1293,7 @@ func _s_tel_birak() -> void:
 	if not _eylem.has("tb"):
 		_eylem["tb"] = true
 		_gorev("")
+		eller.tut("sag", null)
 		telefon.reparent(self, true)
 		eller.uzan("sag", TEL_MASA + Vector3(0, 0.05, 0.04), 0.9)
 	# telefon masaya ekranı aşağı bakacak şekilde konur
@@ -1146,15 +1306,40 @@ func _s_tel_birak() -> void:
 		_tel_ekran(false)
 		eller.birak("sag", 0.6)
 	if ft >= 3.4:
-		# kalkar, mutfak kapısından hola çıkar; salona kendi yürür
-		var bas := Vector3(27.4, 1.25, 1.85) + Vector3(0.1, 0.3, 0.2)
-		_gecis_basla([[0.0, bas, Vector3(29, 1.4, 2.6)],
-				[1.1, Vector3(28.0, 1.62, 2.45), Vector3(29.6, 1.5, 2.55)],
-				[2.0, Vector3(28.95, 1.62, 2.65), Vector3(29.9, 1.2, 2.9)],
-				[3.0, Vector3(29.2, 1.62, 3.45), Vector3(30.2, 1.45, 4.7)],
-				[3.9, Vector3(29.45, 1.62, 4.35), Vector3(33.0, 1.48, 4.5)]],
-			null, Vector2.ZERO, 3.9,
-			null, [], "hol:salon_kapisi")
+		# telefonu bırakınca masada bir sigara yakar
+		_gec("s_sigara")
+
+
+## Mutfak masasında sigara: paketten alır, çakmakla yakar, birkaç nefes çeker; sonra kalkıp çıkar.
+var sigara: Node3D
+
+func _s_sigara() -> void:
+	var otur := Vector3(27.4, 1.25, 1.85)
+	var pk := ($SigaraPaketi as Node3D).global_position if has_node("SigaraPaketi") else KASE + Vector3(0.24, 0.0, -0.16)
+	if not _eylem.has("sg_kur"):
+		_eylem["sg_kur"] = true
+		if sigara == null:
+			sigara = Sigara.new()
+			add_child(sigara)
+		sigara.kur(kamera, eller, pk)
+	_yol([[0.0, otur + Vector3(0.1, 0.3, 0.2), Vector3(29, 1.4, 2.6)], [0.9, otur, pk], [2.4, otur, pk + Vector3(-0.3, 0.55, -0.3)],
+		[8.0, otur + Vector3(0, -0.02, 0), Vector3(26.2, 1.15, 0.6)], [14.0, otur + Vector3(0.02, -0.03, 0), Vector3(25.8, 1.2, 1.0)],
+		[Sigara.SURE, otur, Vector3(26.0, 1.15, 0.9)]], ft)
+	if sigara.oynat(ft):
+		_mutfaktan_cik(otur, Vector3(26.0, 1.15, 0.9))
+
+
+## Kalkar, mutfak kapısını karanlığa doğru iter, holde gözünü açar; salona kendi yürür.
+func _mutfaktan_cik(bas: Vector3, bakis: Vector3) -> void:
+	_gecis_basla([[0.0, bas, bakis],
+			[1.1, Vector3(27.6, 1.62, 2.5), Vector3(28.6, 1.3, 2.55)],
+			[2.5, Vector3(27.65, 1.62, 2.52), Vector3(29.2, 1.45, 2.55)],
+			[3.5, Vector3(28.5, 1.62, 2.55), Vector3(30.0, 1.45, 2.55)]],
+		kapi_mutfak, Vector2(1.3, 2.3), 3.5,
+		null, [], "hol:salon_kapisi")
+	_gecis["karart"] = 0.7
+	_gecis["hol_kapi"] = kapi_hol_mutfak
+	_gecis["hol_yer"] = KAPI_HOL_MUTFAK
 
 
 ## Selim salona girince önce koltuğun üstündeki fotoğraf duvarına bakar (yaklaşık 30 sn), resimleri
@@ -1229,11 +1414,11 @@ func _salon() -> void:
 
 
 func _yayin() -> void:
-	_yol([[0.0, KOLTUK, EKRAN], [6.0, KOLTUK + Vector3(0.1, -0.02, 0), EKRAN], [18.0, Vector3(37.65, 0.86, -0.4), EKRAN]], ft)
+	_yol([[0.0, KOLTUK, EKRAN], [PROGRAM_SURE, KOLTUK + Vector3(0, -0.01, 0), EKRAN], [PROGRAM_SURE + 6.0, KOLTUK + Vector3(0.1, -0.02, 0), EKRAN], [PROGRAM_SURE + 18.0, Vector3(37.65, 0.86, -0.4), EKRAN]], ft)
 	karartma = 0.0
 	sallanti = 0.7
 	# anlatıcının sesi bitince (dosya yoksa yayın süresi dolunca) biter
-	var sure := ses_anlatici.stream.get_length() if ses_anlatici.stream else TV_SURE
+	var sure := (ses_anlatici.stream.get_length() if ses_anlatici.stream else TV_SURE) + PROGRAM_SURE
 	if ft >= sure + 0.6:
 		ses_anlatici.stop()
 		_gec("geri")
@@ -1254,16 +1439,19 @@ func _saat() -> void:
 	var saat_on := SAAT_YERI + Vector3(-0.05, 0, 0)
 	_yol([[0.0, KOLTUK, EKRAN + Vector3(0, 0.05, 0)], [3.0, KOLTUK, saat_on], [16.0, KOLTUK + Vector3(0.02, 0, 0), saat_on]], ft)
 	if ft > 0.6 and not _soylendi("ev2"): _soyle("ev2")
+	if ses_saat_tik and ses_saat_tik.stream:
+		if ft < 13.05 and not ses_saat_tik.playing: ses_saat_tik.play()
+		elif ft >= 13.05 and ses_saat_tik.playing: ses_saat_tik.stop()
 	kamera.fov = lerpf(70.0, 7.0, smoothstep(0.8, 3.6, ft))
 	sallanti = lerpf(1.0, 0.25, smoothstep(0.8, 3.6, ft))
-	# saat su gibi akar: 20:10 -> 00:00
+	# saat su gibi akar: 20:10 -> 23:00
 	var u := smoothstep(4.0, 13.0, ft)
 	u = u * u * (3.0 - 2.0 * u)
-	dakika = lerpf(_saat_bas, 24.0 * 60.0, u)
+	dakika = lerpf(_saat_bas, 23.0 * 60.0, u)
 	# göz kapakları ağırlaşır: yavaş, uzun kırpışlar
 	karartma = _egri([[0, 0], [5.2, 0], [5.9, 0.75], [6.4, 0.1], [8.3, 0.1], [9.1, 0.9], [9.8, 0.2], [11.4, 0.2], [12.1, 0.95], [12.9, 0.15], [13.6, 0.0], [16, 0]], ft)
 	_bulanik(_egri([[0, 0], [5.0, 0], [6.0, 0.12], [9.5, 0.2], [12.6, 0.25], [13.3, 0.0], [16, 0]], ft))
-	# 00:00 olunca saat çalar; Selim irkilir
+	# 23:00 olunca saat çalar; Selim irkilir
 	if ft > 13.05 and not _eylem.has("gong"):
 		_eylem["gong"] = true
 		for i in 3:
@@ -1308,20 +1496,236 @@ func _cikis() -> void:
 	if ft > 8.6 and not _eylem.has("otomat"):
 		_eylem["otomat"] = true
 		_ses_cal("otomat", -8.0)
-	if ft > 9.0 and ft < 12.4: _adim_say(0.42)
-	if ft > 10.5:
-		if _yagmur_ev == null:
-			_yagmur_ev = AudioStreamPlayer.new()
-			_yagmur_ev.stream = _ses_bul("yagmur")
-			add_child(_yagmur_ev)
-			_yagmur_ev.volume_db = -40.0
-			_yagmur_ev.play()
-		_yagmur_ev.volume_db = lerpf(-40.0, -6.0, smoothstep(10.5, 13.0, ft))
-	if ft >= 13.2:
-		_bitti = true
-		var d := get_node_or_null("/root/Duraklat")
-		if d: d.yukle(SONRAKI)
-		else: get_tree().change_scene_to_file(SONRAKI)
+		_merdiven_isik(true)
+	if _merdiven_isiklar.is_empty(): _merdiven_in(ft)
+	elif ft >= 9.0: _merdiven_basla()
+
+
+# ---------------------------------------------------------------- merdiven boşluğu
+## alp'in merdiven boşluğu modeli (horror_corridor_vr_room_baked.glb). Evden çıkarken 2 kat kesintisiz inilir.
+## Bir modül bir tam kat: sahanlıktan bir kol aşağı (-4.0), bir kol yukarı (+3.9) gider. Modüller 7.9 m arayla
+## üst üste dizilince bir katın aşağı kolu, alttaki katın yukarı kolunun başına bağlanır.
+## Aynı boşluk ileride yeraltında da kullanılacak: merdiven_kur() başka sahneden de çağrılabilir.
+const MERDIVEN_MODEL := YENI_MODELLER + "horror_corridor_vr_room_baked.glb"
+## Taban y=30 (en alt kat 14.2): göz yükseklikleri hep _alcak eşiğinin üstünde kalsın (aynı boy düzeltmesi her karede).
+const MERDIVEN_YERI := Vector3(80.0, 30.0, 0.0)
+## 1 cm yana kayma: üst üste binen duvarlar aynı düzlemde titreşmesin
+const MERDIVEN_ARA := Vector3(0.01, -7.9, 0.01)
+const MERDIVEN_KAT := 3
+const KAT_SURE := 11.0
+## pişmiş ışığın gece payı (1 = modeldeki gibi gündüz parlaklığı)
+const MERDIVEN_PARLAK := 0.3
+var _merdiven_isiklar: Array[Light3D] = []
+
+
+static func merdiven_kur(ana: Node3D, yer: Vector3, ara: Vector3, kat: int, carpisma := false) -> Array[Light3D]:
+	var isiklar: Array[Light3D] = []
+	if not ResourceLoader.exists(MERDIVEN_MODEL): return isiklar
+	var paket := load(MERDIVEN_MODEL) as PackedScene
+	for k in kat:
+		var b := yer + ara * k
+		var m := paket.instantiate() as Node3D
+		m.name = "MerdivenKat%d" % k
+		ana.add_child(m)
+		m.global_position = b
+		if carpisma:
+			# katlar arası geçit: alt sahanlığın çıkmaz duvarı (z 6.6) bir alttaki katın merdiven başına açılır.
+			# En üst katta yukarıya, en alt katta aşağıya delik açılmaz.
+			var delikler: Array[AABB] = []
+			if k < kat - 1: delikler.append(AABB(Vector3(-4.9, -4.1, 6.5), Vector3(2.05, 2.15, 0.35)))
+			if k > 0:
+				delikler.append(AABB(Vector3(-4.9, 3.8, 6.5), Vector3(2.05, 2.15, 0.35)))
+				# alttaki katın tavanı, üstteki katın aşağı inen kolunun içinden geçer: kolun üstünde açılır
+				delikler.append(AABB(Vector3(-4.9, 5.85, 3.5), Vector3(6.35, 0.3, 3.15)))
+			for mi in m.find_children("*", "MeshInstance3D", true, false):
+				if not delikler.is_empty(): _gecit_ac(mi as MeshInstance3D, delikler)
+				(mi as MeshInstance3D).create_trimesh_collision()
+		# modelin ışığı dokuya pişmiş (emission); otomatik lamba yanınca o da yanar
+		for mi in m.find_children("*", "MeshInstance3D", true, false):
+			for i in (mi as MeshInstance3D).mesh.get_surface_count():
+				var mat := (mi as MeshInstance3D).get_active_material(i) as BaseMaterial3D
+				if mat == null or not mat.emission_enabled: continue
+				mat = mat.duplicate() as BaseMaterial3D
+				mat.set_meta("parlak", mat.emission_energy_multiplier)
+				mat.emission_energy_multiplier = 0.0
+				(mi as MeshInstance3D).set_surface_override_material(i, mat)
+				var tut := OmniLight3D.new()   # malzemeyi lambalarla birlikte bulmak için
+				tut.visible = false
+				tut.set_meta("malzeme", mat)
+				ana.add_child(tut)
+				isiklar.append(tut)
+		# sahanlıkta, basamağın ortasında ve alt sahanlıkta otomatik lamba
+		for l in [Vector3(3.2, 2.6, 6.6), Vector3(-0.6, 0.4, 5.1), Vector3(-4.0, -1.5, 6.6)]:
+			var o := OmniLight3D.new()
+			o.light_color = Color(1.0, 0.86, 0.62)
+			o.omni_range = 5.5
+			o.omni_attenuation = 1.6
+			o.light_energy = 0.0
+			o.shadow_enabled = false
+			ana.add_child(o)
+			o.global_position = b + l
+			isiklar.append(o)
+	return isiklar
+
+
+## Modelin yerel uzayında kutuların içinde kalan üçgenleri siler (görüntüden ve çarpışmadan).
+static func _gecit_ac(mi: MeshInstance3D, kutular: Array[AABB]) -> void:
+	var yerel := mi.transform   # modül kökünden mesh'e
+	var p := mi.get_parent()
+	while p and not p.name.begins_with("MerdivenKat"):
+		if p is Node3D: yerel = (p as Node3D).transform * yerel
+		p = p.get_parent()
+	var yeni := ArrayMesh.new()
+	for s in mi.mesh.get_surface_count():
+		var dizi := mi.mesh.surface_get_arrays(s)
+		var v: PackedVector3Array = dizi[Mesh.ARRAY_VERTEX]
+		var idx: PackedInt32Array = dizi[Mesh.ARRAY_INDEX]
+		if idx.is_empty():
+			idx = PackedInt32Array(range(v.size()))
+		var kalan := PackedInt32Array()
+		for i in range(0, idx.size(), 3):
+			var sil := false
+			for k: AABB in kutular:
+				if k.has_point(yerel * v[idx[i]]) and k.has_point(yerel * v[idx[i + 1]]) and k.has_point(yerel * v[idx[i + 2]]):
+					sil = true
+					break
+			if not sil:
+				kalan.append(idx[i]); kalan.append(idx[i + 1]); kalan.append(idx[i + 2])
+		dizi[Mesh.ARRAY_INDEX] = kalan
+		yeni.add_surface_from_arrays(mi.mesh.surface_get_primitive_type(s), dizi)
+		yeni.surface_set_material(s, mi.mesh.surface_get_material(s))
+	# yüzey malzemesi geçersiz kılınmışsa (ışık için kopyalanan) korunur
+	var ozel: Array = []
+	for s in mi.mesh.get_surface_count(): ozel.append(mi.get_surface_override_material(s))
+	mi.mesh = yeni
+	for s in ozel.size():
+		if ozel[s]: mi.set_surface_override_material(s, ozel[s])
+
+
+func _merdiven_isik(acik: bool) -> void:
+	for o in _merdiven_isiklar:
+		if o.has_meta("malzeme"):
+			var mat := o.get_meta("malzeme") as BaseMaterial3D
+			mat.emission_energy_multiplier = float(mat.get_meta("parlak")) * (MERDIVEN_PARLAK if acik else 0.0)
+		else:
+			o.light_energy = 0.55 if acik else 0.0
+	# merdiven boşluğunda gece: ortam ışığı ve sis neredeyse söner, sadece otomatik lambalar
+	if acik:
+		var e := ($Ortam as WorldEnvironment).environment
+		e.ambient_light_energy = 0.04
+		e.fog_density = 0.008
+
+
+## Kapı kilitlenince Selim üst kat sahanlığında kendi yürür; iki kat inip zemin kattaki dış kapıda E'ye basar.
+## Bir modülde: sahanlık y=0 (x 1.5..4.8), aşağı kol z<6.6 (y -4'e), ara sahanlık x<-2.7, yukarı kol z>6.6 (y +3.9'a).
+func _merdiven_basla() -> void:
+	_merdivende = true
+	oyuncu.global_position = MERDIVEN_YERI + Vector3(3.9, 0.0, 5.6)
+	oyuncu.velocity = Vector3.ZERO
+	_yaw = PI * 0.5
+	_pitch = -0.2
+	_oturuyor = false
+	_kutular = []
+	_esyalar.clear()
+	_esya("dis_kapi", MERDIVEN_YERI + MERDIVEN_ARA * (MERDIVEN_KAT - 1) + Vector3(4.75, 1.1, 8.45), 2.2)
+	faz = "oyun"
+	ft = 0.0
+	_eylem.clear()
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	_gorev("Binadan çık")
+	_oyun_kamera(0.0)
+
+
+## En üst katta yukarı çıkan kol, en alt katta aşağı inen kol görünmez duvarla kapanır.
+func _merdiven_engeller() -> void:
+	var alt := MERDIVEN_YERI + MERDIVEN_ARA * (MERDIVEN_KAT - 1)
+	for e in [[MERDIVEN_YERI + Vector3(1.7, 1.5, 8.1), Vector3(0.2, 3.0, 3.0)], [alt + Vector3(1.7, 0.5, 5.1), Vector3(0.2, 3.0, 3.0)]]:
+		var g := StaticBody3D.new()
+		var cs := CollisionShape3D.new()
+		var k := BoxShape3D.new()
+		k.size = e[1]
+		cs.shape = k
+		g.add_child(cs)
+		add_child(g)
+		g.global_position = e[0]
+
+
+## Dış kapı: kilit, kapı, yağmur sesi yükselir, kararır, sokak.
+func _dis_kapi() -> void:
+	if not _eylem.has("dis_kapi"):
+		_eylem["dis_kapi"] = true
+		_gorev("")
+		_ses_cal("kilit", -8.0)
+		get_tree().create_timer(0.3, false).timeout.connect(func() -> void: _ses_cal("dolap", -4.0))
+	karartma = _egri([[0, 0], [0.4, 0], [1.4, 1]], ft)
+	_yagmur_ac(ft, 0.3, 2.4)
+	if ft >= 2.8: _sokaga()
+
+
+## (model yoksa) Kapı kilitlendikten sonra: üst kattan iki kat iner, zemin katta dış kapıya yürür, kapı açılınca yağmur.
+func _merdiven_in(ft: float) -> void:
+	if _merdiven_isiklar.is_empty():
+		# model yoksa eski karanlık geçiş
+		if ft > 9.0 and ft < 12.4: _adim_say(0.42)
+		_yagmur_ac(ft, 10.5, 13.0)
+		if ft >= 13.2: _sokaga()
+		return
+	if ft < 9.0: return
+	var y := MERDIVEN_YERI
+	var a := MERDIVEN_ARA
+	# her kat 11 sn: sahanlık, aşağı kol, dönüş sahanlığı, ikinci kol, alttaki sahanlık
+	var kat := clampi(int((ft - 9.0) / KAT_SURE), 0, 2)
+	var b := y + a * kat
+	if kat < 2:
+		var s := 9.0 + KAT_SURE * kat
+		_yol([
+			[s, b + Vector3(3.9, 1.6, 5.6), b + Vector3(0.0, 1.2, 5.3)],
+			[s + 1.0, b + Vector3(3.2, 1.6, 5.3), b + Vector3(-1.0, 0.0, 5.1)],
+			[s + 2.2, b + Vector3(1.6, 1.3, 5.1), b + Vector3(-2.2, -1.6, 5.1)],
+			[s + 4.6, b + Vector3(-2.6, -1.8, 5.1), b + Vector3(-4.6, -2.6, 5.4)],
+			[s + 5.6, b + Vector3(-3.7, -2.4, 4.9), b + Vector3(-4.0, -2.6, 7.8)],
+			[s + 6.6, b + Vector3(-3.6, -2.4, 7.9), b + Vector3(0.0, -5.5, 8.1)],
+			[s + 9.2, b + Vector3(1.0, -5.6, 8.1), b + Vector3(3.0, -6.5, 7.6)],
+			[s + 10.2, b + Vector3(2.8, -6.3, 7.6), b + Vector3(3.2, -6.6, 5.3)],
+			[s + KAT_SURE, b + a + Vector3(3.9, 1.6, 5.6), b + a + Vector3(0.0, 1.2, 5.3)],
+		], ft)
+		if ft > s + 0.4 and ft < s + 10.2: _adim_say(0.42)
+	else:
+		var s := 9.0 + KAT_SURE * 2
+		_yol([
+			[s, b + Vector3(3.9, 1.6, 5.6), b + Vector3(0.0, 1.2, 5.3)],
+			[s + 0.8, b + Vector3(3.0, 1.6, 5.3), b + Vector3(4.6, 1.4, 7.0)],
+			[s + 2.6, b + Vector3(3.9, 1.6, 7.3), b + Vector3(5.0, 1.45, 7.7)],
+		], ft)
+		if ft > s + 0.2 and ft < s + 2.4: _adim_say(0.5)
+	# açılışta göz açılır, dış kapıda kararır; katlar arasında kesme yok
+	var son := 9.0 + KAT_SURE * 2
+	karartma = _egri([[9.0, 1], [9.7, 0], [son + 2.3, 0], [son + 3.1, 1]], ft)
+	if ft > son + 2.0 and not _eylem.has("dis_kapi"):
+		_eylem["dis_kapi"] = true
+		_ses_cal("kilit", -8.0)
+		get_tree().create_timer(0.3, false).timeout.connect(func() -> void: _ses_cal("dolap", -4.0))
+	_yagmur_ac(ft, son + 2.2, son + 4.4)
+	if ft >= son + 4.8: _sokaga()
+
+
+func _yagmur_ac(ft: float, bas: float, son: float) -> void:
+	if ft <= bas: return
+	if _yagmur_ev == null:
+		_yagmur_ev = AudioStreamPlayer.new()
+		_yagmur_ev.stream = _ses_bul("yagmur")
+		add_child(_yagmur_ev)
+		_yagmur_ev.volume_db = -40.0
+		_yagmur_ev.play()
+	_yagmur_ev.volume_db = lerpf(-40.0, -6.0, smoothstep(bas, son, ft))
+
+
+func _sokaga() -> void:
+	if _bitti: return
+	_bitti = true
+	var d := get_node_or_null("/root/Duraklat")
+	if d: d.yukle(SONRAKI)
+	else: get_tree().change_scene_to_file(SONRAKI)
 
 
 # ---------------------------------------------------------------- kamera
@@ -1495,16 +1899,36 @@ func _kapi_kur(tanim: Array) -> Node3D:
 		var n := model.find_child(ad, true, false)
 		if n: n.reparent(mentese, true)
 	mentese.set_meta("k", 0.0)
-	if float(tanim[3]) != 0.0:
-		var karanlik := StandardMaterial3D.new()
-		karanlik.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		karanlik.albedo_color = Color(0.008, 0.008, 0.01)
-		var perde := MeshInstance3D.new()
-		var bm := BoxMesh.new(); bm.size = Vector3(0.02, 3.0, 3.0); bm.material = karanlik
-		perde.mesh = bm
-		perde.position = Vector3(1.4 * float(tanim[3]), 1.5, 0.0)
-		kok.add_child(perde)
+	var yan := float(tanim[3])
+	if yan > 0.0: _karanlik_kutu(kok, Vector3(0.07, -0.01, -0.85), Vector3(1.8, 2.4, 0.85), "-x")
+	elif yan < 0.0: _karanlik_kutu(kok, Vector3(-1.8, -0.01, -0.85), Vector3(-0.07, 2.4, 0.85), "+x")
 	return mentese
+
+
+## Kapının arkasındaki karanlık: a..b kutusunun açık yüzü dışındaki beş yüzü, ışık almayan siyah.
+func _karanlik_kutu(ana: Node3D, a: Vector3, b: Vector3, acik: String) -> void:
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(0.006, 0.006, 0.008)
+	mat.disable_fog = true
+	var o := (a + b) * 0.5
+	var s := b - a
+	var k := 0.02
+	var yuzler := {
+		"-y": [Vector3(o.x, a.y, o.z), Vector3(s.x, k, s.z)], "+y": [Vector3(o.x, b.y, o.z), Vector3(s.x, k, s.z)],
+		"-x": [Vector3(a.x, o.y, o.z), Vector3(k, s.y, s.z)], "+x": [Vector3(b.x, o.y, o.z), Vector3(k, s.y, s.z)],
+		"-z": [Vector3(o.x, o.y, a.z), Vector3(s.x, s.y, k)], "+z": [Vector3(o.x, o.y, b.z), Vector3(s.x, s.y, k)],
+	}
+	for y: String in yuzler:
+		if y == acik: continue
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = yuzler[y][1]
+		bm.material = mat
+		mi.mesh = bm
+		mi.position = yuzler[y][0]
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		ana.add_child(mi)
 
 
 ## Kapıyı t0..t1 arasında açar (t0 > t1 verilirse kapatır). Açılırken gıcırtı, kapanınca tok ses.
@@ -1758,11 +2182,107 @@ func _mutfak_erzak() -> void:
 	ana.name = "Erzak"
 	add_child(ana)
 	for e: Array in ERZAK_YERLERI:
-		_parca_koy(e[0], e[1], e[2], e[3], 1.0, ana)
+		var n := _parca_koy(e[0], e[1], e[2], e[3], 1.0, ana)
+		if e[1] == "SM_Cereal_01": gevrek = n
 	# masada, kâsenin yanında kaşık (model 3.5 m boyunda geliyor, gerçek boyuna, 17 cm'ye getirilir)
 	_parca_koy(KASIK, "", KASE + Vector3(0.13, -0.01, 0.02), 75.0, 0.17 / 3.56, ana)
 	for k in _paketler: (_paketler[k] as Node).free()
 	_paketler.clear()
+
+
+## alp'in modeller2/modeller2'ye attığı eşyalar: yatağın yanında sandalye ve komidin, salonda kumanda,
+## mutfak masasında süt. Model ölçüleri gerçek boylarına getirilir.
+const YENI_MODELLER := "res://modeller2/modeller2/"
+const YENI_TV := YENI_MODELLER + "tv_and_tv_stand.glb"
+const FIRCA_YERI := Vector3(10.95, 0.908, -0.33)   # lavabonun duvar tarafındaki kenarı, süngerin yanı
+var firca: Node3D
+var gevrek: Node3D          # Selim'in dolaptan alıp masaya götürdüğü mısır gevreği kutusu
+var ilac_kutusu: Node3D
+var kapsul: Node3D          # alp'in ilaç modeli: kutudan alınan tek kapsül
+var su_sisesi: Node3D
+var _sise_xf: Transform3D
+const ILAC_MODELI := "res://modeller2/seliminevi/variety_of_pills.glb"
+var _firca_xf: Transform3D
+func _yeni_esyalar() -> void:
+	var ana := Node3D.new()
+	ana.name = "YeniEsyalar"
+	add_child(ana)
+	_parca_koy(YENI_MODELLER + "chair.glb", "", Vector3(-1.0, 0.0, 1.78), 0.0, 1.0, ana)
+	_parca_koy(YENI_MODELLER + "painted_wooden_nightstand.glb", "", Vector3(-2.1, 0.0, -1.62), 90.0, 1.0, ana)
+	# lavabonun kenarında yatan diş fırçası (model dik geliyor: yatırılır, kılları yukarı)
+	firca = _parca_koy(YENI_MODELLER + "toothbrush_low_poly.glb", "", Vector3.ZERO, 0.0, 1.0, ana)
+	if firca:
+		firca.rotation_degrees = Vector3(90, 6, 0)
+		var fk := _dunya_kutusu(firca)
+		firca.global_position += FIRCA_YERI - Vector3(fk.get_center().x, fk.position.y, fk.get_center().z)
+		_firca_xf = firca.global_transform
+	_parca_koy(ERZAK, "SM_Milk_Bottle_01", KASE + Vector3(-0.22, -0.01, -0.16), 20.0, 1.0, ana)
+	# antidepresan: masada ilaç kutusu ve su şişesi; Selim yemekten sonra bir kapsül alıp suyla içer (alp)
+	ilac_kutusu = _parca_koy(ERZAK, "SM_Pills_Box_01", KASE + Vector3(0.24, -0.01, 0.12), 15.0, 1.0, ana)
+	su_sisesi = _parca_koy(ERZAK, "SM_Bottle_01", KASE + Vector3(0.34, -0.01, -0.12), 0.0, 1.0, ana)
+	if su_sisesi: _sise_xf = su_sisesi.global_transform
+	kapsul = _parca_koy(ILAC_MODELI, "Pill1", Vector3.ZERO, 0.0, 0.024, ana)
+	if kapsul: kapsul.visible = false
+	# kumanda sehpada yatar (model dik duruyor, 5 cm boyunda; gerçek boyu ~13 cm)
+	var k := _parca_koy(YENI_MODELLER + "tv_remote_-_psx.glb", "", Vector3.ZERO, 0.0, 2.6, ana)
+	if k:
+		k.rotation_degrees = Vector3(-90, 75, 0)
+		var kutu := _dunya_kutusu(k)
+		k.global_position += Vector3(34.68, 0.445, -0.3) - Vector3(kutu.get_center().x, kutu.position.y, kutu.get_center().z)
+	for p in _paketler: (_paketler[p] as Node).free()
+	_paketler.clear()
+	_merdiven_isiklar = merdiven_kur(ana, MERDIVEN_YERI, MERDIVEN_ARA, MERDIVEN_KAT, true)
+	if not _merdiven_isiklar.is_empty(): _merdiven_engeller()
+
+
+## Yeni TV ve sehpası (alp'in modeli): eski tüplü TV ile sehpanın yerine geçer, yayın düz ekrana basılır.
+func _yeni_tv(em: Material) -> void:
+	if not ResourceLoader.exists(YENI_TV): return
+	var m: Node3D = (load(YENI_TV) as PackedScene).instantiate()
+	m.name = "YeniTV"
+	add_child(m)
+	m.scale = Vector3.ONE * 0.23
+	m.rotation_degrees.y = -90.0
+	var ekran := m.find_child("Cube_001_Material_003_0", true, false) as MeshInstance3D
+	var kutu := _dunya_kutusu(m)
+	# sehpa salonun duvarına (x 38.8) dayanır, ekranın ortası eski ekranın hizasına gelir
+	m.global_position += Vector3(38.8 - kutu.end.x, -kutu.position.y, 0.0)
+	if ekran:
+		var e := _dunya_kutusu(ekran)
+		m.global_position.z += EKRAN.z - e.get_center().z
+		if em is StandardMaterial3D:
+			(em as StandardMaterial3D).uv1_scale = Vector3.ONE
+			(em as StandardMaterial3D).uv1_offset = Vector3.ZERO
+		_ekran_uv_duzelt(ekran)
+		ekran.material_override = em
+		ekran.layers = 2
+	tv.visible = false
+	var eski := get_node_or_null("TVSehpasi") as Node3D
+	if eski: eski.visible = false
+
+
+## Yeni TV'nin ekran yüzeyinin UV'si 90 derece dönük (görüntü dikey çıkıyordu).
+## UV'yi ekranın dünyadaki duruşuna göre yeniden yazar: soldan sağa (+z) u, yukarıdan aşağı v.
+## Ekran 4:3'ten geniş: görüntü genişliğe oturur, üstü ve altı eşit kırpılır.
+func _ekran_uv_duzelt(ekran: MeshInstance3D) -> void:
+	var am := ArrayMesh.new()
+	var en := 1.0; var boy := 1.0
+	for y in ekran.mesh.get_surface_count():
+		var a := ekran.mesh.surface_get_arrays(y)
+		var v: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
+		var dv: Array[Vector3] = []
+		var alt := Vector3.INF; var ust := -Vector3.INF
+		for p in v:
+			var d := ekran.global_transform * p
+			dv.append(d); alt = alt.min(d); ust = ust.max(d)
+		en = maxf(ust.z - alt.z, 0.001); boy = maxf(ust.y - alt.y, 0.001)
+		var gorunen := minf(1.0, boy / en * 4.0 / 3.0)
+		var uv := PackedVector2Array()
+		for d in dv:
+			uv.append(Vector2((d.z - alt.z) / en, 0.5 - gorunen * 0.5 + gorunen * (ust.y - d.y) / boy))
+		a[Mesh.ARRAY_TEX_UV] = uv
+		am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, a)
+	ekran.mesh = am
 
 
 ## Bir modelin (ya da içindeki bir parçanın) kopyasını, alt yüzünün ortası verilen noktaya gelecek şekilde koyar.
@@ -1997,7 +2517,12 @@ func _soyle(anahtar: String) -> float:
 	_soylenenler[anahtar] = true
 	var s: Array = SATIRLAR[anahtar]
 	var kim: String = s[2] if s.size() > 2 else "SELİM"
-	var akis: AudioStream = load(s[0]) if ResourceLoader.exists(s[0]) else null
+	var yol: String = s[0]
+	# 2. gecenin rüyası: alp'in ruya2_01..12 kayıtları varsa onlar çalar (sıra anahtarın numarasıdır)
+	if anahtar.begins_with("ruya") and anahtar.substr(4).is_valid_int() and _gece() >= 2:
+		var ikinci := "res://sesler/ruya2_%s.mp3" % anahtar.substr(4)
+		if ResourceLoader.exists(ikinci): yol = ikinci
+	var akis: AudioStream = load(yol) if ResourceLoader.exists(yol) else null
 	var sure := 2.6 if kim == "SELİM" else 2.2 + str(s[1]).length() * 0.06
 	if akis:
 		ses_selim.stream = akis
@@ -2207,6 +2732,7 @@ func _tv_kur() -> void:
 	tv_oda_kamera.cull_mask = 1
 	tv_vp.add_child(tv_oda_kamera)
 	tv_oda_kamera.current = false
+	_program_kur(yazi)
 	# tüp efekti: tarama çizgileri, gren, kayan bant, köşe kararması, açılış çizgisi
 	tv_ust = ColorRect.new()
 	tv_ust.size = Vector2(640, 480)
@@ -2270,6 +2796,7 @@ void fragment() {
 		em.uv1_offset = Vector3(0, 1, 0)
 		tup.layers = 2
 		ekran.visible = false
+	_yeni_tv(em.duplicate())
 	(tv_ust.material as ShaderMaterial).set_shader_parameter("acilis", 0.0)
 
 
@@ -2285,8 +2812,21 @@ func _tv_guncelle(dt: float) -> void:
 		tv_isigi.light_energy = 0.0
 		kar_hedef = 0.0
 		return
+	var onceki_t := tv_t
 	tv_t += dt
-	var t := tv_t if tv_t < TV_SURE else 1.0 + fmod(tv_t - 1.0, TV_SURE - 1.0)
+	if tv_program: tv_program.visible = tv_t < PROGRAM_SURE
+	if tv_t < PROGRAM_SURE:
+		_program_oyna(dt, um)
+		return
+	if onceki_t < PROGRAM_SURE:
+		# yayın araya girer: program sesi kesilir, parazit patlar, anlatıcı başlar
+		if ses_program: ses_program.stop()
+		ses_anlatici.play()
+		ses_muzik.play()
+		_ses_cal("crt", -4.0)
+		_tv_kare = []
+	var t := tv_t - PROGRAM_SURE
+	t = t if t < TV_SURE else 1.0 + fmod(t - 1.0, TV_SURE - 1.0)
 	var kare: Array = YAYIN[YAYIN.size() - 1]
 	for k in YAYIN:
 		if t < k[1]:
@@ -2319,7 +2859,7 @@ func _tv_guncelle(dt: float) -> void:
 		(tv_cubuk.get_child(tv_cubuk.get_child_count() - 1) as Label).position.x = -(u - 0.5) * 640.0 * 0.15
 	if tur == "oda":
 		tv_oda_kamera.global_position += Vector3(-0.08, 0, -0.05) * dt
-	var acilis := smoothstep(0.0, 0.45, t) if tur == "ac" else 1.0
+	var acilis := 1.0   # TV program sırasında açıldı; yayın açık ekrana girer
 	um.set_shader_parameter("acilis", acilis)
 	var gecis: bool = t - kare[0] < 0.12 and kare[0] > 0.0
 	var kar := 0.95 if gecis else (0.9 - (t - 0.45) * 1.2 if tur == "ac" and t > 0.45 else 0.08)
@@ -2436,7 +2976,7 @@ func _oyuncu_kur() -> void:
 	oyuncu.motion_mode = CharacterBody3D.MOTION_MODE_FLOATING
 	var cs := CollisionShape3D.new()
 	var kapsul := CapsuleShape3D.new()
-	kapsul.radius = 0.22
+	kapsul.radius = 0.17   # dar banyo ve kapı aralarında takılmasın
 	kapsul.height = 1.1
 	cs.shape = kapsul
 	# yerdeki halı, eşik gibi alçak şeylere takılmasın diye gövde yerden 0.5 m yukarıda başlar
@@ -2512,6 +3052,9 @@ func _physics_process(dt: float) -> void:
 	oyuncu.velocity = oyuncu.velocity.lerp(yon * YURUME, minf(1.0, dt * 8.0))
 	var once := oyuncu.global_position
 	oyuncu.move_and_slide()
+	if _merdivende:
+		_basamak(dt)
+		return
 	var p := oyuncu.global_position
 	p.y = 0.0
 	if not _icerde(p):
@@ -2524,6 +3067,17 @@ func _physics_process(dt: float) -> void:
 		if dt > 0.0:
 			oyuncu.velocity.x = (p.x - once.x) / dt
 			oyuncu.velocity.z = (p.z - once.z) / dt
+	oyuncu.global_position = p
+
+
+## Merdivende ayak altındaki basamağı ışınla bulur; gövde basamaklara yumuşakça iner/çıkar.
+func _basamak(dt: float) -> void:
+	var p := oyuncu.global_position
+	var q := PhysicsRayQueryParameters3D.create(p + Vector3(0, 0.9, 0), p + Vector3(0, -1.5, 0))
+	q.exclude = [oyuncu.get_rid()]
+	var r := get_world_3d().direct_space_state.intersect_ray(q)
+	if r.is_empty(): return
+	p.y = lerpf(p.y, (r.position as Vector3).y, minf(1.0, dt * 12.0))
 	oyuncu.global_position = p
 
 
@@ -2692,66 +3246,6 @@ func _dunya_kutusu(n: Node3D) -> AABB:
 		kutu = k if ilk else kutu.merge(k)
 		ilk = false
 	return kutu
-
-
-## Küçük koridor (banyonun önündeki antre): taban, tavan, yan duvarlar ve dip (kapı tarafı açık).
-## dip_kapili ise açık tarafın karşısındaki dip duvarda ortada kapı boşluğu bırakılır.
-func _koridor(a: Vector3, b: Vector3, acik: String, dip_kapili: bool, mat: Material, zemin: Material, tavan: Material) -> void:
-	var k := 0.05
-	var o := (a + b) * 0.5
-	var s := b - a
-	var yuzler := {
-		"-y": [Vector3(o.x, a.y - k * 0.5, o.z), Vector3(s.x, k, s.z)],
-		"+y": [Vector3(o.x, b.y + k * 0.5, o.z), Vector3(s.x, k, s.z)],
-		"-x": [Vector3(a.x - k * 0.5, o.y, o.z), Vector3(k, s.y, s.z)],
-		"+x": [Vector3(b.x + k * 0.5, o.y, o.z), Vector3(k, s.y, s.z)],
-		"-z": [Vector3(o.x, o.y, a.z - k * 0.5), Vector3(s.x, s.y, k)],
-		"+z": [Vector3(o.x, o.y, b.z + k * 0.5), Vector3(s.x, s.y, k)],
-	}
-	# koridorda loş bir ampul
-	var lamba := OmniLight3D.new()
-	lamba.light_color = Color(1.0, 0.78, 0.55)
-	lamba.light_energy = 0.7
-	lamba.omni_range = 3.5
-	lamba.shadow_enabled = true
-	lamba.position = Vector3(o.x, b.y - 0.3, o.z)
-	add_child(lamba)
-	var dip := ""
-	if dip_kapili:
-		dip = ("-" if acik.begins_with("+") else "+") + acik.substr(1)
-		var x_dip := dip.ends_with("x")
-		var yuz: Array = yuzler[dip]
-		var mrk: Vector3 = yuz[0]
-		var c := mrk.z if x_dip else mrk.x
-		var u0 := (a.z if x_dip else a.x)
-		var u1 := (b.z if x_dip else b.x)
-		var k0 := c - KAPI_EN * 0.5
-		var k1 := c + KAPI_EN * 0.5
-		var ust := a.y + KAPI_BOY + 0.04
-		# kapının iki yanı ve üstü
-		for d in [[u0, k0, a.y, b.y], [k1, u1, a.y, b.y], [k0, k1, ust, b.y]]:
-			var um: float = (d[0] + d[1]) * 0.5
-			var ue: float = d[1] - d[0]
-			var ym: float = (d[2] + d[3]) * 0.5
-			var ye: float = d[3] - d[2]
-			if ue <= 0.001 or ye <= 0.001: continue
-			var parca := MeshInstance3D.new()
-			var pb := BoxMesh.new()
-			pb.size = Vector3(k, ye, ue) if x_dip else Vector3(ue, ye, k)
-			pb.material = mat
-			parca.mesh = pb
-			parca.position = Vector3(mrk.x, ym, um) if x_dip else Vector3(um, ym, mrk.z)
-			add_child(parca)
-	for y: String in yuzler:
-		if y == acik or y == dip: continue
-		var mi := MeshInstance3D.new()
-		var bm := BoxMesh.new()
-		bm.size = yuzler[y][1]
-		bm.material = zemin if y == "-y" else tavan if y == "+y" else mat
-		mi.mesh = bm
-		mi.position = yuzler[y][0]
-		add_child(mi)
-		mi.create_trimesh_collision()
 
 
 ## Tuğla holü kurar: her dikdörtgenin zemini ve tavanı, birleşik şeklin dış kenarlarına duvar.
@@ -3051,6 +3545,14 @@ func _oyun_sesleri_kur() -> void:
 	ses_titresim = AudioStreamPlayer.new(); add_child(ses_titresim)
 	ses_titresim.stream = _ses_bul("titresim")
 	ses_titresim.volume_db = -14.0
+	# evin uğultusu: rüyadan çıkınca başlar, hep alçaktan çalar
+	ses_ambiyans = AudioStreamPlayer.new(); add_child(ses_ambiyans)
+	ses_ambiyans.stream = _ses_bul("ev_ambiyans")
+	ses_ambiyans.volume_db = -22.0
+	# saate bakarken tik tak
+	ses_saat_tik = AudioStreamPlayer.new(); add_child(ses_saat_tik)
+	ses_saat_tik.stream = _ses_bul("saat_tik")
+	ses_saat_tik.volume_db = -12.0
 
 
 ## sesler/<ad>.mp3 (ya da .ogg/.wav) varsa onu çalar; yoksa basit bir yedek ses, o da yoksa sessiz geçer.
@@ -3082,7 +3584,7 @@ func _ses_bul(ad: String) -> AudioStream:
 			break
 	if akis == null:
 		akis = _yedek_ses(ad)
-	elif ad == "alarm" or ad == "titresim":
+	elif ad in ["alarm", "titresim", "crt", "ev_ambiyans", "saat_tik"]:
 		if akis is AudioStreamMP3: (akis as AudioStreamMP3).loop = true
 		elif akis is AudioStreamOggVorbis: (akis as AudioStreamOggVorbis).loop = true
 	_sesler[ad] = akis
@@ -3171,6 +3673,15 @@ func _yedek_ses(ad: String) -> AudioStream:
 				var t := float(i) / hiz
 				o.append((randf() * 2.0 - 1.0) * exp(-t * 120.0) * 0.8 + (sin(TAU * 100.0 * t) * 0.08 + sin(TAU * 200.0 * t) * 0.03) * smoothstep(0.05, 0.3, t))
 			return _wav(o, hiz)
+		"dis_fircalama":
+			# fırçanın dişlerde kısa kısa sürtünmesi
+			var yuksek := 0.0
+			for i in int(hiz * 6.0):
+				var t := float(i) / hiz
+				var r := randf() * 2.0 - 1.0
+				yuksek = r - yuksek * 0.6
+				o.append(yuksek * 0.12 * (0.35 + 0.65 * absf(sin(PI * t * 3.2))) * smoothstep(0.0, 0.2, t) * (1.0 - smoothstep(5.6, 6.0, t)))
+			return _wav(o, hiz)
 		"su_carpma":
 			var dusuk := 0.0
 			for i in int(hiz * 0.7):
@@ -3248,3 +3759,217 @@ func _adim_say(aralik: float) -> void:
 	if _adim_t >= aralik:
 		_adim_t = 0.0
 		_ses_cal("adim_yalin", -17.0)
+
+
+# ---------------- tavan ampulleri ve tablolar ----------------
+## alp'in gönderdiği LED ampul tavana takılır; odanın ışığı ampulün hemen altından çıkar ve ampul ışıkla birlikte parlar.
+const AMPUL_MODELI := "res://modeller2/seliminevi/led_light_bulb_9w.glb"
+const AMPUL_OLCEK := 0.032   # model 3,8 birim boyunda; gerçek ampul 12 cm
+## [ampulün tavana değdiği nokta, ışığın adı ya da yeni ışık için boş, menzil, parlaklık]
+const AMPULLER := [
+	[Vector3(0.4, 3.88, 0.47), "", 7.0, 0.9],                 # yatak odası (model tavanı)
+	[Vector3(25.85, 2.85, -0.25), "MutfakLamba", 7.5, 1.5],   # mutfak (_kabuk tavanı)
+	[Vector3(36.0, 4.23, 0.0), "", 7.5, 1.0],                 # salon (_kabuk tavanı)
+]
+var _ampuller := []   # [ışık, parlayan malzeme, ilk parlaklık]
+
+func _ampuller_kur() -> void:
+	if not ResourceLoader.exists(AMPUL_MODELI): return
+	var paket := load(AMPUL_MODELI) as PackedScene
+	var liste := AMPULLER.duplicate()
+	for i in HOL_LAMBALAR.size():
+		liste.append([Vector3(HOL_LAMBALAR[i].x, HOL_TAVAN, HOL_LAMBALAR[i].z), "hol%d" % i, 0.0, 0.0])
+	for a in liste:
+		var tavan: Vector3 = a[0]
+		var m := paket.instantiate() as Node3D
+		m.name = "Ampul"
+		add_child(m)
+		# vida yukarıda, cam aşağıda
+		m.basis = Basis(Vector3.RIGHT, PI).scaled(Vector3.ONE * AMPUL_OLCEK)
+		m.position = tavan - Vector3(0, 1.92 * AMPUL_OLCEK, 0)
+		var cam: StandardMaterial3D = null
+		for mi in m.find_children("*", "MeshInstance3D", true, false):
+			(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			for i in (mi as MeshInstance3D).mesh.get_surface_count():
+				var mat := (mi as MeshInstance3D).get_active_material(i) as StandardMaterial3D
+				if mat == null or mat.resource_name != "bulb": continue
+				cam = mat.duplicate() as StandardMaterial3D
+				cam.emission_enabled = true
+				cam.emission = Color(1.0, 0.85, 0.6)
+				(mi as MeshInstance3D).set_surface_override_material(i, cam)
+		var ad: String = a[1]
+		var l: OmniLight3D
+		if ad.begins_with("hol"):
+			l = _hol_lambalar[int(ad.substr(3))]
+		elif ad != "":
+			l = get_node("Isiklar/" + ad) as OmniLight3D
+		else:
+			l = OmniLight3D.new()
+			l.light_color = Color(1.0, 0.82, 0.6)
+			l.light_energy = a[3]
+			l.omni_range = a[2]
+			l.omni_attenuation = 1.2
+			l.shadow_enabled = true
+			add_child(l)
+		if float(a[2]) > 0.0: l.omni_range = a[2]
+		if float(a[3]) > 0.0: l.light_energy = a[3]
+		# ışık ampulün camının içinden çıkar (camın kendisi gölge vermez)
+		l.global_position = tavan - Vector3(0, 0.1, 0)
+		_ampuller.append([l, cam, maxf(l.light_energy, 0.01)])
+
+func _ampul_parla() -> void:
+	for a in _ampuller:
+		var l := a[0] as Light3D
+		if a[1] == null or not is_instance_valid(l): continue
+		var oran := l.light_energy / float(a[2]) if l.visible else 0.0
+		(a[1] as StandardMaterial3D).emission_energy_multiplier = 4.0 * clampf(oran, 0.0, 1.5)
+
+## alp'in gönderdiği tablo paketi: holün ve odaların boş duvarlarına asılır.
+const TABLO_MODELI := "res://modeller2/seliminevi/free_medieval_paintings_pack.glb"
+## [paketteki tablonun adı, duvardaki orta noktası, duvardan odaya bakan yön (yaw derece), yükseklik (m)]
+const TABLOLAR := [
+	["cuadro_3", Vector3(4.1, 1.6, 0.4), 0.0, 0.55],      # hol, mutfak kapısının solu
+	["cuadro_14", Vector3(6.7, 1.6, 0.4), 0.0, 0.5],      # hol, mutfak kapısının sağı
+	["cuadro_5", Vector3(4.1, 1.6, 3.2), 180.0, 0.55],    # hol, salon kapısının yanı
+	["cuadro_10", Vector3(6.7, 1.6, 3.2), 180.0, 0.5],
+	["cuadro_21", Vector3(36.6, 1.9, -2.86), 0.0, 0.65],    # salon
+]
+
+func _tablolar_kur() -> void:
+	if not ResourceLoader.exists(TABLO_MODELI): return
+	var paket := (load(TABLO_MODELI) as PackedScene).instantiate()
+	add_child(paket)   # dünya dönüşümü okunabilsin diye bir an sahneye girer
+	for t in TABLOLAR:
+		var dugum := paket.find_child(t[0], true, false)
+		if dugum == null: continue
+		for mi in dugum.find_children("*", "MeshInstance3D", true, false):
+			var kaynak := mi as MeshInstance3D
+			var xf := kaynak.global_transform
+			var kutu: AABB = xf * kaynak.get_aabb()
+			var olcek: float = t[3] / kutu.size.y
+			var tablo := MeshInstance3D.new()
+			tablo.name = "Tablo"
+			tablo.mesh = kaynak.mesh
+			for i in kaynak.mesh.get_surface_count():
+				tablo.set_surface_override_material(i, kaynak.get_active_material(i))
+			add_child(tablo)
+			# tablonun ortası dünyanın başlangıcına, arka yüzü duvara (yerel -z) gelir
+			var ic := Transform3D(xf.basis, xf.origin - kutu.get_center() + Vector3(0, 0, kutu.size.z * 0.5))
+			tablo.transform = Transform3D(Basis(Vector3.UP, deg_to_rad(t[2])).scaled(Vector3.ONE * olcek), t[1]) * ic
+	paket.queue_free()
+
+
+## Yemekten sonra antidepresan (alp): kutudan bir kapsül alır, ağzına atar, sudan bir yudum içer. t: yemeğin bitişinden beri.
+const ILAC_SURE := 7.2
+func _ilac_ic(t: float) -> void:
+	if t < 0.0 or ilac_kutusu == null: return
+	if t > 0.2 and not _eylem.has("i_uzan"):
+		_eylem["i_uzan"] = true
+		var ik := _dunya_kutusu(ilac_kutusu)
+		eller.uzan("sag", ik.get_center() + Vector3(0, ik.size.y * 0.5 + 0.03, 0.03), 0.6)
+		_ses_cal("dolap", -18.0)
+	if t > 0.9 and not _eylem.has("i_al") and kapsul:
+		_eylem["i_al"] = true
+		kapsul.visible = true
+		kapsul.global_position = eller.avuc("sag")
+		eller.tut("sag", kapsul)
+		eller.yumruk("sag", 0.7)
+	if t > 1.4 and not _eylem.has("i_agiz"):
+		_eylem["i_agiz"] = true
+		eller.kamerada("sag", Vector3(0.03, -0.12, -0.18), 0.5)
+	if t > 2.0 and not _eylem.has("i_yut"):
+		_eylem["i_yut"] = true
+		eller.tut("sag", null)
+		if kapsul: kapsul.visible = false
+		eller.birak("sag", 0.5)
+	if su_sisesi == null: return
+	if t > 2.6 and not _eylem.has("s_uzan"):
+		_eylem["s_uzan"] = true
+		var sk := _dunya_kutusu(su_sisesi)
+		eller.uzan("sag", sk.get_center() + Vector3(0.04, 0.0, 0.03), 0.6)
+	if t > 3.3 and not _eylem.has("s_al"):
+		_eylem["s_al"] = true
+		eller.tut("sag", su_sisesi)
+		eller.yumruk("sag", 0.75)
+	if t > 3.6 and not _eylem.has("s_agiz"):
+		_eylem["s_agiz"] = true
+		eller.kamerada("sag", Vector3(0.04, -0.1, -0.2), 0.6)
+	# şişe ağza gelince kameraya doğru eğilir, içtikten sonra doğrulur
+	if t > 3.3 and t < 6.2:
+		var egim := smoothstep(4.1, 4.6, t) * (1.0 - smoothstep(5.3, 5.7, t)) * 1.1
+		var sag_yon := kamera.global_basis.x
+		su_sisesi.global_basis = Basis(sag_yon, egim) * _sise_xf.basis
+	if t > 5.7 and not _eylem.has("s_geri"):
+		_eylem["s_geri"] = true
+		eller.uzan("sag", _sise_xf.origin + Vector3(0, 0.12, 0), 0.6)
+	if t > 6.35 and not _eylem.has("s_birak"):
+		_eylem["s_birak"] = true
+		eller.tut("sag", null)
+		su_sisesi.global_transform = _sise_xf
+		eller.birak("sag", 0.6)
+
+
+## Yerel kanalda gece hava durumu (2B ekran; kişi ya da telifli görüntü yok).
+const PROGRAM_SEHIRLER := [["İSTANBUL", "9°", "Sağanak"], ["ANKARA", "4°", "Bulutlu"], ["İZMİR", "13°", "Yağmurlu"], ["BURSA", "8°", "Sağanak"], ["TRABZON", "7°", "Yağmurlu"], ["ANTALYA", "15°", "Parçalı bulutlu"]]
+func _program_kur(yazi: Font) -> void:
+	tv_program = Control.new()
+	tv_program.size = Vector2(640, 480)
+	tv_program.visible = false
+	tv_vp.add_child(tv_program)
+	tv_vp.move_child(tv_program, tv_ust.get_index() if tv_ust and tv_ust.get_parent() == tv_vp else tv_vp.get_child_count() - 1)
+	var zemin := ColorRect.new()
+	zemin.size = Vector2(640, 480)
+	zemin.color = Color(0.05, 0.16, 0.36)
+	tv_program.add_child(zemin)
+	var bant := ColorRect.new()
+	bant.size = Vector2(640, 62); bant.color = Color(0.92, 0.55, 0.08)
+	tv_program.add_child(bant)
+	var etiket := func(metin: String, boy: int, yer: Vector2, renk := Color(0.95, 0.95, 0.95), en := 600.0) -> Label:
+		var l := Label.new()
+		l.text = metin
+		l.add_theme_font_override("font", yazi)
+		l.add_theme_font_size_override("font_size", boy)
+		l.add_theme_color_override("font_color", renk)
+		l.position = yer; l.size = Vector2(en, boy + 8)
+		tv_program.add_child(l)
+		return l
+	etiket.call("HAVA DURUMU", 34, Vector2(24, 12), Color(0.08, 0.08, 0.12))
+	etiket.call("ŞEHİR TV", 22, Vector2(500, 18), Color(0.08, 0.08, 0.12), 130.0)
+	etiket.call("Bu gece ve yarın", 22, Vector2(24, 76), Color(0.75, 0.85, 1.0))
+	for i in PROGRAM_SEHIRLER.size():
+		var c: Array = PROGRAM_SEHIRLER[i]
+		var y := 116.0 + i * 46.0
+		var satir := ColorRect.new()
+		satir.position = Vector2(20, y - 4); satir.size = Vector2(600, 40)
+		satir.color = Color(1, 1, 1, 0.06 if i % 2 == 0 else 0.0)
+		tv_program.add_child(satir)
+		etiket.call(c[0], 26, Vector2(32, y))
+		etiket.call(c[1], 28, Vector2(330, y - 1), Color(1.0, 0.85, 0.35), 90.0)
+		etiket.call(c[2], 22, Vector2(420, y + 3), Color(0.8, 0.88, 1.0), 200.0)
+	var alt := ColorRect.new()
+	alt.position = Vector2(0, 420); alt.size = Vector2(640, 60); alt.color = Color(0.02, 0.05, 0.12)
+	tv_program.add_child(alt)
+	_program_kayan = etiket.call("Gece boyunca kuvvetli sağanak bekleniyor · Sürücülerin dikkatli olması öneriliyor · Rögar kapaklarının açık kalmaması için belediye uyardı · Yarın sabah sıcaklıklar düşüyor ·", 22, Vector2(640, 436), Color(0.95, 0.95, 0.95), 2400.0)
+	ses_program = AudioStreamPlayer.new()
+	if ResourceLoader.exists("res://sesler/radyo.mp3"): ses_program.stream = load("res://sesler/radyo.mp3")
+	ses_program.volume_db = -20.0
+	add_child(ses_program)
+
+func _program_oyna(dt: float, um: ShaderMaterial) -> void:
+	tv_video.visible = false; tv_foto.visible = false; tv_cubuk.visible = false
+	tv_oda_kamera.current = false
+	tv_zemin.visible = true
+	if _program_kayan: _program_kayan.position.x -= 70.0 * dt
+	var acilis := smoothstep(0.0, 0.45, tv_t)
+	um.set_shader_parameter("acilis", acilis)
+	um.set_shader_parameter("kar", clampf(0.9 - (tv_t - 0.45) * 1.6, 0.05, 0.9) if tv_t > 0.45 else 0.9)
+	um.set_shader_parameter("kar_tam", 0.0)
+	um.set_shader_parameter("kesit", 0.0)
+	# son saniyede görüntü bozulmaya başlar
+	if tv_t > PROGRAM_SURE - 1.2:
+		um.set_shader_parameter("kesit", 1.0)
+		um.set_shader_parameter("kar", 0.05 + (tv_t - (PROGRAM_SURE - 1.2)) * 0.5)
+	kar_hedef = 0.12
+	tv_isigi.light_energy = 3.0 * 0.6 * (0.92 + randf() * 0.12) * acilis
+	tv_isigi.light_color = Color(0.6, 0.72, 1.0)
+

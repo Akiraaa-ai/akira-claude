@@ -8,6 +8,9 @@ const SEHIR_DOSYALARI := ["res://modeller/sehir.glb", "res://modeller/Terrain Re
 @onready var sehir: Node3D = $Sehir
 # şehir modelinin derinliği; ikinci kopya bu kadar kuzeyde (dünyada -z) durur
 const SEHIR_BOY := 164.7771
+## Şehir modeli Selim'e göre küçük kalıyordu (kapılar Selim boyundaydı). Şehir bu oranda büyütülür;
+## Selim, arabalar ve kulübe gerçek boyunda kalır. Aşağıdaki dünya konumları ölçeksiz yazılıp bununla çarpılır.
+const OLCEK := 1.4
 
 func _ready() -> void:
 	for yol in SEHIR_DOSYALARI:
@@ -27,12 +30,71 @@ func _ready() -> void:
 		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		if m.mesh and not Engine.is_editor_hint(): m.create_trimesh_collision()
 	if Engine.is_editor_hint(): return
+	_kenarlari_doldur()
+	sehir.transform = Transform3D(Basis.from_scale(Vector3.ONE * OLCEK), Vector3.ZERO) * sehir.transform
+	for n: Node3D in [$Kulube, $Araba, $Selim]:
+		n.position = Vector3(n.position.x * OLCEK, n.position.y, n.position.z * OLCEK)
 	_guvenlik_zemini()
 	_sinir_duvarlari()
 	_park_arabalari.call_deferred()
 	_posta_kutusu()
+	_mazgal_kur()
+	_tabelalar()
 	if has_meta("arkaplan"): return   # ana menünün arkasındaki görüntü
 	_yolculuk_kur()
+
+# Mazgal, şehir modelinin yola gömülü kahverengi rögar kapağıdır (alp: "şehirdeki mazgallardan kullansak").
+# Kapağın kendi üçgenleri kopyalanır: kopya yana kaymış durur, yerinde aynı yuvarlak biçimde kapkara bir ağız açılır.
+const MAZGAL_MALZEME := "Street_Assets.001"
+func _mazgal_kur() -> void:
+	if sehir.get_child_count() == 0: return
+	var m := sehir.get_child(0).find_child("Plane_001", true, false) as MeshInstance3D
+	if m == null or not (m.mesh is ArrayMesh): return
+	var xf := m.global_transform
+	for si in m.mesh.get_surface_count():
+		var mat := m.mesh.surface_get_material(si) as BaseMaterial3D
+		if mat == null or mat.resource_name != MAZGAL_MALZEME: continue
+		var arr := m.mesh.surface_get_arrays(si)
+		var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var uv: PackedVector2Array = arr[Mesh.ARRAY_TEX_UV]
+		var ind: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		var bulundu := false
+		for t in ind.size() / 3:
+			var c := (xf * v[ind[t * 3]] + xf * v[ind[t * 3 + 1]] + xf * v[ind[t * 3 + 2]]) / 3.0
+			if Vector2(c.x - MAZGAL.x, c.z - MAZGAL.z).length() > 0.7 * OLCEK: continue
+			bulundu = true
+			for q in 3:
+				var w := xf * v[ind[t * 3 + q]]
+				st.set_normal(Vector3.UP)
+				st.set_uv(uv[ind[t * 3 + q]])
+				st.add_vertex(Vector3(w.x - MAZGAL.x, 0.0, w.z - MAZGAL.z))
+		if not bulundu: return
+		var kapak_mesh := st.commit()
+		# yana itilmiş kapak
+		var kapak := MeshInstance3D.new()
+		kapak.name = "MazgalKapak"
+		kapak.mesh = kapak_mesh
+		kapak.material_override = mat
+		add_child(kapak)
+		kapak.global_position = MAZGAL + Vector3(0.66 * OLCEK, 0.012, 0.3 * OLCEK)
+		kapak.rotation.y = 0.55
+		# kapağın yerinde kuyunun karanlığı (aynı yuvarlak maske, ışık ve sis almaz)
+		var kara := mat.duplicate() as BaseMaterial3D
+		kara.albedo_color = Color.BLACK
+		kara.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		kara.disable_fog = true
+		kara.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+		kara.alpha_scissor_threshold = 0.5
+		var agiz := MeshInstance3D.new()
+		agiz.name = "MazgalAgzi"
+		agiz.mesh = kapak_mesh
+		agiz.material_override = kara
+		agiz.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(agiz)
+		agiz.global_position = MAZGAL + Vector3(0.0, 0.005, 0.0)
+		return
 
 # şehir modelindeki park halindeki arabalar (tekerlek ve kasa yüzeyleri) çıkarılır; yerine alp'in arabası gelir
 const ARABA_MALZEMELERI := ["WheelTex", "CarTex_1"]
@@ -88,14 +150,41 @@ func _park_arabalari() -> void:
 			if not paketler.has(m[0]): continue
 			var kaynak := (paketler[m[0]] as Node).find_child(m[1], true, false) as Node3D
 			if kaynak == null: continue
-			var yer := Vector3(p[0], 0.0, float(p[1]) + kopya)
-			var q := PhysicsRayQueryParameters3D.create(yer + Vector3(0, 6, 0), yer + Vector3(0, -3, 0))
-			var r := uzay.intersect_ray(q)
-			if not r.is_empty(): yer.y = r.position.y
-			_arac_koy(kaynak, paketler[m[0]], yer, float(p[2]), ana, park_govde)
+			var yer := Vector3(p[0], 0.0, float(p[1]) + kopya) * OLCEK
+			var h := _zemin_y(uzay, yer, park_govde)
+			if is_nan(h): continue
+			yer.y = h
+			_arac_koy(kaynak, paketler[m[0]], yer, float(p[2]), ana, park_govde, _kaldirim_bul(uzay, yer, park_govde))
 	for k in paketler: (paketler[k] as Node).free()
 
-func _arac_koy(kaynak: Node3D, kok: Node, yer: Vector3, aci: float, ana: Node3D, park_govde: StaticBody3D) -> void:
+func _zemin_y(uzay: PhysicsDirectSpaceState3D, yer: Vector3, haric: CollisionObject3D) -> float:
+	var q := PhysicsRayQueryParameters3D.create(Vector3(yer.x, yer.y + 0.9, yer.z), Vector3(yer.x, yer.y - 3.0, yer.z))
+	q.exclude = [haric.get_rid()]
+	var r := uzay.intersect_ray(q)
+	return NAN if r.is_empty() else float(r.position.y)
+
+
+## Yolun ortasından en yakın kaldırıma: dört yöne bakıp zeminin kaldırım kadar (3-50 cm) yükseldiği
+## ilk yeri bulur. [yön, uzaklık]; kaldırım yoksa yön sıfır.
+func _kaldirim_bul(uzay: PhysicsDirectSpaceState3D, yer: Vector3, haric: CollisionObject3D) -> Array:
+	var en_yakin := INF
+	var yon := Vector3.ZERO
+	for d: Vector3 in [Vector3.RIGHT, Vector3.LEFT, Vector3.FORWARD, Vector3.BACK]:
+		var m := 0.25
+		while m < 12.0 and m < en_yakin:
+			var h := _zemin_y(uzay, yer + d * m, haric)
+			if is_nan(h): break
+			var fark := h - yer.y
+			if fark > 0.5: break        # duvar ya da direk: kaldırım değil
+			if fark > 0.03:
+				en_yakin = m
+				yon = d
+				break
+			m += 0.25
+	return [yon, en_yakin]
+
+
+func _arac_koy(kaynak: Node3D, kok: Node, yer: Vector3, aci: float, ana: Node3D, park_govde: StaticBody3D, kaldirim := [Vector3.ZERO, 0.0]) -> void:
 	var don := Transform3D.IDENTITY
 	var n: Node = kaynak
 	while n != kok:
@@ -118,15 +207,115 @@ func _arac_koy(kaynak: Node3D, kok: Node, yer: Vector3, aci: float, ana: Node3D,
 	kopya.transform = don
 	tut.add_child(kopya)
 	tut.rotation_degrees.y = aci
+	# yolun ortasında durmasın: kaldırıma paralel döner, sağ yanı kaldırımdan 30 cm beride durur
+	var yan: Vector3 = kaldirim[0]
+	if yan != Vector3.ZERO:
+		var uzun := tut.basis * (Vector3(kutu.size.x, 0, 0) if kutu.size.x > kutu.size.z else Vector3(0, 0, kutu.size.z))
+		if absf(uzun.normalized().dot(yan)) > 0.7: tut.rotation_degrees.y = aci + 90.0
+		var en := minf(kutu.size.x, kutu.size.z)
+		var kay := float(kaldirim[1]) - en * 0.5 - 0.3
+		if kay > 0.0: yer += yan * kay
 	var alt := Vector3(kutu.get_center().x, kutu.position.y, kutu.get_center().z)
 	tut.position = yer - tut.basis * alt
 	for mi in tut.find_children("*", "MeshInstance3D", true, false):
 		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		for i in (mi as MeshInstance3D).mesh.get_surface_count():
+			var mat := (mi as MeshInstance3D).get_active_material(i) as StandardMaterial3D
+			if mat and mat.albedo_texture: (mi as MeshInstance3D).set_surface_override_material(i, _koyu_cam(mat, (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()))
 	# çarpışma: aracın kutusu
 	var cs := CollisionShape3D.new(); var b := BoxShape3D.new()
 	b.size = kutu.size; cs.shape = b
 	cs.transform = Transform3D(tut.basis, tut.position + tut.basis * kutu.get_center())
 	park_govde.add_child(cs)
+
+# Araç paketlerinde camlar ya dokunun yarı saydam pikselleri ya da aracın üst yarısındaki düz gri yüzeyler.
+# İçleri görünmesin diye (alp) bunlar koyu ve parlak boyanır; "bel" camların alt hizasıdır (dünya yüksekliği).
+const KOYU_CAM_SHADER := """shader_type spatial;
+uniform sampler2D doku : source_color, filter_linear_mipmap;
+uniform float puruz = 0.6;
+uniform float bel = 0.0;
+uniform float gri_ust = 0.85;   // beyaz gövdeli araçlarda cam gövdeden koyu gridir; açık gri gövde cam sayılmaz
+varying float yukseklik;
+varying float dikey;
+void vertex() { yukseklik = (MODEL_MATRIX * vec4(VERTEX, 1.0)).y; dikey = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz).y; }
+void fragment() {
+	vec4 c = texture(doku, UV);
+	float gri = step(max(c.r, max(c.g, c.b)) - min(c.r, min(c.g, c.b)), 0.07) * step(0.3, c.g) * step(c.g, gri_ust);
+	float cam = max(1.0 - step(0.97, c.a), gri * step(bel, yukseklik) * step(dikey, 0.85));
+	ALBEDO = mix(c.rgb, vec3(0.012, 0.014, 0.018), cam);
+	ROUGHNESS = mix(puruz, 0.06, cam);
+	SPECULAR = mix(0.5, 0.9, cam);
+}
+"""
+var _cam_shader: Shader
+func _koyu_cam(mat: StandardMaterial3D, kutu: AABB) -> ShaderMaterial:
+	if _cam_shader == null:
+		_cam_shader = Shader.new(); _cam_shader.code = KOYU_CAM_SHADER
+	var m := ShaderMaterial.new(); m.shader = _cam_shader
+	m.set_shader_parameter("doku", mat.albedo_texture)
+	m.set_shader_parameter("puruz", mat.roughness)
+	m.set_shader_parameter("bel", kutu.position.y + kutu.size.y * 0.55)
+	var ad := mat.resource_name
+	m.set_shader_parameter("gri_ust", 0.5 if ad.contains("white") or ad.begins_with("van") else 0.85)
+	return m
+
+# alp'in yol tabelası paketi: direk ve üstündeki levha(lar) birlikte, kaldırımlara dikilir.
+const TABELA_PAKETI := "res://şehir/road_signs_asset_pack__australian_american.glb"
+const TABELA_OLCEK := 0.27   # paketin direği 11 birim; gerçek direk 3 m
+## [direk, levhalar] paketteki adlarıyla
+const TABELA_TAKIMLARI := [
+	["Post_001_53", ["Sign_058_51"]], ["Post_002_54", ["Sign_256_56"]], ["Post_003_55", ["Sign_059_52"]],
+	["Post_074_58", ["Sign_257_57"]], ["Post_036_66", ["Sign_027_59", "Sign_141_64"]],
+	["Post_037_67", ["Sign_017_61", "Sign_142_65"]], ["Post_038_68", ["Sign_028_60"]],
+]
+## [takım, dünya konumu (ölçekli şehirde kaldırım), levhanın baktığı yön (yaw derece)]
+const TABELALAR := [
+	[0, Vector3(-9.0, 0, 9.5), 0.0],       # evin sokağı, kavşaktan önce sağda (kuzeye giden sürücüye bakar)
+	[4, Vector3(-36.0, 0, -5.3), 90.0],    # orta cadde, batıya giderken sağda
+	[1, Vector3(-62.0, 0, -5.3), 90.0],
+	[5, Vector3(-70.8, 0, -8.0), 0.0],     # kulübeye dönülen kavşak
+	[2, Vector3(-70.8, 0, -60.0), 0.0],
+	[6, Vector3(-26.0, 0, 30.0), 180.0],   # evin karşı kaldırımı
+	[3, Vector3(-16.0, 0, -12.0), 180.0],
+]
+func _tabelalar() -> void:
+	if not ResourceLoader.exists(TABELA_PAKETI) or has_node("Tabelalar"): return
+	var paket := (load(TABELA_PAKETI) as PackedScene).instantiate() as Node3D
+	add_child(paket)   # dünya dönüşümü okunabilsin diye bir an sahneye girer
+	var ana := Node3D.new(); ana.name = "Tabelalar"; add_child(ana)
+	var govde := StaticBody3D.new(); ana.add_child(govde)
+	for t in TABELALAR:
+		tabela_koy(ana, govde, paket, TABELA_TAKIMLARI[t[0]], t[1], t[2], TABELA_OLCEK)
+	paket.queue_free()
+
+## Paketten bir direk ve levhalarını kopyalar. yaw: levhanın baktığı yön (0 = +z). Yeraltında da kullanılır (arsiv.gd).
+static func tabela_koy(ana: Node3D, govde: StaticBody3D, paket: Node3D, takim: Array, yer_: Vector3, yaw: float, olcek: float) -> void:
+	var direk := paket.find_child(takim[0], true, false) as Node3D
+	if direk == null: return
+	var dk := _dugum_kutusu(direk)
+	# direğin dibi tabelanın başlangıcı; levhalar direğe göre yerinde kalır
+	var taban := Vector3(dk.get_center().x, dk.position.y, dk.get_center().z)
+	# paketteki levhaların yüzü +x'e bakar; -90 ile +z'ye çevrilir, sonra istenen yöne
+	var yer := Transform3D(Basis(Vector3.UP, deg_to_rad(yaw - 90.0)).scaled(Vector3.ONE * olcek), yer_)
+	for ad in [takim[0]] + takim[1]:
+		var d := paket.find_child(ad, true, false) as Node3D
+		if d == null: continue
+		for mi in d.find_children("*", "MeshInstance3D", true, false) + ([d] if d is MeshInstance3D else []):
+			var k := MeshInstance3D.new()
+			k.mesh = (mi as MeshInstance3D).mesh
+			ana.add_child(k)
+			k.global_transform = yer * Transform3D(Basis(), -taban) * (mi as MeshInstance3D).global_transform
+	var boy := dk.size.y * olcek
+	var c := CollisionShape3D.new(); var b := CylinderShape3D.new()
+	b.radius = 0.06; b.height = boy; c.shape = b; c.position = yer_ + Vector3(0, boy * 0.5, 0)
+	govde.add_child(c)
+
+static func _dugum_kutusu(n: Node3D) -> AABB:
+	var kutu := AABB(); var ilk := true
+	for mi in n.find_children("*", "MeshInstance3D", true, false) + ([n] if n is MeshInstance3D else []):
+		var k: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()
+		kutu = k if ilk else kutu.merge(k); ilk = false
+	return kutu
 
 # Kulübenin masasında iki katlı evrak/mektup sepeti (alp'in double_letter_box modeli)
 const POSTA_KUTUSU := "res://modeller2/klübe/double_letter_box.glb"
@@ -160,6 +349,91 @@ func _physics_process(_dt: float) -> void:
 	elif o.global_position.y < -6.0:
 		o.global_position = _son_guvenli + Vector3(0, 0.3, 0); o.velocity = Vector3.ZERO
 
+# Şehrin dış yollarının ötesi boştu (alp: "binalar olsun ki gidilmesin", "karanlık kalmasın").
+# Oraya şehrin kendi bloklarının kopyaları dizilir: binalar, kaldırımlar, direkler ve lambaların ışığı.
+# Bloklar şehrin ilk kopyasında, ölçeksiz dünya koordinatında [x0, x1, z0, z1] (test/_ust_bak.gd üstten görünüşüyle ölçüldü).
+const BLOK_A := [-106.3, -66.2, -84.2, -3.2]   # batı sütununun kuzey bloğu
+const BLOK_C := [-11.9, 25.4, -84.2, -3.2]     # doğu sütununun kuzey bloğu
+const SEHIR_BATI := -117.4
+const SEHIR_DOGU := 37.05
+const SEHIR_GUNEY := 69.2
+const KENAR_PAY := 3.5   # lamba kolları yola taştığı için blok bu kadar geniş alınır
+func _kenarlari_doldur() -> void:
+	if has_node("Kenarlar") or sehir.get_child_count() == 0: return
+	var kaynak := sehir.get_child(0)
+	var parcalar := {}
+	for b in [BLOK_A, BLOK_C]: parcalar[b] = _blok_kes(kaynak, b)
+	var kenar := Node3D.new(); kenar.name = "Kenarlar"; add_child(kenar)
+	kenar.scale = Vector3.ONE * OLCEK
+	var kuzey := -95.3 - SEHIR_BOY
+	var blok_boy := 81.0
+	var yerler := []   # [blok, kayma]
+	# batı ve doğu: kuzeyin ötesinden güneyin ötesine kadar bloklar art arda
+	for i in 6:
+		var dz := kuzey - blok_boy - BLOK_A[2] + blok_boy * i
+		yerler.append([BLOK_C, Vector3(SEHIR_BATI - BLOK_C[1], 0, dz)])
+		yerler.append([BLOK_A, Vector3(SEHIR_DOGU - BLOK_A[0], 0, dz)])
+	# güney ve kuzey: batıdan doğuya A ve C sırayla
+	var x := SEHIR_BATI
+	var sira := 0
+	while x < SEHIR_DOGU:
+		var b: Array = BLOK_A if sira % 2 == 0 else BLOK_C
+		yerler.append([b, Vector3(x - b[0], 0, SEHIR_GUNEY - b[2])])
+		yerler.append([b, Vector3(x - b[0], 0, kuzey - b[3])])
+		x += b[1] - b[0]
+		sira += 1
+	var lambalar := $Lambalar
+	for y in yerler:
+		for m: Mesh in parcalar[y[0]]:
+			var mi := MeshInstance3D.new(); mi.mesh = m; mi.position = y[1]
+			kenar.add_child(mi)
+		if lambalar.has_method("kopya_lambalar"): lambalar.kopya_lambalar(y[0], KENAR_PAY, y[1])
+
+## kaynak şehrin bir bloğunun üçgenlerini (merkezi dikdörtgenin içindekiler) ölçeksiz dünya konumunda yeni meshlere kopyalar
+func _blok_kes(kaynak: Node, b: Array) -> Array:
+	var sonuc := []
+	for m in kaynak.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		if not (mi.mesh is ArrayMesh): continue
+		var pay := 0.3 if str(mi.name).begins_with("Plane") else KENAR_PAY
+		var x0: float = b[0] - pay; var x1: float = b[1] + pay; var z0: float = b[2] - pay; var z1: float = b[3] + pay
+		var xf := mi.global_transform
+		var yeni := ArrayMesh.new()
+		for si in mi.mesh.get_surface_count():
+			if mi.mesh.surface_get_primitive_type(si) != Mesh.PRIMITIVE_TRIANGLES: continue
+			var arr := mi.mesh.surface_get_arrays(si)
+			var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var ind: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+			if ind.is_empty():
+				ind.resize(v.size())
+				for i in v.size(): ind[i] = i
+			var w := PackedVector3Array(); w.resize(v.size())
+			for i in v.size(): w[i] = xf * v[i]
+			var sec := PackedInt32Array()
+			for t in ind.size() / 3:
+				var c := (w[ind[t * 3]] + w[ind[t * 3 + 1]] + w[ind[t * 3 + 2]]) / 3.0
+				if c.x < x0 or c.x > x1 or c.z < z0 or c.z > z1: continue
+				sec.append(ind[t * 3]); sec.append(ind[t * 3 + 1]); sec.append(ind[t * 3 + 2])
+			if sec.is_empty(): continue
+			var yeni_arr := arr.duplicate()
+			yeni_arr[Mesh.ARRAY_VERTEX] = w
+			var nb := xf.basis.orthonormalized()
+			if arr[Mesh.ARRAY_NORMAL] != null:
+				var n: PackedVector3Array = (arr[Mesh.ARRAY_NORMAL] as PackedVector3Array).duplicate()
+				for i in n.size(): n[i] = nb * n[i]
+				yeni_arr[Mesh.ARRAY_NORMAL] = n
+			if arr[Mesh.ARRAY_TANGENT] != null:
+				var tg: PackedFloat32Array = (arr[Mesh.ARRAY_TANGENT] as PackedFloat32Array).duplicate()
+				for i in tg.size() / 4:
+					var d := nb * Vector3(tg[i * 4], tg[i * 4 + 1], tg[i * 4 + 2])
+					tg[i * 4] = d.x; tg[i * 4 + 1] = d.y; tg[i * 4 + 2] = d.z
+				yeni_arr[Mesh.ARRAY_TANGENT] = tg
+			yeni_arr[Mesh.ARRAY_INDEX] = sec
+			yeni.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, yeni_arr)
+			yeni.surface_set_material(yeni.get_surface_count() - 1, mi.mesh.surface_get_material(si))
+		if yeni.get_surface_count() > 0: sonuc.append(yeni)
+	return sonuc
+
 # şehrin kenarlarına görünmez duvar: arabayla ya da yürüyerek boşluğa çıkılmaz
 func _sinir_duvarlari() -> void:
 	var g := StaticBody3D.new(); g.name = "SinirDuvarlari"; add_child(g)
@@ -169,29 +443,31 @@ func _sinir_duvarlari() -> void:
 	for d in [[Vector3(-117.5, 3, orta), Vector3(1, 8, boy)], [Vector3(37.5, 3, orta), Vector3(1, 8, boy)],
 			[Vector3(-40, 3, kuzey), Vector3(160, 8, 1)], [Vector3(-40, 3, 69.5), Vector3(160, 8, 1)]]:
 		var c := CollisionShape3D.new(); var b := BoxShape3D.new()
-		b.size = d[1]; c.shape = b; c.position = d[0]; g.add_child(c)
+		var boyut: Vector3 = d[1]; var yer: Vector3 = d[0]
+		b.size = Vector3(boyut.x * OLCEK, boyut.y, boyut.z * OLCEK); c.shape = b
+		c.position = Vector3(yer.x * OLCEK, yer.y, yer.z * OLCEK); g.add_child(c)
 
 
 # ---------------- Evden çıkış, arabaya biniş, kulübeye sürüş ----------------
 # Selim evin kapısından çıkar (sağ alt blok), kapının önünde park etmiş arabasına yürür, E ile biner.
 # Kuzeye sürer, ortadaki caddeden sola, sonra sağa döner; kulübenin önünde E ile iner.
 
-const KULUBE_PARK := Vector3(-58.0, 0.0, -77.0)
+const KULUBE_PARK := Vector3(-58.0, 0.0, -77.0) * OLCEK
 const PARK_YARICAP := 8.0
 const SATIRLAR := {
 	"araba1": ["res://sesler/selim_araba_01.mp3", "SELİM", "Her gece aynı yol... aynı lambalar."],
 	"araba2": ["res://sesler/selim_araba_02.mp3", "SELİM", "Bir şey olsun be. Bir şey..."],
-	"amir1": ["res://sesler/amir_01.mp3", "AMİR", "Alo, Selim? Kulübede misin?"],
+	"amir1": ["res://sesler/amir_01.mp3", "AMİR", "Alo, Selim?"],
 	"selim1": ["res://sesler/selim_01.mp3", "SELİM", "Buradayım abi, kulübeden ayrılmadım hiç."],
-	"amir2": ["res://sesler/amir_02.mp3", "AMİR", "Santralden bağladılar demin... Biri aradı, mazgal açık kalmış diyor. Yalan yok, arayanın sesi de aynı sen ha, bir an 'bu herif benimle kafa mı buluyor' dedim."],
+	"amir2": ["res://sesler/amir_02.mp3", "AMİR", "Kulübede misin? Santralden bağladılar demin... Biri aradı, mazgal açık kalmış diyor. Yalan yok, arayanın sesi de aynı sen ha, bir an 'bu herif benimle kafa mı buluyor' dedim."],
 	"selim2": ["res://sesler/selim_02.mp3", "SELİM", "Kim dalga geçecek seninle, başkasıdır o."],
 	"amir3": ["res://sesler/amir_03.mp3", "AMİR", "Çıkıver oradan iki adım, bakıver şuna. Çoluk çocuk geçiyor o yoldan, biri düşer eder Allah korusun, başımıza iş almayalım. Kapatıver kapağı da raporu düşelim sisteme."],
 	"selim3": ["res://sesler/selim_03.mp3", "SELİM", "Tamam, anladım; iki dakikaya gidip oturturum kapağı yerine. Başımıza iş açılmasın, halledip haber veririm sana."],
 	"mirilti": ["res://sesler/selim_05.mp3", "SELİM", "Kim açar ki bunu bu saatte..."],
 	"ses": ["res://sesler/selim_06.mp3", "SELİM", "Bu... bu ne sesi?"],
 	# iç ses: alp okuyunca sesler/ klasörüne bu adlarla konur; dosya yokken yalnız altyazı çıkar
-	"ic05": ["res://sesler/selim_ic_05.mp3", "SELİM", "Geldik. Yine bu kulübe."],
-	"ic06": ["res://sesler/selim_ic_06.mp3", "SELİM", "Kayıt açık... kim izleyecekse."],
+	"ic05": ["res://sesler/selim_ic_04b.mp3", "SELİM", "Geldik. Yine bu kulübe."],   # alp'in selim_ic_04 kaydının ikinci yarısı
+	"ic06": ["res://sesler/selim_ic_05.mp3", "SELİM", "Kayıt açık... kim izleyecekse."],   # alp bu satırı selim_ic_05 adıyla kaydetti
 	"ic07": ["res://sesler/selim_ic_07.mp3", "SELİM", "Kanalı kim değiştirdi şimdi..."],
 	"ic08": ["res://sesler/selim_ic_08.mp3", "SELİM", "Hadi bakalım. İki dakika."],
 	# 1. gece: kulübede bir şey olmaz, sabah olur, Selim eve döner
@@ -199,19 +475,19 @@ const SATIRLAR := {
 	"ic10": ["res://sesler/selim_ic_10.mp3", "SELİM", "Eve gidip biraz uyuyayım."],
 }
 ## Selim'in evinin önü: araba ilk gece buradan kalkar, eve dönünce buraya park edilir.
-const EV_PARK := Vector3(-14.0, 0.0, 30.0)
+const EV_PARK := Vector3(-11.2, 0.0, 25.5 * OLCEK)   # sağdaki kaldırıma yanaşık (kaldırım taşı x -9.75), sürücü kapısı yola bakar
 var eve_donus := false
 const Eller := preload("res://kod/eller.gd")
 const Govde := preload("res://kod/govde.gd")
-var govde: Govde       # Selim'in gövdesi: yalnızca gölgesi görünür
+var govde: Govde       # Selim'in gövdesi: aşağı bakınca görünür, başın yalnızca gölgesi
 const Kagit := preload("res://kod/kagit.gd")
 var _iz_son := Vector3(1e9, 0, 0)
 var _iz_sayi := 0
 var _iz_sol := false
 const Bodycam := preload("res://kod/bodycam.gd")
 const KONUSMA := ["amir1", "selim1", "amir2", "selim2", "amir3", "selim3"]
-# açık mazgalın yeri (kulübeden sola, caddenin ortası); alp'in açık mazgal modeli gelince buraya konur
-const MAZGAL := Vector3(-61.0, 0.0, -88.0)
+# açık mazgal: kulübeden sola, caddenin ortasında şehir modelinin kendi rögar kapaklarından biri (_mazgal_kur)
+const MAZGAL := Vector3(-55.887, 0.0, -87.044) * OLCEK
 
 var durum := "yuruyus"
 var dt_durum := 0.0
@@ -246,6 +522,8 @@ func _yolculuk_kur() -> void:
 	add_child(govde)
 	_arayuz_kur()
 	ses_selim = AudioStreamPlayer.new(); add_child(ses_selim)
+	# düşüşün sesleri önceden hazırlanır: en gergin anda takılma olmasın
+	_cokme_sesi(); _gumbur_sesi()
 	ses_kapi = AudioStreamPlayer3D.new(); ses_kapi.stream = _kapi_sesi(); ses_kapi.unit_size = 4.0; add_child(ses_kapi)
 	($Araba/Carpma as AudioStreamPlayer3D).stream = _kapi_sesi()
 	ses_yagmur = AudioStreamPlayer.new(); add_child(ses_yagmur)
@@ -285,14 +563,18 @@ func _kulubeden_basla() -> void:
 func _process(dt: float) -> void:
 	if Engine.is_editor_hint() or oyuncu == null: return
 	dt_durum += dt
+	_oyun_saati += dt
 	# gövde yürürken görünür (arabada, otururken, düşerken gizli)
 	govde.visible = (durum == "yuruyus" or durum == "mazgala" or durum == "kulube") and oyuncu.is_physics_processing()
 	if govde.visible:
+		govde.goz = oyuncu.BOY
+		govde.eller = eller
+		govde.gorunur = not Input.is_action_pressed("egil")
 		govde.guncelle(oyuncu.global_position, oyuncu.global_rotation.y, dt)
 	_physics_ugultu()
 	if durum != "dusus" and durum != "karanlik":
 		siyah.modulate.a = move_toward(siyah.modulate.a, 0.0, dt * 0.6)
-	if _altyazi_bitis > 0.0 and Time.get_ticks_msec() / 1000.0 > _altyazi_bitis:
+	if _altyazi_bitis > 0.0 and T_simdi() > _altyazi_bitis:
 		altyazi.visible = false; _altyazi_bitis = 0.0
 	_kulube_guncelle(dt)
 	if atmosfer:
@@ -423,7 +705,7 @@ func _park() -> void:
 	if dt_durum > 0.6 and not _soylenen.has("park_tik"):
 		_soylenen["park_tik"] = true
 		for i in 6:
-			get_tree().create_timer(0.8 + i * randf_range(0.5, 0.9)).timeout.connect(func() -> void:
+			get_tree().create_timer(0.8 + i * randf_range(0.5, 0.9), false).timeout.connect(func() -> void:
 				_kisa_ses(_tik_sesi(), araba.global_position + Vector3(0, 0.6, -1.8), randf_range(0.5, 0.8), -22.0))
 	if dt_durum > 1.2 and not _soylenen.has("ic05"): _soyle("ic05")
 	if dt_durum < 3.2: return
@@ -511,7 +793,7 @@ func _ipucu(metin: String, sure: float) -> void:
 	if sure > 0.0:
 		var bu := Time.get_ticks_msec() + int(sure * 1000.0)
 		_ipucu_bitis = bu
-		get_tree().create_timer(sure).timeout.connect(func() -> void:
+		get_tree().create_timer(sure, false).timeout.connect(func() -> void:
 			if _ipucu_bitis == bu and ipucu.text == metin: ipucu.text = "")
 
 func _soyle(anahtar: String) -> float:
@@ -525,12 +807,18 @@ func _soyle(anahtar: String) -> float:
 	altyazi.text = tr(s[1]) + ": " + tr(s[2])
 	var d := get_node_or_null("/root/Duraklat")
 	altyazi.visible = d == null or d.get("altyazi") != false
-	_altyazi_bitis = Time.get_ticks_msec() / 1000.0 + sure
+	_altyazi_bitis = T_simdi() + sure
 	return sure
 
 # kapı kapanma ve çarpma sesi: kısa, boğuk bir gümleme
 # taş ve beton parçalarıyla kenarın çökmesi
+## Ses bir kez üretilir, sonra saklanır (her seferinde yeniden üretmek o karede takılma yapıyordu).
+var _cokme_sesi_hazir: AudioStream
 func _cokme_sesi() -> AudioStream:
+	if _cokme_sesi_hazir == null: _cokme_sesi_hazir = _cokme_sesi_yap()
+	return _cokme_sesi_hazir
+
+func _cokme_sesi_yap() -> AudioStream:
 	for uz in ["ogg", "mp3", "wav"]:
 		if ResourceLoader.exists("res://sesler/cokme." + uz): return load("res://sesler/cokme." + uz)
 	var vurus := []
@@ -543,9 +831,16 @@ func _cokme_sesi() -> AudioStream:
 		return d + sin(TAU * 55.0 * t) * exp(-t * 4.0) * 0.5)
 
 # yere çarpma: tok, alçak bir gümbürtü
+## Ses bir kez üretilir, sonra saklanır (her seferinde yeniden üretmek o karede takılma yapıyordu).
+var _gumbur_sesi_hazir: AudioStream
 func _gumbur_sesi() -> AudioStream:
+	if _gumbur_sesi_hazir == null: _gumbur_sesi_hazir = _gumbur_sesi_yap()
+	return _gumbur_sesi_hazir
+
+func _gumbur_sesi_yap() -> AudioStream:
 	for uz in ["ogg", "mp3", "wav"]:
-		if ResourceLoader.exists("res://sesler/carpma." + uz): return load("res://sesler/carpma." + uz)
+		# carpma.mp3 rüyadaki araba kazası; düşüşün kendi sesi yere_carpma
+		if ResourceLoader.exists("res://sesler/yere_carpma." + uz): return load("res://sesler/yere_carpma." + uz)
 	return _wav_yap(1.2, func(t: float) -> float:
 		return sin(TAU * (70.0 - t * 30.0) * t) * exp(-t * 5.0) * 0.9 + (randf() * 2.0 - 1.0) * exp(-t * 18.0) * 0.5)
 
@@ -563,7 +858,13 @@ func _mars_sesi() -> AudioStream:
 func _kontak_sesi() -> AudioStreamWAV:
 	return _wav_yap(0.12, func(t: float) -> float: return (randf() * 2.0 - 1.0) * exp(-t * 90.0) * 0.6 + sin(TAU * 1800.0 * t) * exp(-t * 120.0) * 0.2)
 
+## Ses bir kez üretilir, sonra saklanır (her seferinde yeniden üretmek o karede takılma yapıyordu).
+var _kapi_sesi_hazir: AudioStreamWAV
 func _kapi_sesi() -> AudioStreamWAV:
+	if _kapi_sesi_hazir == null: _kapi_sesi_hazir = _kapi_sesi_yap()
+	return _kapi_sesi_hazir
+
+func _kapi_sesi_yap() -> AudioStreamWAV:
 	var hiz := 22050
 	var veri := PackedByteArray(); veri.resize(int(hiz * 0.45) * 2)
 	var dusuk := 0.0
@@ -662,7 +963,7 @@ func _kulube() -> void:
 			if _e_bak("bodycam", _k(BODYCAM_YERI), "Yaka kamerasını tak", 1.7):
 				_adim = 2
 				_k_zaman["bodycam"] = dt_durum
-				get_tree().create_timer(2.6).timeout.connect(func() -> void: if not _soylenen.has("ic06"): _soyle("ic06"))
+				get_tree().create_timer(2.6, false).timeout.connect(func() -> void: if not _soylenen.has("ic06"): _soyle("ic06"))
 				eller.uzan("sag", _k(BODYCAM_YERI) + Vector3(0, 0.05, 0), 0.7)
 		2:
 			var t := dt_durum - float(_k_zaman["bodycam"])
@@ -683,7 +984,16 @@ func _kulube() -> void:
 				_k_zaman["otur"] = dt_durum
 				_otur_bas = oyuncu_kamera.global_position
 		4:
-			_bekleme(dt_durum - float(_k_zaman["otur"]))
+			# oturunca önce bir sigara yakar, sonra TV'ye bakıp bekler
+			var t := dt_durum - float(_k_zaman["otur"])
+			if t < SIGARA_BAS or _sigara == null:
+				_bekleme(t)
+				return
+			if not _soylenen.has("sigara_kur"):
+				_soylenen["sigara_kur"] = true
+				_sigara.kur(oyuncu_kamera, eller, _sigara_paketi.global_position if _sigara_paketi else _k(SIGARA_PAKETI_YERI))
+			if not _sigara.oynat(t - SIGARA_BAS): return
+			_bekleme(t - Sigara.SURE)
 		6:
 			_vardiya_bitti(dt_durum - float(_k_zaman["vardiya"]))
 		5:
@@ -724,9 +1034,24 @@ func _vardiya_bitti(v: float) -> void:
 		eve_donus = true
 		_k_zaman.erase("kapi_kapan")   # kulübenin kapısı açılır
 		_soylenen.erase("kola_uzandi")
+		for a in ["kapi_acildi", "kapi_kapandi", "mars"]: _soylenen.erase(a)   # eve dönüşte araba kapısı yine açılsın
 		_ipucu("Arabana dön", 0.0)
 		_rota_i = 0
 		_gec("yuruyus")
+		_bodycam_birak()
+
+
+## 1. gece kulübeden çıkarken yaka kamerasını çıkarıp masaya bırakır; kayıt kapanır.
+## 2. gece takıp öyle gider.
+func _bodycam_birak() -> void:
+	eller.kamerada("sag", Vector3(0.12, -0.42, -0.12), 0.6)
+	get_tree().create_timer(0.7, false).timeout.connect(func() -> void:
+		eller.uzan("sag", _k(BODYCAM_YERI) + Vector3(0, 0.05, 0), 0.7))
+	get_tree().create_timer(1.3, false).timeout.connect(func() -> void:
+		if _bodycam_model: _bodycam_model.visible = true
+		_kisa_ses(_bip(), oyuncu.global_position + Vector3(0, 1.2, 0), 0.8, -8.0)
+		if bodycam and bodycam.acik: bodycam.kapat())
+	get_tree().create_timer(1.9, false).timeout.connect(func() -> void: eller.birak("sag", 0.6))
 
 
 ## Eve varınca: ekran kararır, ev sahnesi 2. gecenin rüyasıyla başlar.
@@ -850,18 +1175,65 @@ func _kulube_kur() -> void:
 	_ktv_kur()
 	# alp'in göndereceği eşyalar: dosyası varsa yerine konur
 	for e in KULUBE_ESYALARI:
-		if not ResourceLoader.exists(e[0]): continue
-		var n: Node3D = (load(e[0]) as PackedScene).instantiate()
+		var yol: String = e[0]
+		# sandalye alp'te indirildiği adıyla da durabilir
+		if not ResourceLoader.exists(yol) and yol.get_file() == "sandalye.glb":
+			yol = yol.get_base_dir() + "/game-ready_folding_chair.glb"
+			if not ResourceLoader.exists(yol): yol = "res://modeller2/game-ready_folding_chair.glb"
+		if not ResourceLoader.exists(yol): continue
+		var n: Node3D = (load(yol) as PackedScene).instantiate()
 		$Kulube.add_child(n)
 		n.position = e[1]; n.rotation_degrees.y = e[2]; n.scale = Vector3.ONE * float(e[3])
 		if str(e[0]).get_file().begins_with("bodycam"): _bodycam_model = n
 		if str(e[0]).get_file().begins_with("kul_tablasi"): _duman_kur(n.global_position + Vector3(0, 0.03, 0))
+	# masada sigara paketi; Selim oturunca bir tane yakar
+	_sigara_paketi = _model_koy(SIGARA_PAKETI, [], 0.0, SIGARA_PAKETI_YERI, 25.0)
+	if _sigara == null:
+		_sigara = Sigara.new()
+		add_child(_sigara)
+	# alp'in modeller2/modeller2'ye attığı eşyalar: masada yaka kamerası, termos ve çay bardağı
+	if _bodycam_model == null: _bodycam_model = _model_koy(YENI_MODELLER + "vintage_camera.glb", [], 0.0, BODYCAM_YERI, 90.0)
+	_model_koy(YENI_MODELLER + "rusty_canister_and_thermos.glb", ["Thermos_001_ThermosTX_001_0"], 0.30, Vector3(0.95, 1.14, -0.15), 0.0)
+	_model_koy(YENI_MODELLER + "coffee__tea_mugs_free (1).glb", ["Cups_Cup3_0", "Cups_Tea_0", "Cups_Tea Bag_0"], 0.10, Vector3(0.72, 1.14, -0.22), 30.0)
 	if eller == null:
 		eller = Eller.new()
 		oyuncu_kamera.add_child(eller)
 	_fener_m = _masa_esyasi(FENER_MODEL, FENER_BOY, FENER_YERI, FENER_DONUS)
 	_pil_m = _masa_esyasi(PIL_MODEL, PIL_BOY, PIL_YERI, PIL_DONUS)
 	_cizelge_kur()
+
+
+const YENI_MODELLER := "res://modeller2/modeller2/"
+const Sigara := preload("res://kod/sigara.gd")
+const SIGARA_PAKETI := "res://modeller2/seliminevi/sigara/sigara_paketi.gltf"
+const SIGARA_PAKETI_YERI := Vector3(0.62, 1.14, -0.62)
+const SIGARA_BAS := 2.0     # oturduktan kaç saniye sonra
+var _sigara: Node3D
+var _sigara_paketi: Node3D
+
+## Kulübeye dik duran eşya: modelin yalnızca `parcalar` adlı yüzeyleri kalır (boşsa hepsi), boyu `boy`
+## metre olur (0 ise modelin kendi ölçüsü), alt yüzünün ortası kulübedeki `yer`e oturur.
+func _model_koy(yol: String, parcalar: Array, boy: float, yer: Vector3, aci: float) -> Node3D:
+	if not ResourceLoader.exists(yol): return null
+	var kap := Node3D.new()
+	kap.name = yol.get_file().get_basename()
+	$Kulube.add_child(kap)
+	var n: Node3D = (load(yol) as PackedScene).instantiate()
+	kap.add_child(n)
+	var a := AABB(); var ilk := true
+	for m in n.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		if not parcalar.is_empty() and not (str(mi.name) in parcalar):
+			mi.queue_free()
+			continue
+		var b: AABB = n.global_transform.affine_inverse() * mi.global_transform * mi.get_aabb()
+		a = b if ilk else a.merge(b); ilk = false
+	var o := boy / maxf(a.size.y, 0.001) if boy > 0.0 else 1.0
+	n.scale = Vector3.ONE * o
+	n.position = -Vector3(a.get_center().x, a.position.y, a.get_center().z) * o
+	kap.position = yer
+	kap.rotation_degrees.y = aci
+	return kap
 
 
 ## Masaya konan eşya: modelin en uzun ekseni düğümün Z eksenine çevrilir, ortası düğümün merkezine
@@ -993,7 +1365,7 @@ var _ktv_ses: AudioStreamPlayer3D
 func _ktv_kur() -> void:
 	_ktv_vp = SubViewport.new()
 	_ktv_vp.size = Vector2i(320, 240)
-	_ktv_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_ktv_vp.render_target_update_mode = SubViewport.UPDATE_ONCE   # kapalıyken bir kez çizilir, sonra durur
 	add_child(_ktv_vp)
 	var zemin := ColorRect.new(); zemin.color = Color(0.02, 0.02, 0.03); zemin.size = Vector2(320, 240)
 	_ktv_vp.add_child(zemin)
@@ -1047,9 +1419,10 @@ void fragment() {
 
 func _kanal_degistir(kanal: String) -> void:
 	if kanal == "foto1" and not _soylenen.has("ic07"):
-		get_tree().create_timer(1.0).timeout.connect(func() -> void: _soyle("ic07"))
+		get_tree().create_timer(1.0, false).timeout.connect(func() -> void: _soyle("ic07"))
 		_soylenen["ic07"] = true
 	_ktv_kanal = kanal
+	_ktv_vp.render_target_update_mode = SubViewport.UPDATE_ONCE if kanal == "kapali" else SubViewport.UPDATE_ALWAYS
 	_ktv_foto.visible = kanal.begins_with("foto")
 	_ktv_cubuk.visible = kanal == "cubuk"
 	_ktv_kar.visible = kanal == "kar"
@@ -1156,14 +1529,16 @@ func _konusma() -> void:
 			oyuncu_kamera.transform = Transform3D.IDENTITY
 			_oyuncuyu_dondur(false)
 			_ipucu(GOREV_MAZGAL, 0.0)
-			get_tree().create_timer(1.0).timeout.connect(func() -> void: if not _soylenen.has("ic08"): _soyle("ic08"))
+			get_tree().create_timer(1.0, false).timeout.connect(func() -> void: if not _soylenen.has("ic08"): _soyle("ic08"))
 			_gec("mazgala")
 			return
 		_satir_bitis = T_simdi() + _soyle(KONUSMA[_konusma_sira]) + 0.3
 		_konusma_sira += 1
 
+## Oyun saati: Esc ile duraklatınca durur (gerçek saat dursaydı konuşmalar duraklamada ilerliyordu).
+var _oyun_saati := 0.0
 func T_simdi() -> float:
-	return Time.get_ticks_msec() / 1000.0
+	return _oyun_saati
 
 func _oyuncuyu_dondur(dur: bool) -> void:
 	oyuncu.set_physics_process(not dur)
@@ -1208,7 +1583,7 @@ func _gecici_ipucu(metin: String, sure: float) -> void:
 	ipucu.text = metin
 	var bu := Time.get_ticks_msec() + int(sure * 1000.0)
 	_ipucu_bitis = bu
-	get_tree().create_timer(sure).timeout.connect(func() -> void:
+	get_tree().create_timer(sure, false).timeout.connect(func() -> void:
 		if _ipucu_bitis == bu and ipucu.text == metin: ipucu.text = gorev if durum == "mazgala" else "")
 
 func _mazgala() -> void:
@@ -1375,20 +1750,17 @@ func _dusus(dt: float) -> void:
 		_ugultu_guc = 0.0
 		_gec("karanlik")
 
-# labirent Godot'a taşınınca buradan ona geçilecek; şimdilik kayıt kesilir ve ana menüye dönülür
+# düşüşten sonra kamera bir an kesilir; Selim −1 Arşiv'de, kuyunun dibinde uyanır
+const ARSIV := "res://sahneler/arsiv.tscn"
 func _karanlik() -> void:
 	siyah.modulate.a = 1.0
-	# kamera son bir kez açılıp karlanır, sonra kesilir
 	if bodycam and bodycam.acik and dt_durum > 1.2:
 		bodycam.kapat()
-	if dt_durum > 2.5 and not _soylenen.has("kesildi"):
-		_soylenen["kesildi"] = true
-		altyazi.text = "KAYIT KESİLDİ"
-		altyazi.visible = true
-		_altyazi_bitis = T_simdi() + 4.0
-	if dt_durum > 7.0:
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-		get_tree().change_scene_to_file("res://sahneler/baslangic.tscn")
+	if dt_durum > 4.0 and not _soylenen.has("arsiv"):
+		_soylenen["arsiv"] = true
+		var d := get_node_or_null("/root/Duraklat")
+		if d: d.yukle(ARSIV)
+		else: get_tree().change_scene_to_file(ARSIV)
 
 func _en_yakin_lamba(p: Vector3) -> SpotLight3D:
 	var en: SpotLight3D = null
@@ -1446,7 +1818,7 @@ func _zil_sesi() -> AudioStreamWAV:
 # ---------------- yol tarifi ----------------
 # Evden kulübeye: kuzeye düz, ortadaki caddeden sola, sonra sağa; kulübe sağda.
 # Kulübeden mazgala: tarif mazgalın yönünü ve uzaklığını söyler.
-const ROTA := [Vector3(-11.3, 0, 0.25), Vector3(-57.2, 0, 0.25), KULUBE_PARK]
+const ROTA := [Vector3(-11.3, 0, 0.25) * OLCEK, Vector3(-57.2, 0, 0.25) * OLCEK, KULUBE_PARK]
 var tarif: Label
 var _rota_i := 0
 
