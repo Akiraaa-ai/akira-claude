@@ -8,6 +8,9 @@ const SEHIR_DOSYALARI := ["res://modeller/sehir.glb", "res://modeller/Terrain Re
 @onready var sehir: Node3D = $Sehir
 # şehir modelinin derinliği; ikinci kopya bu kadar kuzeyde (dünyada -z) durur
 const SEHIR_BOY := 164.7771
+## Şehir modeli Selim'e göre küçük kalıyordu (kapılar Selim boyundaydı). Şehir bu oranda büyütülür;
+## Selim, arabalar ve kulübe gerçek boyunda kalır. Aşağıdaki dünya konumları ölçeksiz yazılıp bununla çarpılır.
+const OLCEK := 1.4
 
 func _ready() -> void:
 	for yol in SEHIR_DOSYALARI:
@@ -27,11 +30,16 @@ func _ready() -> void:
 		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		if m.mesh and not Engine.is_editor_hint(): m.create_trimesh_collision()
 	if Engine.is_editor_hint(): return
+	_kenarlari_doldur()
+	sehir.transform = Transform3D(Basis.from_scale(Vector3.ONE * OLCEK), Vector3.ZERO) * sehir.transform
+	for n: Node3D in [$Kulube, $Araba, $Selim]:
+		n.position = Vector3(n.position.x * OLCEK, n.position.y, n.position.z * OLCEK)
 	_guvenlik_zemini()
 	_sinir_duvarlari()
 	_park_arabalari.call_deferred()
 	_posta_kutusu()
 	_mazgal_kur()
+	_tabelalar()
 	if has_meta("arkaplan"): return   # ana menünün arkasındaki görüntü
 	_yolculuk_kur()
 
@@ -55,7 +63,7 @@ func _mazgal_kur() -> void:
 		var bulundu := false
 		for t in ind.size() / 3:
 			var c := (xf * v[ind[t * 3]] + xf * v[ind[t * 3 + 1]] + xf * v[ind[t * 3 + 2]]) / 3.0
-			if Vector2(c.x - MAZGAL.x, c.z - MAZGAL.z).length() > 0.7: continue
+			if Vector2(c.x - MAZGAL.x, c.z - MAZGAL.z).length() > 0.7 * OLCEK: continue
 			bulundu = true
 			for q in 3:
 				var w := xf * v[ind[t * 3 + q]]
@@ -70,7 +78,7 @@ func _mazgal_kur() -> void:
 		kapak.mesh = kapak_mesh
 		kapak.material_override = mat
 		add_child(kapak)
-		kapak.global_position = MAZGAL + Vector3(0.66, 0.012, 0.3)
+		kapak.global_position = MAZGAL + Vector3(0.66 * OLCEK, 0.012, 0.3 * OLCEK)
 		kapak.rotation.y = 0.55
 		# kapağın yerinde kuyunun karanlığı (aynı yuvarlak maske, ışık ve sis almaz)
 		var kara := mat.duplicate() as BaseMaterial3D
@@ -142,7 +150,7 @@ func _park_arabalari() -> void:
 			if not paketler.has(m[0]): continue
 			var kaynak := (paketler[m[0]] as Node).find_child(m[1], true, false) as Node3D
 			if kaynak == null: continue
-			var yer := Vector3(p[0], 0.0, float(p[1]) + kopya)
+			var yer := Vector3(p[0], 0.0, float(p[1]) + kopya) * OLCEK
 			var h := _zemin_y(uzay, yer, park_govde)
 			if is_nan(h): continue
 			yer.y = h
@@ -211,11 +219,99 @@ func _arac_koy(kaynak: Node3D, kok: Node, yer: Vector3, aci: float, ana: Node3D,
 	tut.position = yer - tut.basis * alt
 	for mi in tut.find_children("*", "MeshInstance3D", true, false):
 		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		for i in (mi as MeshInstance3D).mesh.get_surface_count():
+			var mat := (mi as MeshInstance3D).get_active_material(i) as StandardMaterial3D
+			if mat and mat.albedo_texture: (mi as MeshInstance3D).set_surface_override_material(i, _koyu_cam(mat, (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()))
 	# çarpışma: aracın kutusu
 	var cs := CollisionShape3D.new(); var b := BoxShape3D.new()
 	b.size = kutu.size; cs.shape = b
 	cs.transform = Transform3D(tut.basis, tut.position + tut.basis * kutu.get_center())
 	park_govde.add_child(cs)
+
+# Araç paketlerinde camlar ya dokunun yarı saydam pikselleri ya da aracın üst yarısındaki düz gri yüzeyler.
+# İçleri görünmesin diye (alp) bunlar koyu ve parlak boyanır; "bel" camların alt hizasıdır (dünya yüksekliği).
+const KOYU_CAM_SHADER := """shader_type spatial;
+uniform sampler2D doku : source_color, filter_linear_mipmap;
+uniform float puruz = 0.6;
+uniform float bel = 0.0;
+uniform float gri_ust = 0.85;   // beyaz gövdeli araçlarda cam gövdeden koyu gridir; açık gri gövde cam sayılmaz
+varying float yukseklik;
+varying float dikey;
+void vertex() { yukseklik = (MODEL_MATRIX * vec4(VERTEX, 1.0)).y; dikey = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz).y; }
+void fragment() {
+	vec4 c = texture(doku, UV);
+	float gri = step(max(c.r, max(c.g, c.b)) - min(c.r, min(c.g, c.b)), 0.07) * step(0.3, c.g) * step(c.g, gri_ust);
+	float cam = max(1.0 - step(0.97, c.a), gri * step(bel, yukseklik) * step(dikey, 0.85));
+	ALBEDO = mix(c.rgb, vec3(0.012, 0.014, 0.018), cam);
+	ROUGHNESS = mix(puruz, 0.06, cam);
+	SPECULAR = mix(0.5, 0.9, cam);
+}
+"""
+var _cam_shader: Shader
+func _koyu_cam(mat: StandardMaterial3D, kutu: AABB) -> ShaderMaterial:
+	if _cam_shader == null:
+		_cam_shader = Shader.new(); _cam_shader.code = KOYU_CAM_SHADER
+	var m := ShaderMaterial.new(); m.shader = _cam_shader
+	m.set_shader_parameter("doku", mat.albedo_texture)
+	m.set_shader_parameter("puruz", mat.roughness)
+	m.set_shader_parameter("bel", kutu.position.y + kutu.size.y * 0.55)
+	var ad := mat.resource_name
+	m.set_shader_parameter("gri_ust", 0.5 if ad.contains("white") or ad.begins_with("van") else 0.85)
+	return m
+
+# alp'in yol tabelası paketi: direk ve üstündeki levha(lar) birlikte, kaldırımlara dikilir.
+const TABELA_PAKETI := "res://şehir/road_signs_asset_pack__australian_american.glb"
+const TABELA_OLCEK := 0.27   # paketin direği 11 birim; gerçek direk 3 m
+## [direk, levhalar] paketteki adlarıyla
+const TABELA_TAKIMLARI := [
+	["Post_001_53", ["Sign_058_51"]], ["Post_002_54", ["Sign_256_56"]], ["Post_003_55", ["Sign_059_52"]],
+	["Post_074_58", ["Sign_257_57"]], ["Post_036_66", ["Sign_027_59", "Sign_141_64"]],
+	["Post_037_67", ["Sign_017_61", "Sign_142_65"]], ["Post_038_68", ["Sign_028_60"]],
+]
+## [takım, dünya konumu (ölçekli şehirde kaldırım), levhanın baktığı yön (yaw derece)]
+const TABELALAR := [
+	[0, Vector3(-9.0, 0, 9.5), 0.0],       # evin sokağı, kavşaktan önce sağda (kuzeye giden sürücüye bakar)
+	[4, Vector3(-36.0, 0, -5.3), 90.0],    # orta cadde, batıya giderken sağda
+	[1, Vector3(-62.0, 0, -5.3), 90.0],
+	[5, Vector3(-70.8, 0, -8.0), 0.0],     # kulübeye dönülen kavşak
+	[2, Vector3(-70.8, 0, -60.0), 0.0],
+	[6, Vector3(-26.0, 0, 30.0), 180.0],   # evin karşı kaldırımı
+	[3, Vector3(-16.0, 0, -12.0), 180.0],
+]
+func _tabelalar() -> void:
+	if not ResourceLoader.exists(TABELA_PAKETI) or has_node("Tabelalar"): return
+	var paket := (load(TABELA_PAKETI) as PackedScene).instantiate() as Node3D
+	add_child(paket)   # dünya dönüşümü okunabilsin diye bir an sahneye girer
+	var ana := Node3D.new(); ana.name = "Tabelalar"; add_child(ana)
+	var govde := StaticBody3D.new(); ana.add_child(govde)
+	for t in TABELALAR:
+		var takim: Array = TABELA_TAKIMLARI[t[0]]
+		var direk := paket.find_child(takim[0], true, false) as Node3D
+		if direk == null: continue
+		var dk := _dugum_kutusu(direk)
+		# direğin dibi tabelanın başlangıcı; levhalar direğe göre yerinde kalır
+		var taban := Vector3(dk.get_center().x, dk.position.y, dk.get_center().z)
+		# paketteki levhaların yüzü +x'e bakar; -90 ile +z'ye çevrilir, sonra istenen yöne
+		var yer := Transform3D(Basis(Vector3.UP, deg_to_rad(float(t[2]) - 90.0)).scaled(Vector3.ONE * TABELA_OLCEK), t[1])
+		for ad in [takim[0]] + takim[1]:
+			var d := paket.find_child(ad, true, false) as Node3D
+			if d == null: continue
+			for mi in d.find_children("*", "MeshInstance3D", true, false) + ([d] if d is MeshInstance3D else []):
+				var k := MeshInstance3D.new()
+				k.mesh = (mi as MeshInstance3D).mesh
+				ana.add_child(k)
+				k.global_transform = yer * Transform3D(Basis(), -taban) * (mi as MeshInstance3D).global_transform
+		var c := CollisionShape3D.new(); var b := CylinderShape3D.new()
+		b.radius = 0.06; b.height = 3.0; c.shape = b; c.position = t[1] + Vector3(0, 1.5, 0)
+		govde.add_child(c)
+	paket.queue_free()
+
+func _dugum_kutusu(n: Node3D) -> AABB:
+	var kutu := AABB(); var ilk := true
+	for mi in n.find_children("*", "MeshInstance3D", true, false) + ([n] if n is MeshInstance3D else []):
+		var k: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()
+		kutu = k if ilk else kutu.merge(k); ilk = false
+	return kutu
 
 # Kulübenin masasında iki katlı evrak/mektup sepeti (alp'in double_letter_box modeli)
 const POSTA_KUTUSU := "res://modeller2/klübe/double_letter_box.glb"
@@ -249,6 +345,91 @@ func _physics_process(_dt: float) -> void:
 	elif o.global_position.y < -6.0:
 		o.global_position = _son_guvenli + Vector3(0, 0.3, 0); o.velocity = Vector3.ZERO
 
+# Şehrin dış yollarının ötesi boştu (alp: "binalar olsun ki gidilmesin", "karanlık kalmasın").
+# Oraya şehrin kendi bloklarının kopyaları dizilir: binalar, kaldırımlar, direkler ve lambaların ışığı.
+# Bloklar şehrin ilk kopyasında, ölçeksiz dünya koordinatında [x0, x1, z0, z1] (test/_ust_bak.gd üstten görünüşüyle ölçüldü).
+const BLOK_A := [-106.3, -66.2, -84.2, -3.2]   # batı sütununun kuzey bloğu
+const BLOK_C := [-11.9, 25.4, -84.2, -3.2]     # doğu sütununun kuzey bloğu
+const SEHIR_BATI := -117.4
+const SEHIR_DOGU := 37.05
+const SEHIR_GUNEY := 69.2
+const KENAR_PAY := 3.5   # lamba kolları yola taştığı için blok bu kadar geniş alınır
+func _kenarlari_doldur() -> void:
+	if has_node("Kenarlar") or sehir.get_child_count() == 0: return
+	var kaynak := sehir.get_child(0)
+	var parcalar := {}
+	for b in [BLOK_A, BLOK_C]: parcalar[b] = _blok_kes(kaynak, b)
+	var kenar := Node3D.new(); kenar.name = "Kenarlar"; add_child(kenar)
+	kenar.scale = Vector3.ONE * OLCEK
+	var kuzey := -95.3 - SEHIR_BOY
+	var blok_boy := 81.0
+	var yerler := []   # [blok, kayma]
+	# batı ve doğu: kuzeyin ötesinden güneyin ötesine kadar bloklar art arda
+	for i in 6:
+		var dz := kuzey - blok_boy - BLOK_A[2] + blok_boy * i
+		yerler.append([BLOK_C, Vector3(SEHIR_BATI - BLOK_C[1], 0, dz)])
+		yerler.append([BLOK_A, Vector3(SEHIR_DOGU - BLOK_A[0], 0, dz)])
+	# güney ve kuzey: batıdan doğuya A ve C sırayla
+	var x := SEHIR_BATI
+	var sira := 0
+	while x < SEHIR_DOGU:
+		var b: Array = BLOK_A if sira % 2 == 0 else BLOK_C
+		yerler.append([b, Vector3(x - b[0], 0, SEHIR_GUNEY - b[2])])
+		yerler.append([b, Vector3(x - b[0], 0, kuzey - b[3])])
+		x += b[1] - b[0]
+		sira += 1
+	var lambalar := $Lambalar
+	for y in yerler:
+		for m: Mesh in parcalar[y[0]]:
+			var mi := MeshInstance3D.new(); mi.mesh = m; mi.position = y[1]
+			kenar.add_child(mi)
+		if lambalar.has_method("kopya_lambalar"): lambalar.kopya_lambalar(y[0], KENAR_PAY, y[1])
+
+## kaynak şehrin bir bloğunun üçgenlerini (merkezi dikdörtgenin içindekiler) ölçeksiz dünya konumunda yeni meshlere kopyalar
+func _blok_kes(kaynak: Node, b: Array) -> Array:
+	var sonuc := []
+	for m in kaynak.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		if not (mi.mesh is ArrayMesh): continue
+		var pay := 0.3 if str(mi.name).begins_with("Plane") else KENAR_PAY
+		var x0: float = b[0] - pay; var x1: float = b[1] + pay; var z0: float = b[2] - pay; var z1: float = b[3] + pay
+		var xf := mi.global_transform
+		var yeni := ArrayMesh.new()
+		for si in mi.mesh.get_surface_count():
+			if mi.mesh.surface_get_primitive_type(si) != Mesh.PRIMITIVE_TRIANGLES: continue
+			var arr := mi.mesh.surface_get_arrays(si)
+			var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var ind: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+			if ind.is_empty():
+				ind.resize(v.size())
+				for i in v.size(): ind[i] = i
+			var w := PackedVector3Array(); w.resize(v.size())
+			for i in v.size(): w[i] = xf * v[i]
+			var sec := PackedInt32Array()
+			for t in ind.size() / 3:
+				var c := (w[ind[t * 3]] + w[ind[t * 3 + 1]] + w[ind[t * 3 + 2]]) / 3.0
+				if c.x < x0 or c.x > x1 or c.z < z0 or c.z > z1: continue
+				sec.append(ind[t * 3]); sec.append(ind[t * 3 + 1]); sec.append(ind[t * 3 + 2])
+			if sec.is_empty(): continue
+			var yeni_arr := arr.duplicate()
+			yeni_arr[Mesh.ARRAY_VERTEX] = w
+			var nb := xf.basis.orthonormalized()
+			if arr[Mesh.ARRAY_NORMAL] != null:
+				var n: PackedVector3Array = (arr[Mesh.ARRAY_NORMAL] as PackedVector3Array).duplicate()
+				for i in n.size(): n[i] = nb * n[i]
+				yeni_arr[Mesh.ARRAY_NORMAL] = n
+			if arr[Mesh.ARRAY_TANGENT] != null:
+				var tg: PackedFloat32Array = (arr[Mesh.ARRAY_TANGENT] as PackedFloat32Array).duplicate()
+				for i in tg.size() / 4:
+					var d := nb * Vector3(tg[i * 4], tg[i * 4 + 1], tg[i * 4 + 2])
+					tg[i * 4] = d.x; tg[i * 4 + 1] = d.y; tg[i * 4 + 2] = d.z
+				yeni_arr[Mesh.ARRAY_TANGENT] = tg
+			yeni_arr[Mesh.ARRAY_INDEX] = sec
+			yeni.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, yeni_arr)
+			yeni.surface_set_material(yeni.get_surface_count() - 1, mi.mesh.surface_get_material(si))
+		if yeni.get_surface_count() > 0: sonuc.append(yeni)
+	return sonuc
+
 # şehrin kenarlarına görünmez duvar: arabayla ya da yürüyerek boşluğa çıkılmaz
 func _sinir_duvarlari() -> void:
 	var g := StaticBody3D.new(); g.name = "SinirDuvarlari"; add_child(g)
@@ -258,14 +439,16 @@ func _sinir_duvarlari() -> void:
 	for d in [[Vector3(-117.5, 3, orta), Vector3(1, 8, boy)], [Vector3(37.5, 3, orta), Vector3(1, 8, boy)],
 			[Vector3(-40, 3, kuzey), Vector3(160, 8, 1)], [Vector3(-40, 3, 69.5), Vector3(160, 8, 1)]]:
 		var c := CollisionShape3D.new(); var b := BoxShape3D.new()
-		b.size = d[1]; c.shape = b; c.position = d[0]; g.add_child(c)
+		var boyut: Vector3 = d[1]; var yer: Vector3 = d[0]
+		b.size = Vector3(boyut.x * OLCEK, boyut.y, boyut.z * OLCEK); c.shape = b
+		c.position = Vector3(yer.x * OLCEK, yer.y, yer.z * OLCEK); g.add_child(c)
 
 
 # ---------------- Evden çıkış, arabaya biniş, kulübeye sürüş ----------------
 # Selim evin kapısından çıkar (sağ alt blok), kapının önünde park etmiş arabasına yürür, E ile biner.
 # Kuzeye sürer, ortadaki caddeden sola, sonra sağa döner; kulübenin önünde E ile iner.
 
-const KULUBE_PARK := Vector3(-58.0, 0.0, -77.0)
+const KULUBE_PARK := Vector3(-58.0, 0.0, -77.0) * OLCEK
 const PARK_YARICAP := 8.0
 const SATIRLAR := {
 	"araba1": ["res://sesler/selim_araba_01.mp3", "SELİM", "Her gece aynı yol... aynı lambalar."],
@@ -288,7 +471,7 @@ const SATIRLAR := {
 	"ic10": ["res://sesler/selim_ic_10.mp3", "SELİM", "Eve gidip biraz uyuyayım."],
 }
 ## Selim'in evinin önü: araba ilk gece buradan kalkar, eve dönünce buraya park edilir.
-const EV_PARK := Vector3(-17.0, 0.0, 30.0)   # sol kaldırıma yanaşık (kaldırım x -18.25)
+const EV_PARK := Vector3(-11.2, 0.0, 25.5 * OLCEK)   # sağdaki kaldırıma yanaşık (kaldırım taşı x -9.75), sürücü kapısı yola bakar
 var eve_donus := false
 const Eller := preload("res://kod/eller.gd")
 const Govde := preload("res://kod/govde.gd")
@@ -300,7 +483,7 @@ var _iz_sol := false
 const Bodycam := preload("res://kod/bodycam.gd")
 const KONUSMA := ["amir1", "selim1", "amir2", "selim2", "amir3", "selim3"]
 # açık mazgal: kulübeden sola, caddenin ortasında şehir modelinin kendi rögar kapaklarından biri (_mazgal_kur)
-const MAZGAL := Vector3(-55.887, 0.0, -87.044)
+const MAZGAL := Vector3(-55.887, 0.0, -87.044) * OLCEK
 
 var durum := "yuruyus"
 var dt_durum := 0.0
@@ -1630,7 +1813,7 @@ func _zil_sesi() -> AudioStreamWAV:
 # ---------------- yol tarifi ----------------
 # Evden kulübeye: kuzeye düz, ortadaki caddeden sola, sonra sağa; kulübe sağda.
 # Kulübeden mazgala: tarif mazgalın yönünü ve uzaklığını söyler.
-const ROTA := [Vector3(-11.3, 0, 0.25), Vector3(-57.2, 0, 0.25), KULUBE_PARK]
+const ROTA := [Vector3(-11.3, 0, 0.25) * OLCEK, Vector3(-57.2, 0, 0.25) * OLCEK, KULUBE_PARK]
 var tarif: Label
 var _rota_i := 0
 

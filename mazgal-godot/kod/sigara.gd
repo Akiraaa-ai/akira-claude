@@ -7,10 +7,20 @@ const SIGARA_MODEL := "res://modeller2/modeller2/cigarette.glb"
 const CAKMAK_MODEL := "res://modeller2/modeller2/lighter.glb"
 const SIGARA_BOY := 0.085
 const SURE := 21.0
-# sigaranın dudaklardaki yeri (kamera uzayında)
-const AGIZ := Vector3(0.012, -0.062, -0.085)
+# sigaranın filtresinin dudaklardaki yeri ve ucunun baktığı yön (kamera uzayında): yalnızca ucu görünür
+const DUDAK := Vector3(0.006, -0.07, -0.085)
+const AGIZ_YONU := Vector3(0.06, -0.06, -1.0)
+# elde dururken: sağ elde aşağıda, ucu sağa ve öne bakar
+const ELDE := Vector3(0.1, -0.15, -0.27)
+const ELDE_YONU := Vector3(0.55, 0.2, -0.8)
 # nefesler: [elin ağza geldiği an, dumanın üflendiği an]
 const NEFESLER := [[9.0, 11.2], [14.5, 16.7]]
+# sigara işaret ve orta parmağın arasında: el çerçevesinde (eller.gd: y parmaklar, z avuç), ucu avucun tersine.
+# Modelin boyu x ekseni, ucu +x.
+const SIGARA_TUTUS := Transform3D(Basis(Vector3(0, 0, -1), Vector3(0, 1, 0), Vector3(1, 0, 0)), Vector3(0.012, 0.118, -0.014))
+# çakmak sol yumruğun içinde dik durur, üstü başparmağın yanından çıkar (sol elde başparmak -x'te).
+# Modelin kökü altı, boyu +y; geniş yüzü avuca bakar.
+const CAKMAK_TUTUS := Transform3D(Basis(Vector3(0, 1, 0), Vector3(-1, 0, 0), Vector3(0, 0, 1)), Vector3(0.0, 0.072, 0.024))
 
 var kamera: Camera3D
 var eller: Node
@@ -21,6 +31,7 @@ var _cakmak: Node3D
 var _koz: OmniLight3D
 var _koz_parca: GPUParticles3D
 var _alev: OmniLight3D
+var _alev_parca: GPUParticles3D
 var _duman: GPUParticles3D
 var _ufle: GPUParticles3D
 var _ses: AudioStreamPlayer
@@ -43,6 +54,45 @@ func kur(k: Camera3D, e: Node, p: Vector3) -> void:
 	_koz_parca.emitting = false
 	_koz.light_energy = 0.0
 	_alev.light_energy = 0.0
+	_alev_parca.emitting = false
+	process_priority = 10     # eller.gd'den sonra: eldeki sigara elin bu karedeki yerine gelir
+
+
+## Sigaranın kamera uzayındaki yeri: filtresi "filtre"de, ucu "uc_yonu"ne bakar. Modelin y'si
+## (eldeyken parmakların yönü) "parmak"a yakın durur.
+func _sigara_xf(filtre: Vector3, uc_yonu: Vector3, parmak: Vector3) -> Transform3D:
+	var x := uc_yonu.normalized()
+	var y := (parmak - x * parmak.dot(x)).normalized()
+	return Transform3D(Basis(x, y, x.cross(y)), filtre + x * SIGARA_BOY * 0.5)
+
+
+func _agizda_xf() -> Transform3D:
+	return _sigara_xf(DUDAK, AGIZ_YONU, Vector3(-0.6, 1.0, 0.0))
+
+
+func _elde_xf() -> Transform3D:
+	return Transform3D(_sigara_xf(ELDE, ELDE_YONU, Vector3(-0.25, 1.0, -0.2)).basis, ELDE)
+
+
+# sağ el sigarayı dudaklarına götürür / aşağı indirir
+func _agza(sure: float) -> void:
+	eller.esyayla("sag", _agizda_xf(), SIGARA_TUTUS, sure)
+	eller.yumruk("sag", 0.3, 0.35)
+
+
+func _indir(sure: float) -> void:
+	eller.esyayla("sag", _elde_xf(), SIGARA_TUTUS, sure)
+	eller.yumruk("sag", 0.4, 0.4)
+
+
+# çakmak: alevi sigaranın ucunun hemen altında
+func _cakmak_xf() -> Transform3D:
+	var agiz := _agizda_xf()
+	var uc := agiz.origin + agiz.basis.x * SIGARA_BOY * 0.5
+	var y := Vector3(0.45, 1.0, 0.15).normalized()
+	var z := Vector3(1.0, 0.0, 0.25)
+	z = (z - y * z.dot(y)).normalized()
+	return Transform3D(Basis(y.cross(z), y, z), uc - y * 0.074)
 
 
 func _bir_kez(ad: String, t: float, an: float) -> bool:
@@ -53,24 +103,28 @@ func _bir_kez(ad: String, t: float, an: float) -> bool:
 
 func oynat(t: float) -> bool:
 	# paketten bir sigara alır, dudaklarına götürür
-	if _bir_kez("uzan", t, 0.0): eller.uzan("sag", paket + Vector3(0, 0.05, 0), 0.6)
+	if _bir_kez("uzan", t, 0.0):
+		eller.uzan("sag", paket + Vector3(0, 0.05, 0), 0.6)
+		eller.yumruk("sag", 0.3, 0.3)
 	if _bir_kez("al", t, 0.75):
 		_durum = "elde"
 		_sigara.visible = true
 		_ses_cal("paket", -14.0)
-		eller.kamerada("sag", AGIZ + Vector3(0.02, -0.03, -0.06), 0.6)
-		eller.yumruk("sag", 0.8)
+		_agza(0.7)
 	if _bir_kez("agiza", t, 1.45):
 		_durum = "agizda"
-		eller.birak("sag", 0.5)
-	# çakmak: sol el yüzün önüne gelir, çakar, alev sigaranın ucunu yakar
-	if _bir_kez("cakmak", t, 1.7):
+		eller.birak("sag", 0.6)
+	# çakmak: sol el yüzün önüne gelir, başparmak çarkı çevirir, alev sigaranın ucunu yakar
+	if _bir_kez("cakmak", t, 1.6):
 		_cakmak.visible = true
-		eller.kamerada("sol", AGIZ + Vector3(0.0, -0.075, -0.07), 0.5)
-		eller.yumruk("sol", 0.7)
-	if _bir_kez("cak", t, 2.4): _ses_cal("cakmak", -6.0)
+		eller.esyayla("sol", _cakmak_xf(), CAKMAK_TUTUS, 0.7)
+		eller.yumruk("sol", 0.9, 0.15)
+	if _bir_kez("cak", t, 2.4):
+		_ses_cal("cakmak", -6.0)
+		eller.yumruk("sol", 0.9, 0.55)
 	var alev := t > 2.45 and t < 3.9
 	_alev.light_energy = (0.5 + 0.25 * sin(t * 47.0) + 0.1 * sin(t * 83.0)) if alev else 0.0
+	_alev_parca.emitting = alev
 	if _bir_kez("yandi", t, 2.9):
 		_duman.emitting = true
 		_koz_parca.emitting = true
@@ -78,22 +132,23 @@ func oynat(t: float) -> bool:
 		_nefes_cek()
 	if _bir_kez("cakmak_birak", t, 3.95):
 		eller.birak("sol", 0.6)
-	if _bir_kez("cakmak_cep", t, 4.6): _cakmak.visible = false
+		eller.yumruk("sol", 0.9, 0.3)
+	if _bir_kez("cakmak_cep", t, 4.55):
+		_cakmak.visible = false
+		eller.yumruk("sol", 0.0)
 	# ilk nefes: yakarken çekilir, sonra üflenir
 	var cekis := smoothstep(2.9, 3.4, t) * (1.0 - smoothstep(4.4, 4.9, t))
 	if _bir_kez("ufle0", t, 5.2): _ufle_bas()
 	# sigarayı dudaklarından alır, elinde tutar
-	if _bir_kez("elde0", t, 6.2):
-		eller.kamerada("sag", AGIZ + Vector3(0.0, -0.02, -0.03), 0.4)
-		eller.yumruk("sag", 0.8)
+	if _bir_kez("elde0", t, 5.9): _agza(0.7)
 	if _bir_kez("indir0", t, 6.6):
 		_durum = "elde"
-		eller.kamerada("sag", Vector3(0.13, -0.2, -0.36), 0.9)
+		_indir(0.9)
 	for i in NEFESLER.size():
 		var n: Array = NEFESLER[i]
 		var a := float(n[0])
 		var u := float(n[1])
-		if _bir_kez("kaldir%d" % i, t, a - 0.8): eller.kamerada("sag", AGIZ + Vector3(0.0, -0.02, -0.03), 0.8)
+		if _bir_kez("kaldir%d" % i, t, a - 0.8): _agza(0.8)
 		if _bir_kez("cek%d" % i, t, a):
 			_durum = "agizda"
 			_ses_cal("sigara_cek", -10.0)
@@ -101,7 +156,7 @@ func oynat(t: float) -> bool:
 		cekis = maxf(cekis, smoothstep(a, a + 0.4, t) * (1.0 - smoothstep(u - 1.0, u - 0.5, t)))
 		if _bir_kez("indir%d" % (i + 1), t, u - 0.6):
 			_durum = "elde"
-			eller.kamerada("sag", Vector3(0.13, -0.2, -0.36), 0.8)
+			_indir(0.8)
 		if _bir_kez("ufle%d" % (i + 1), t, u): _ufle_bas()
 	# son: sigara elde aşağıda kalır, el iner (söndürülmüş sayılır)
 	if _bir_kez("son", t, SURE - 1.6):
@@ -138,16 +193,16 @@ func _zaman() -> float:
 
 func _process(dt: float) -> void:
 	if kamera == null or _sigara == null: return
-	var cevir := Basis(Vector3.UP, PI * 0.5)   # modelin boyu x ekseni: kameranın önüne bakar
 	match _durum:
 		"agizda":
-			_sigara.global_transform = kamera.global_transform * Transform3D(cevir, AGIZ)
+			_sigara.global_transform = kamera.global_transform * _agizda_xf()
 		"elde":
-			var avuc: Vector3 = eller.avuc("sag")
-			_sigara.global_transform = Transform3D(kamera.global_basis * Basis(Vector3.UP, PI * 0.35) * Basis(Vector3.RIGHT, -0.4), avuc)
+			# işaret ve orta parmağın arasında, elle birlikte döner
+			_sigara.global_transform = eller.cerceve("sag") * SIGARA_TUTUS
 	if _cakmak.visible:
-		_cakmak.global_transform = Transform3D(kamera.global_basis, eller.avuc("sol") + kamera.global_basis.y * 0.01)
-		_alev.global_position = _cakmak.global_position + kamera.global_basis.y * 0.075
+		_cakmak.global_transform = eller.cerceve("sol") * CAKMAK_TUTUS
+		_alev.global_position = _cakmak.global_transform * Vector3(0, 0.071, 0)
+		_alev_parca.global_position = _alev.global_position
 	# köz: nefes çekerken parlar
 	var hedef := 0.08 + 0.55 * _cekis if _koz_parca.emitting else 0.0
 	_koz.light_energy = move_toward(_koz.light_energy, hedef, dt * 3.0)
@@ -166,8 +221,10 @@ func _parcalari_kur() -> void:
 		_sigara.add_child(m)
 		var a := _kutu(m)
 		var o := SIGARA_BOY / maxf(a.size.x, 0.001)
-		m.scale = Vector3.ONE * o
-		m.position = -a.get_center() * o
+		# model gerçek sigaradan kalın: boyu 8.5 cm iken kalınlığı 8 mm'ye inceltilir
+		var ince := clampf(0.008 / maxf((a.size.y + a.size.z) * 0.5 * o, 0.001), 0.4, 1.0)
+		m.scale = Vector3(o, o * ince, o * ince)
+		m.position = -a.get_center() * m.scale
 	_cakmak = Node3D.new()
 	_cakmak.name = "Cakmak"
 	add_child(_cakmak)
@@ -206,6 +263,14 @@ func _parcalari_kur() -> void:
 	_alev.omni_range = 1.6
 	_alev.light_energy = 0.0
 	add_child(_alev)
+	# çakmağın küçük alevi: parlak, yukarı kısa ömürlü kıvılcımlar
+	_alev_parca = _parcacik(24, 0.16, 0.011, Color(1.0, 0.6, 0.2, 1.0), true)
+	var am := _alev_parca.process_material as ParticleProcessMaterial
+	am.initial_velocity_min = 0.05; am.initial_velocity_max = 0.09
+	am.gravity = Vector3(0, 0.12, 0)
+	am.turbulence_enabled = false
+	am.scale_min = 0.6; am.scale_max = 1.0
+	add_child(_alev_parca)
 	_ses = AudioStreamPlayer.new()
 	add_child(_ses)
 
@@ -269,11 +334,16 @@ func _kutu(n: Node3D) -> AABB:
 # ---------------------------------------------------------------- sesler
 ## res://sesler/<ad>.mp3 ya da .ogg varsa o çalar; yoksa yedek ses üretilir.
 var _sesler := {}
+# alp'in sigara klasöründeki kayıtlar: varsa önce bunlar çalar
+const OZEL_SESLER := {"cakmak": "res://modeller2/seliminevi/sigara/sigara ve çakmak sesi.mp3",
+	"duman_ufle": "res://modeller2/seliminevi/sigara/üfleme.mp3"}
 
 func _ses_cal(ad: String, db: float) -> void:
 	if not _sesler.has(ad):
 		var akis: AudioStream = null
+		if OZEL_SESLER.has(ad) and ResourceLoader.exists(OZEL_SESLER[ad]): akis = load(OZEL_SESLER[ad])
 		for uz in ["mp3", "ogg", "wav"]:
+			if akis: break
 			var yol := "res://sesler/%s.%s" % [ad, uz]
 			if ResourceLoader.exists(yol):
 				akis = load(yol)

@@ -147,6 +147,7 @@ func _ready() -> void:
 	_paketler.clear()
 	_arayuz_kur()
 	govde = Govde.new()
+	govde.fener = true     # mazgalın altında elinde fener: alp'in fenerli bekleme ve yürüme animasyonları
 	add_child(govde)
 	eller = Eller.new()
 	kamera.add_child(eller)

@@ -75,7 +75,7 @@ transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -52.5, 0, -82)
 script = ExtResource("8")
 
 [node name="Araba" type="CharacterBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -17, 0, 30)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.0, 0, 25.5)
 script = ExtResource("9")
 
 [node name="Model" parent="Araba" instance=ExtResource("7")]

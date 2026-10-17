@@ -2,11 +2,13 @@ extends Node3D
 ## Selim'in tüm gövdesi (alp'in gönderdiği Ch17_nonPBR.fbx). Aşağı bakınca gövde ve bacaklar görünür;
 ## baş görünmez (kamera kafanın içinde), yalnızca gölgesi düşer. Kollar, eller.gd bir şeye uzanmıyorken
 ## gövdenin kendi kollarıdır; uzanırken gövdenin kolları gizlenir, kameraya bağlı kollar görünür.
-## Yürürken alp'in Mixamo yürüme animasyonu, dururken bekleme animasyonu oynar.
+## Yürürken alp'in Mixamo yürüme animasyonu oynar; dururken sakin bir ayakta duruş (bkz. DURUS).
+## Fenerli bekleme ve yürüme animasyonları yalnızca mazgalın altında (arsiv.gd: fener = true).
 ##   guncelle(konum, yon_y, dt)   her karede: ayakların yeri ve bakış yönü
 ##   goz = 1.48                    kameranın yerden yüksekliği: gövde gözleri buraya gelecek boyda durur
 ##   eller = <eller düğümü>        kameraya bağlı kollar görünürken gövdenin kolları gizlenir
 ##   gorunur = false               gövde gizlenir, gölgesi kalır (otururken, eğilirken)
+##   fener = true                  elinde fener: fenerli bekleme ve yürüme (add_child'dan önce verilir)
 ##   yelek = false                 evde iş yeleği yok. Modelde yeleğin altında gövde yok (gömlek yalnızca
 ##                                 kollar ve yaka), bu yüzden yeleksizken belden yukarısı yalnızca gölge
 ##                                 düşer, aşağı bakınca bacaklar ve botlar görünür.
@@ -14,13 +16,17 @@ extends Node3D
 const MODEL := "res://modeller2/selim/Ch17_nonPBR.fbx"
 const MODEL_2 := "res://modeller2/selimvucudanimasyon/Ch17_nonPBR.fbx"   # alp'in bilgisayarında burada
 const ANIM_YOLU := "res://modeller2/selimvucudanimasyon/"
-const ANIMLER := {"yuru": "yürüme.fbx", "dur": "Standing Torch Idle 03.fbx"}
+const ANIMLER := {"yuru": "yürüme.fbx"}
+const FENER_ANIMLER := {"yuru": "Standing Torch Walk Forward.fbx", "dur": "Standing Torch Idle 03.fbx"}
+# fenersiz dururken: alp'in animasyonlarından birinin ayakta duran tek karesi (dosya, saniye), kıpırdamaz
+const DURUS := ["kapıları açma.fbx", 0.0]
 const GIZLI := ["Ch17_Helmet"]                     # baret Selim'in değil
 const BAS_PARCALARI := ["Ch17_Hair", "Ch17_Eyelashes"]
 const UST_PARCALAR := ["Ch17_Body", "Ch17_Shirt"]   # yeleksizken yalnızca gölge
 const GERI := 0.12  # baş kameranın biraz arkasında durur: aşağı bakınca göğsün içi görünmez
 
 var yelek := true
+var fener := false
 var goz := 1.48
 var eller: Node3D
 var gorunur := true
@@ -79,9 +85,13 @@ func _ready() -> void:
 	_model.add_child(_ap)
 	_ap.root_node = _ap.get_path_to(iskelet.get_parent())
 	var kitap := AnimationLibrary.new()
-	for a_ad in ANIMLER:
-		var a := _anim_yukle(ANIM_YOLU + ANIMLER[a_ad])
+	var liste: Dictionary = FENER_ANIMLER if fener else ANIMLER
+	for a_ad in liste:
+		var a := _anim_yukle(ANIM_YOLU + liste[a_ad])
 		if a: kitap.add_animation(a_ad, a)
+	if not fener:
+		var d := _anim_yukle(ANIM_YOLU + DURUS[0])
+		if d: kitap.add_animation("dur", _tek_kare(d, DURUS[1]))
 	_ap.add_animation_library("", kitap)
 	if _ap.has_animation("dur"): _ap.play("dur")
 
@@ -165,6 +175,25 @@ func _anim_yukle(yol: String) -> Animation:
 	return a
 
 
+## Animasyonun t anındaki duruşu, kıpırdamayan tek karelik bir animasyon olarak.
+func _tek_kare(a: Animation, t: float) -> Animation:
+	var d := Animation.new()
+	d.length = 1.0
+	d.loop_mode = Animation.LOOP_LINEAR
+	for i in a.get_track_count():
+		var tur := a.track_get_type(i)
+		var deger: Variant = null
+		match tur:
+			Animation.TYPE_POSITION_3D: deger = a.position_track_interpolate(i, t)
+			Animation.TYPE_ROTATION_3D: deger = a.rotation_track_interpolate(i, t)
+			Animation.TYPE_SCALE_3D: deger = a.scale_track_interpolate(i, t)
+		if deger == null: continue
+		var j := d.add_track(tur)
+		d.track_set_path(j, a.track_get_path(i))
+		d.track_insert_key(j, 0.0, deger)
+	return d
+
+
 func guncelle(konum: Vector3, yon_y: float, dt: float) -> void:
 	if _model == null: return
 	if _son != Vector3.INF and dt > 0.0:
@@ -189,7 +218,10 @@ func guncelle(konum: Vector3, yon_y: float, dt: float) -> void:
 	for mi in _govde_parca: mi.cast_shadow = acik if gorunur else golge
 	for mi in _kol_parca: mi.cast_shadow = acik if gorunur and not uzanan else golge
 	if _ap == null: return
-	var hedef := "yuru" if _hiz > 0.4 else "dur"
+	# iki eşik: yavaş yürürken yürüme ve duruş arasında gidip gelmesin
+	var hedef := _ap.current_animation
+	if _hiz > 0.5: hedef = "yuru"
+	elif _hiz < 0.25 or hedef == "": hedef = "dur"
 	if _ap.has_animation(hedef) and _ap.current_animation != hedef:
 		_ap.play(hedef, 0.3)
 	if hedef == "yuru": _ap.speed_scale = clampf(_hiz / 1.4, 0.6, 1.6)
