@@ -89,13 +89,40 @@ func _park_arabalari() -> void:
 			var kaynak := (paketler[m[0]] as Node).find_child(m[1], true, false) as Node3D
 			if kaynak == null: continue
 			var yer := Vector3(p[0], 0.0, float(p[1]) + kopya)
-			var q := PhysicsRayQueryParameters3D.create(yer + Vector3(0, 6, 0), yer + Vector3(0, -3, 0))
-			var r := uzay.intersect_ray(q)
-			if not r.is_empty(): yer.y = r.position.y
-			_arac_koy(kaynak, paketler[m[0]], yer, float(p[2]), ana, park_govde)
+			var h := _zemin_y(uzay, yer, park_govde)
+			if is_nan(h): continue
+			yer.y = h
+			_arac_koy(kaynak, paketler[m[0]], yer, float(p[2]), ana, park_govde, _kaldirim_bul(uzay, yer, park_govde))
 	for k in paketler: (paketler[k] as Node).free()
 
-func _arac_koy(kaynak: Node3D, kok: Node, yer: Vector3, aci: float, ana: Node3D, park_govde: StaticBody3D) -> void:
+func _zemin_y(uzay: PhysicsDirectSpaceState3D, yer: Vector3, haric: CollisionObject3D) -> float:
+	var q := PhysicsRayQueryParameters3D.create(Vector3(yer.x, yer.y + 0.9, yer.z), Vector3(yer.x, yer.y - 3.0, yer.z))
+	q.exclude = [haric.get_rid()]
+	var r := uzay.intersect_ray(q)
+	return NAN if r.is_empty() else float(r.position.y)
+
+
+## Yolun ortasından en yakın kaldırıma: dört yöne bakıp zeminin kaldırım kadar (3-50 cm) yükseldiği
+## ilk yeri bulur. [yön, uzaklık]; kaldırım yoksa yön sıfır.
+func _kaldirim_bul(uzay: PhysicsDirectSpaceState3D, yer: Vector3, haric: CollisionObject3D) -> Array:
+	var en_yakin := INF
+	var yon := Vector3.ZERO
+	for d: Vector3 in [Vector3.RIGHT, Vector3.LEFT, Vector3.FORWARD, Vector3.BACK]:
+		var m := 0.25
+		while m < 12.0 and m < en_yakin:
+			var h := _zemin_y(uzay, yer + d * m, haric)
+			if is_nan(h): break
+			var fark := h - yer.y
+			if fark > 0.5: break        # duvar ya da direk: kaldırım değil
+			if fark > 0.03:
+				en_yakin = m
+				yon = d
+				break
+			m += 0.25
+	return [yon, en_yakin]
+
+
+func _arac_koy(kaynak: Node3D, kok: Node, yer: Vector3, aci: float, ana: Node3D, park_govde: StaticBody3D, kaldirim := [Vector3.ZERO, 0.0]) -> void:
 	var don := Transform3D.IDENTITY
 	var n: Node = kaynak
 	while n != kok:
@@ -118,6 +145,14 @@ func _arac_koy(kaynak: Node3D, kok: Node, yer: Vector3, aci: float, ana: Node3D,
 	kopya.transform = don
 	tut.add_child(kopya)
 	tut.rotation_degrees.y = aci
+	# yolun ortasında durmasın: kaldırıma paralel döner, sağ yanı kaldırımdan 30 cm beride durur
+	var yan: Vector3 = kaldirim[0]
+	if yan != Vector3.ZERO:
+		var uzun := tut.basis * (Vector3(kutu.size.x, 0, 0) if kutu.size.x > kutu.size.z else Vector3(0, 0, kutu.size.z))
+		if absf(uzun.normalized().dot(yan)) > 0.7: tut.rotation_degrees.y = aci + 90.0
+		var en := minf(kutu.size.x, kutu.size.z)
+		var kay := float(kaldirim[1]) - en * 0.5 - 0.3
+		if kay > 0.0: yer += yan * kay
 	var alt := Vector3(kutu.get_center().x, kutu.position.y, kutu.get_center().z)
 	tut.position = yer - tut.basis * alt
 	for mi in tut.find_children("*", "MeshInstance3D", true, false):
@@ -881,12 +916,43 @@ func _kulube_kur() -> void:
 		n.position = e[1]; n.rotation_degrees.y = e[2]; n.scale = Vector3.ONE * float(e[3])
 		if str(e[0]).get_file().begins_with("bodycam"): _bodycam_model = n
 		if str(e[0]).get_file().begins_with("kul_tablasi"): _duman_kur(n.global_position + Vector3(0, 0.03, 0))
+	# alp'in modeller2/modeller2'ye attığı eşyalar: masada yaka kamerası, termos ve çay bardağı
+	if _bodycam_model == null: _bodycam_model = _model_koy(YENI_MODELLER + "vintage_camera.glb", [], 0.0, BODYCAM_YERI, 90.0)
+	_model_koy(YENI_MODELLER + "rusty_canister_and_thermos.glb", ["Thermos_001_ThermosTX_001_0"], 0.30, Vector3(0.95, 1.14, -0.15), 0.0)
+	_model_koy(YENI_MODELLER + "coffee__tea_mugs_free (1).glb", ["Cups_Cup3_0", "Cups_Tea_0", "Cups_Tea Bag_0"], 0.10, Vector3(0.72, 1.14, -0.22), 30.0)
 	if eller == null:
 		eller = Eller.new()
 		oyuncu_kamera.add_child(eller)
 	_fener_m = _masa_esyasi(FENER_MODEL, FENER_BOY, FENER_YERI, FENER_DONUS)
 	_pil_m = _masa_esyasi(PIL_MODEL, PIL_BOY, PIL_YERI, PIL_DONUS)
 	_cizelge_kur()
+
+
+const YENI_MODELLER := "res://modeller2/modeller2/"
+
+## Kulübeye dik duran eşya: modelin yalnızca `parcalar` adlı yüzeyleri kalır (boşsa hepsi), boyu `boy`
+## metre olur (0 ise modelin kendi ölçüsü), alt yüzünün ortası kulübedeki `yer`e oturur.
+func _model_koy(yol: String, parcalar: Array, boy: float, yer: Vector3, aci: float) -> Node3D:
+	if not ResourceLoader.exists(yol): return null
+	var kap := Node3D.new()
+	kap.name = yol.get_file().get_basename()
+	$Kulube.add_child(kap)
+	var n: Node3D = (load(yol) as PackedScene).instantiate()
+	kap.add_child(n)
+	var a := AABB(); var ilk := true
+	for m in n.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		if not parcalar.is_empty() and not (str(mi.name) in parcalar):
+			mi.queue_free()
+			continue
+		var b: AABB = n.global_transform.affine_inverse() * mi.global_transform * mi.get_aabb()
+		a = b if ilk else a.merge(b); ilk = false
+	var o := boy / maxf(a.size.y, 0.001) if boy > 0.0 else 1.0
+	n.scale = Vector3.ONE * o
+	n.position = -Vector3(a.get_center().x, a.position.y, a.get_center().z) * o
+	kap.position = yer
+	kap.rotation_degrees.y = aci
+	return kap
 
 
 ## Masaya konan eşya: modelin en uzun ekseni düğümün Z eksenine çevrilir, ortası düğümün merkezine

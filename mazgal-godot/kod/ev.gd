@@ -41,7 +41,7 @@ const SATIRLAR := {
 # Odaların dünyadaki yerleri (ev.tscn ile aynı)
 const SALON := Vector3(36, 0, 0)
 const KOLTUK := Vector3(33.7, 1.12, -0.45)        # Selim'in koltuktaki göz hizası
-const EKRAN := Vector3(38.228, 0.84, -0.4)        # TV ekranının ortası
+const EKRAN := Vector3(38.548, 0.85, -0.4)        # TV ekranının ortası
 const SAAT_YERI := Vector3(38.885, 2.05, -0.4)     # duvar saati (TV'nin üstünde)
 const KASE := Vector3(27.4, 0.625, 1.06)            # Nesquik kâsesinin yeri (model gelince konacak)
 const TEL_YATAK := Vector3(-1.5, 0.652, 0.8)        # uyanınca telefon yatağın üstünde
@@ -60,7 +60,7 @@ const BUZDOLABI_MODELI := "res://modeller2/seliminevi/buzdolabi.glb"   # alp gö
 const BUZDOLABI_YERI := Vector3(24.2, 1.0, 2.4)
 # Oyuncunun dolaşabileceği alanlar (odalar ve kapının önündeki koridor)
 const BANYO_ALAN := [AABB(Vector3(10.95, 0, -1.3), Vector3(2.1, 3, 1.12)), AABB(Vector3(10.95, 0, -0.3), Vector3(0.92, 3, 2.5))]   # banyo (duş kabininin camları dışında)
-const MUTFAK_ALAN := [AABB(Vector3(23.7, 0, -3.6), Vector3(4.25, 3, 6.9))]
+const MUTFAK_ALAN := [AABB(Vector3(23.7, 0, -3.5), Vector3(4.15, 3, 6.8))]
 const SALON_ALAN := [AABB(Vector3(33.3, 0, -2.7), Vector3(5.4, 3, 5.5))]
 const YURUME := 1.7
 const GOZ := 1.48
@@ -258,6 +258,7 @@ func _ready() -> void:
 	_aile_fotografi()
 	_foto_duvari()
 	_mutfak_erzak()
+	_yeni_esyalar()
 	_paket_kur()
 	_dus_kur()
 	_ayna_kur()
@@ -787,13 +788,20 @@ func _s_lavabo() -> void:
 		[9.0, dur + Vector3(-0.02, 0.01, 0), AYNA + Vector3(0, 0.03, 0)],
 		[9.8, dur + Vector3(-0.1, -0.16, 0), LAVABO], [11.2, dur + Vector3(-0.08, -0.12, 0), LAVABO],
 		[12.4, dur, AYNA], [14.0, dur + Vector3(-0.03, 0, 0), AYNA + Vector3(0, 0.02, 0)]], ft)
+	var f_yer := firca.global_position + Vector3(0, 0.1, 0) if firca else LAVABO + Vector3(0.12, 0.12, 0.1)
 	if ft > 0.9 and not _eylem.has("l_el"):
 		_eylem["l_el"] = true
-		eller.uzan("sag", LAVABO + Vector3(0.12, 0.12, 0.1), 0.6)
+		eller.uzan("sag", f_yer, 0.6)
+	if ft > 1.5 and not _eylem.has("l_al"):
+		_eylem["l_al"] = true
+		if firca: eller.tut("sag", firca)
 	if ft > 1.6 and not _eylem.has("l_agiz"):
 		_eylem["l_agiz"] = true
 		eller.kamerada("sag", Vector3(0.04, -0.17, -0.17), 0.6)
 		eller.yumruk("sag", 1.0)   # fırçayı tutan el
+	# eldeki fırça ağzın önünde yatay durur
+	if firca and ft > 1.5 and not _eylem.has("l_koy"):
+		firca.global_basis = kamera.global_basis * Basis(Vector3.BACK, PI * 0.5)
 	# fırçalama: el ağzın önünde kısa kısa gidip gelir
 	if ft > 2.4 and ft < 8.8:
 		var adim := int((ft - 2.4) / 0.16)
@@ -807,7 +815,12 @@ func _s_lavabo() -> void:
 	# lavaboya eğilir, suyu açıp ağzını çalkalar
 	if ft > 9.7 and not _eylem.has("l_su"):
 		_eylem["l_su"] = true; su_hedef = 0.6
-		eller.uzan("sag", LAVABO + Vector3(0.12, 0.12, 0.0), 0.5)
+		eller.uzan("sag", _firca_xf.origin + Vector3(0, 0.1, 0) if firca else LAVABO + Vector3(0.12, 0.12, 0.0), 0.5)
+	if ft > 10.25 and not _eylem.has("l_koy"):
+		_eylem["l_koy"] = true
+		if firca:
+			eller.tut("sag", null)
+			firca.global_transform = _firca_xf
 	if ft > 10.4 and not _eylem.has("l_calkala"):
 		_eylem["l_calkala"] = true; _ses_cal("su_carpma", -12.0)
 	if ft > 10.7 and not _eylem.has("l_cek"):
@@ -1789,6 +1802,58 @@ func _mutfak_erzak() -> void:
 	_paketler.clear()
 
 
+## alp'in modeller2/modeller2'ye attığı eşyalar: yatağın yanında sandalye ve komidin, salonda kumanda,
+## mutfak masasında süt. Model ölçüleri gerçek boylarına getirilir.
+const YENI_MODELLER := "res://modeller2/modeller2/"
+const YENI_TV := YENI_MODELLER + "tv_and_tv_stand.glb"
+const FIRCA_YERI := Vector3(11.3, 0.9, -0.2)
+var firca: Node3D
+var _firca_xf: Transform3D
+func _yeni_esyalar() -> void:
+	var ana := Node3D.new()
+	ana.name = "YeniEsyalar"
+	add_child(ana)
+	_parca_koy(YENI_MODELLER + "chair.glb", "", Vector3(-1.0, 0.0, 1.78), 0.0, 1.0, ana)
+	_parca_koy(YENI_MODELLER + "painted_wooden_nightstand.glb", "", Vector3(-2.1, 0.0, -1.62), 90.0, 1.0, ana)
+	# lavabonun kenarında diş fırçası
+	firca = _parca_koy(YENI_MODELLER + "toothbrush_low_poly.glb", "", FIRCA_YERI, 20.0, 1.0, ana)
+	if firca: _firca_xf = firca.global_transform
+	_parca_koy(ERZAK, "SM_Milk_Bottle_01", KASE + Vector3(-0.22, -0.01, -0.16), 20.0, 1.0, ana)
+	# kumanda sehpada yatar (model dik duruyor, 5 cm boyunda; gerçek boyu ~13 cm)
+	var k := _parca_koy(YENI_MODELLER + "tv_remote_-_psx.glb", "", Vector3.ZERO, 0.0, 2.6, ana)
+	if k:
+		k.rotation_degrees = Vector3(-90, 75, 0)
+		var kutu := _dunya_kutusu(k)
+		k.global_position += Vector3(34.68, 0.445, -0.3) - Vector3(kutu.get_center().x, kutu.position.y, kutu.get_center().z)
+	for p in _paketler: (_paketler[p] as Node).free()
+	_paketler.clear()
+
+
+## Yeni TV ve sehpası (alp'in modeli): eski tüplü TV ile sehpanın yerine geçer, yayın düz ekrana basılır.
+func _yeni_tv(em: Material) -> void:
+	if not ResourceLoader.exists(YENI_TV): return
+	var m: Node3D = (load(YENI_TV) as PackedScene).instantiate()
+	m.name = "YeniTV"
+	add_child(m)
+	m.scale = Vector3.ONE * 0.23
+	m.rotation_degrees.y = -90.0
+	var ekran := m.find_child("Cube_001_Material_003_0", true, false) as MeshInstance3D
+	var kutu := _dunya_kutusu(m)
+	# sehpa salonun duvarına (x 38.8) dayanır, ekranın ortası eski ekranın hizasına gelir
+	m.global_position += Vector3(38.8 - kutu.end.x, -kutu.position.y, 0.0)
+	if ekran:
+		var e := _dunya_kutusu(ekran)
+		m.global_position.z += EKRAN.z - e.get_center().z
+		if em is StandardMaterial3D:
+			(em as StandardMaterial3D).uv1_scale = Vector3.ONE
+			(em as StandardMaterial3D).uv1_offset = Vector3.ZERO
+		ekran.material_override = em
+		ekran.layers = 2
+	tv.visible = false
+	var eski := get_node_or_null("TVSehpasi") as Node3D
+	if eski: eski.visible = false
+
+
 ## Bir modelin (ya da içindeki bir parçanın) kopyasını, alt yüzünün ortası verilen noktaya gelecek şekilde koyar.
 func _parca_koy(yol: String, ad: String, yer: Vector3, aci: float, olcek: float, ana: Node3D) -> Node3D:
 	if not ResourceLoader.exists(yol):
@@ -2299,6 +2364,7 @@ void fragment() {
 		em.uv1_offset = Vector3(0, 1, 0)
 		tup.layers = 2
 		ekran.visible = false
+	_yeni_tv(em.duplicate())
 	(tv_ust.material as ShaderMaterial).set_shader_parameter("acilis", 0.0)
 
 
