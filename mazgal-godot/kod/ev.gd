@@ -1482,6 +1482,7 @@ func _cikis() -> void:
 		_eylem["isik_kapa"] = true
 		_ses_cal("dugme", -8.0)
 		($Isiklar/SalonLamba as Light3D).light_energy = 0.0
+		if _salon_ampul: _salon_ampul.light_energy = 0.0
 	if ft > 3.4: _adim_say(0.55)
 	_kapi_ac(kapi_salon, ft, 4.5, 5.6)
 	karartma = _egri([[0, 0], [5.6, 0], [6.6, 1]], ft)
@@ -3770,8 +3771,10 @@ const AMPULLER := [
 	[Vector3(0.4, 3.88, 0.47), "", 7.0, 0.9],                 # yatak odası (model tavanı)
 	[Vector3(25.85, 2.85, -0.25), "MutfakLamba", 7.5, 1.5],   # mutfak (_kabuk tavanı)
 	[Vector3(36.0, 4.23, 0.0), "", 7.5, 1.0],                 # salon (_kabuk tavanı)
+	[Vector3(11.79, 2.215, 0.78), "BanyoLamba", 0.0, 0.0],   # banyo: modelin tavan armatürünün altında, floresan gibi çakar
 ]
 var _ampuller := []   # [ışık, parlayan malzeme, ilk parlaklık]
+var _salon_ampul: OmniLight3D   # evden çıkarken salonun ışığıyla birlikte kapanır
 
 func _ampuller_kur() -> void:
 	if not ResourceLoader.exists(AMPUL_MODELI): return
@@ -3810,7 +3813,9 @@ func _ampuller_kur() -> void:
 			l.omni_range = a[2]
 			l.omni_attenuation = 1.2
 			l.shadow_enabled = true
+			l.name = "Ampul%d" % _ampuller.size()
 			add_child(l)
+			if tavan.x > 30.0: _salon_ampul = l
 		if float(a[2]) > 0.0: l.omni_range = a[2]
 		if float(a[3]) > 0.0: l.light_energy = a[3]
 		# ışık ampulün camının içinden çıkar (camın kendisi gölge vermez)
