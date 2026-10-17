@@ -33,6 +33,15 @@ const Eller := preload("res://kod/eller.gd")
 const Govde := preload("res://kod/govde.gd")
 const Kagit := preload("res://kod/kagit.gd")
 const Ev := preload("res://kod/ev.gd")
+const Sokak := preload("res://kod/sokak.gd")
+## Şehrin yol tabelaları yeraltında da: koridorda ve merdivenin dibinde, yanlış yerde duran levhalar.
+## [takım (Sokak.TABELA_TAKIMLARI), konum, levhanın baktığı yön (0 = +z, koridorun girişine)]
+const TABELALAR := [
+	[4, Vector3(-0.95, 0, -10.0), 0.0],
+	[1, Vector3(0.95, 0, -22.0), 0.0],
+	[0, MERDIVEN_YERI + Vector3(-4.3, -4.0, 5.0), 90.0],
+]
+const TABELA_OLCEK := 0.2   # tavan alçak: direk 2,2 m
 
 ## Selim'in kartı ve tutanağı: ad soyad, tarih ve tuş takımının kodu (karttaki tarihin gün+ay'ı)
 const AD_SOYAD := "SELİM KAYA"
@@ -141,8 +150,17 @@ func _ready() -> void:
 	_koridor_kur()
 	_ofis_kur()
 	_kod_kapisi_kur()
-	_merdiven_isiklar = Ev.merdiven_kur(self, MERDIVEN_YERI, Vector3(0, 0, 20), 1)
+	_merdiven_isiklar = Ev.merdiven_kur(self, MERDIVEN_YERI, Vector3(0, 0, 20), 1, true)
+	# merdivenin yukarı çıkan kolu kapalı: Selim yalnızca aşağı iner
+	var engel := StaticBody3D.new()
+	var ecs := CollisionShape3D.new()
+	var ek := BoxShape3D.new(); ek.size = Vector3(0.2, 3.0, 3.0)
+	ecs.shape = ek
+	engel.add_child(ecs)
+	add_child(engel)
+	engel.global_position = MERDIVEN_YERI + Vector3(1.7, 1.5, 8.1)
 	_toz_kur()
+	_tabelalar()
 	for p in _paketler: (_paketler[p] as Node).free()
 	_paketler.clear()
 	_arayuz_kur()
@@ -582,6 +600,17 @@ func _kod_kapisi_kur() -> void:
 	_kutu(self, Vector3(0, TAVAN * 0.5, -KOR_BOY - 2.3), Vector3(1.9, TAVAN, 0.2), beton)
 
 
+func _tabelalar() -> void:
+	if not ResourceLoader.exists(Sokak.TABELA_PAKETI): return
+	var paket := (load(Sokak.TABELA_PAKETI) as PackedScene).instantiate() as Node3D
+	add_child(paket)
+	var ana := Node3D.new(); ana.name = "Tabelalar"; add_child(ana)
+	var govde := StaticBody3D.new(); ana.add_child(govde)
+	for t in TABELALAR:
+		Sokak.tabela_koy(ana, govde, paket, Sokak.TABELA_TAKIMLARI[t[0]], t[1], t[2], TABELA_OLCEK)
+	paket.free()
+
+
 func _toz_kur() -> void:
 	var p := GPUParticles3D.new()
 	var pm := ParticleProcessMaterial.new()
@@ -719,7 +748,7 @@ func _process(dt: float) -> void:
 	dt_durum += dt
 	if _altyazi_bitis > 0.0 and _simdi() > _altyazi_bitis:
 		altyazi.visible = false; _altyazi_bitis = 0.0
-	govde.visible = durum == "oyun" and oyuncu.is_physics_processing()
+	govde.visible = durum in ["oyun", "merdiven"] and oyuncu.is_physics_processing()
 	if govde.visible:
 		govde.goz = oyuncu.BOY
 		govde.eller = eller
@@ -733,6 +762,8 @@ func _process(dt: float) -> void:
 		"kaset": _kaset()
 		"oyun": _oyun(dt)
 		"kod": _kod_gir()
+		"merdiven_gir": _merdiven_gir()
+		"merdiven": _merdiven()
 		"cikis": _cikis()
 
 
@@ -812,7 +843,7 @@ func _oyun(dt: float) -> void:
 			_gec("kod")
 	if _kod_dogru and (_kod_kapi["acik"] as float) > 0.6 and p.z < -KOR_BOY + 0.4:
 		_oyuncu_dur(true)
-		_gec("cikis")
+		_gec("merdiven_gir")
 	if okuma.visible and Input.is_action_just_pressed("etkiles") and okuma.get_meta("bas", 0.0) + 0.3 < _simdi():
 		okuma.visible = false
 	# floresan vızıltısı koridorda ilk kez kulağa batınca
@@ -988,34 +1019,40 @@ func _merdiven_isik_ac(o: Light3D) -> void:
 		o.light_energy = 0.55
 
 
-## Kapıdan geçince: merdiven boşluğunda bir kat iner, sonra kayıt kesilir (−2 yakında).
+## Kapıdan geçince karanlıkta merdiven sahanlığına çıkar; merdiveni Selim kendi iner (alp: merdivende animasyon olmasın).
+func _merdiven_gir() -> void:
+	var t := dt_durum
+	siyah.modulate.a = _egri([[0, 0], [0.6, 1], [1.0, 1], [1.8, 0]], t)
+	if t > 0.7 and not _soylenen.has("merdiven_yer"):
+		_soylenen["merdiven_yer"] = true
+		oyuncu.global_position = MERDIVEN_YERI + Vector3(3.9, 0.05, 5.6)
+		oyuncu.rotation.y = PI * 0.5
+		oyuncu.velocity = Vector3.ZERO
+		# basamaklardan inerken yere yapışık kalsın
+		oyuncu.floor_snap_length = 0.6
+		_ses_cal("kapi_ac", -10.0)
+	if t > 1.0 and not oyuncu.is_physics_processing():
+		_oyuncu_dur(false)
+		_gec("merdiven")
+
+
+## Merdivenin dibine inince kayıt kesilir (−2 yakında).
+func _merdiven() -> void:
+	var p := oyuncu.global_position - MERDIVEN_YERI
+	if p.y < -3.4 and p.x < -2.4:
+		_oyuncu_dur(true)
+		_gec("cikis")
+	_karanlik_isle(get_process_delta_time())
+
+
 func _cikis() -> void:
 	var t := dt_durum
-	siyah.modulate.a = _egri([[0, 0], [0.6, 1], [1.2, 1], [1.8, 0], [7.4, 0], [8.2, 1]], t)
-	if t > 1.0:
-		var b := MERDIVEN_YERI
-		var anahtar := [
-			[1.2, b + Vector3(3.9, 1.6 - 0.14, 5.6), b + Vector3(0.0, 1.2, 5.3)],
-			[2.2, b + Vector3(3.2, 1.6 - 0.14, 5.3), b + Vector3(-1.0, 0.0, 5.1)],
-			[3.4, b + Vector3(1.6, 1.3 - 0.14, 5.1), b + Vector3(-2.2, -1.6, 5.1)],
-			[5.8, b + Vector3(-2.6, -1.8 - 0.14, 5.1), b + Vector3(-4.6, -2.6, 5.4)],
-			[6.8, b + Vector3(-3.7, -2.4 - 0.14, 4.6), b + Vector3(-4.0, -2.6, 7.8)],
-		]
-		var p: Vector3 = anahtar[0][1]; var h: Vector3 = anahtar[0][2]
-		for i in anahtar.size() - 1:
-			if t >= float(anahtar[i][0]):
-				var u := clampf((t - float(anahtar[i][0])) / (float(anahtar[i + 1][0]) - float(anahtar[i][0])), 0.0, 1.0)
-				u = smoothstep(0.0, 1.0, u)
-				p = (anahtar[i][1] as Vector3).lerp(anahtar[i + 1][1], u)
-				h = (anahtar[i][2] as Vector3).lerp(anahtar[i + 1][2], u)
-		p.y += sin(t * 9.0) * 0.012
-		kamera.global_transform = Transform3D(Basis.looking_at(h - p), p)
-		if t > 1.6 and t < 6.8 and fmod(t, 0.45) < get_process_delta_time(): _ses_cal("adim", -14.0)
-	if t > 8.3 and not _soylenen.has("kesildi"):
+	siyah.modulate.a = _egri([[0, 0], [1.0, 1]], t)
+	if t > 1.2 and not _soylenen.has("kesildi"):
 		_soylenen["kesildi"] = true
 		bodycam.kapat()
 		_altyazi("", "−2", 3.0)
-	if t > 11.5:
+	if t > 4.4:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		var d := get_node_or_null("/root/Duraklat")
 		if d: d.yukle(SONRAKI)

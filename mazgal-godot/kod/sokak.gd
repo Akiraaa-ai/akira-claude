@@ -285,28 +285,32 @@ func _tabelalar() -> void:
 	var ana := Node3D.new(); ana.name = "Tabelalar"; add_child(ana)
 	var govde := StaticBody3D.new(); ana.add_child(govde)
 	for t in TABELALAR:
-		var takim: Array = TABELA_TAKIMLARI[t[0]]
-		var direk := paket.find_child(takim[0], true, false) as Node3D
-		if direk == null: continue
-		var dk := _dugum_kutusu(direk)
-		# direğin dibi tabelanın başlangıcı; levhalar direğe göre yerinde kalır
-		var taban := Vector3(dk.get_center().x, dk.position.y, dk.get_center().z)
-		# paketteki levhaların yüzü +x'e bakar; -90 ile +z'ye çevrilir, sonra istenen yöne
-		var yer := Transform3D(Basis(Vector3.UP, deg_to_rad(float(t[2]) - 90.0)).scaled(Vector3.ONE * TABELA_OLCEK), t[1])
-		for ad in [takim[0]] + takim[1]:
-			var d := paket.find_child(ad, true, false) as Node3D
-			if d == null: continue
-			for mi in d.find_children("*", "MeshInstance3D", true, false) + ([d] if d is MeshInstance3D else []):
-				var k := MeshInstance3D.new()
-				k.mesh = (mi as MeshInstance3D).mesh
-				ana.add_child(k)
-				k.global_transform = yer * Transform3D(Basis(), -taban) * (mi as MeshInstance3D).global_transform
-		var c := CollisionShape3D.new(); var b := CylinderShape3D.new()
-		b.radius = 0.06; b.height = 3.0; c.shape = b; c.position = t[1] + Vector3(0, 1.5, 0)
-		govde.add_child(c)
+		tabela_koy(ana, govde, paket, TABELA_TAKIMLARI[t[0]], t[1], t[2], TABELA_OLCEK)
 	paket.queue_free()
 
-func _dugum_kutusu(n: Node3D) -> AABB:
+## Paketten bir direk ve levhalarını kopyalar. yaw: levhanın baktığı yön (0 = +z). Yeraltında da kullanılır (arsiv.gd).
+static func tabela_koy(ana: Node3D, govde: StaticBody3D, paket: Node3D, takim: Array, yer_: Vector3, yaw: float, olcek: float) -> void:
+	var direk := paket.find_child(takim[0], true, false) as Node3D
+	if direk == null: return
+	var dk := _dugum_kutusu(direk)
+	# direğin dibi tabelanın başlangıcı; levhalar direğe göre yerinde kalır
+	var taban := Vector3(dk.get_center().x, dk.position.y, dk.get_center().z)
+	# paketteki levhaların yüzü +x'e bakar; -90 ile +z'ye çevrilir, sonra istenen yöne
+	var yer := Transform3D(Basis(Vector3.UP, deg_to_rad(yaw - 90.0)).scaled(Vector3.ONE * olcek), yer_)
+	for ad in [takim[0]] + takim[1]:
+		var d := paket.find_child(ad, true, false) as Node3D
+		if d == null: continue
+		for mi in d.find_children("*", "MeshInstance3D", true, false) + ([d] if d is MeshInstance3D else []):
+			var k := MeshInstance3D.new()
+			k.mesh = (mi as MeshInstance3D).mesh
+			ana.add_child(k)
+			k.global_transform = yer * Transform3D(Basis(), -taban) * (mi as MeshInstance3D).global_transform
+	var boy := dk.size.y * olcek
+	var c := CollisionShape3D.new(); var b := CylinderShape3D.new()
+	b.radius = 0.06; b.height = boy; c.shape = b; c.position = yer_ + Vector3(0, boy * 0.5, 0)
+	govde.add_child(c)
+
+static func _dugum_kutusu(n: Node3D) -> AABB:
 	var kutu := AABB(); var ilk := true
 	for mi in n.find_children("*", "MeshInstance3D", true, false) + ([n] if n is MeshInstance3D else []):
 		var k: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()
