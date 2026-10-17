@@ -1279,7 +1279,7 @@ func _tel_kaydir() -> void:
 	if (_kaydirilan >= 4 or ft > 16.0) and not tel_bildirim.visible:
 		tel_bildirim.visible = true
 		_ses_cal("bildirim", -10.0)
-		get_tree().create_timer(2.2, false).timeout.connect(func() -> void: if not _soylendi("ic04"): _soyle("ic04"))
+		get_tree().create_timer(2.2, false).timeout.connect(func() -> void: if faz == "tel_kaydir" and not _soylendi("ic04"): _soyle("ic04"))
 		_zaman["bildirim"] = T
 		_gorev("Q  Telefonu bırak")
 	if tel_bildirim.visible:
@@ -1511,7 +1511,9 @@ const MERDIVEN_MODEL := YENI_MODELLER + "horror_corridor_vr_room_baked.glb"
 ## Taban y=30 (en alt kat 14.2): göz yükseklikleri hep _alcak eşiğinin üstünde kalsın (aynı boy düzeltmesi her karede).
 const MERDIVEN_YERI := Vector3(80.0, 30.0, 0.0)
 ## 1 cm yana kayma: üst üste binen duvarlar aynı düzlemde titreşmesin
-const MERDIVEN_ARA := Vector3(0.01, -7.9, 0.01)
+## model gerçeğin ~2,2 katı: 0,6 ile kapı 1,8–1,9 m, basamak 23 cm
+const MERDIVEN_OLCEK := 0.6
+const MERDIVEN_ARA := Vector3(0.01, -7.9 * MERDIVEN_OLCEK, 0.01)
 const MERDIVEN_KAT := 3
 const KAT_SURE := 11.0
 ## pişmiş ışığın gece payı (1 = modeldeki gibi gündüz parlaklığı)
@@ -1529,15 +1531,18 @@ static func merdiven_kur(ana: Node3D, yer: Vector3, ara: Vector3, kat: int, carp
 		m.name = "MerdivenKat%d" % k
 		ana.add_child(m)
 		m.global_position = b
+		m.scale = Vector3.ONE * MERDIVEN_OLCEK
 		if carpisma:
 			# katlar arası geçit: alt sahanlığın çıkmaz duvarı (z 6.6) bir alttaki katın merdiven başına açılır.
 			# En üst katta yukarıya, en alt katta aşağıya delik açılmaz.
 			var delikler: Array[AABB] = []
-			if k < kat - 1: delikler.append(AABB(Vector3(-4.9, -4.1, 6.5), Vector3(2.05, 2.15, 0.35)))
+			if k < kat - 1: delikler.append(AABB(Vector3(-4.9, -4.1, 6.5), Vector3(2.05, 3.6, 0.35)))
 			if k > 0:
-				delikler.append(AABB(Vector3(-4.9, 3.8, 6.5), Vector3(2.05, 2.15, 0.35)))
+				delikler.append(AABB(Vector3(-4.9, 3.8, 6.5), Vector3(2.05, 2.4, 0.35)))
 				# alttaki katın tavanı, üstteki katın aşağı inen kolunun içinden geçer: kolun üstünde açılır
 				delikler.append(AABB(Vector3(-4.9, 5.85, 3.5), Vector3(6.35, 0.3, 3.15)))
+				# küçülünce geçitte baş sığsın: ara sahanlığın üstü de açık
+				delikler.append(AABB(Vector3(-4.9, 5.85, 6.5), Vector3(4.3, 0.3, 3.2)))
 			for mi in m.find_children("*", "MeshInstance3D", true, false):
 				if not delikler.is_empty(): _gecit_ac(mi as MeshInstance3D, delikler)
 				(mi as MeshInstance3D).create_trimesh_collision()
@@ -1559,12 +1564,12 @@ static func merdiven_kur(ana: Node3D, yer: Vector3, ara: Vector3, kat: int, carp
 		for l in [Vector3(3.2, 2.6, 6.6), Vector3(-0.6, 0.4, 5.1), Vector3(-4.0, -1.5, 6.6)]:
 			var o := OmniLight3D.new()
 			o.light_color = Color(1.0, 0.86, 0.62)
-			o.omni_range = 5.5
+			o.omni_range = 5.5 * MERDIVEN_OLCEK
 			o.omni_attenuation = 1.6
 			o.light_energy = 0.0
 			o.shadow_enabled = false
 			ana.add_child(o)
-			o.global_position = b + l
+			o.global_position = b + l * MERDIVEN_OLCEK
 			isiklar.append(o)
 	return isiklar
 
@@ -1621,14 +1626,14 @@ func _merdiven_isik(acik: bool) -> void:
 ## Bir modülde: sahanlık y=0 (x 1.5..4.8), aşağı kol z<6.6 (y -4'e), ara sahanlık x<-2.7, yukarı kol z>6.6 (y +3.9'a).
 func _merdiven_basla() -> void:
 	_merdivende = true
-	oyuncu.global_position = MERDIVEN_YERI + Vector3(3.9, 0.0, 5.6)
+	oyuncu.global_position = MERDIVEN_YERI + Vector3(3.9, 0.0, 5.6) * MERDIVEN_OLCEK
 	oyuncu.velocity = Vector3.ZERO
 	_yaw = PI * 0.5
 	_pitch = -0.2
 	_oturuyor = false
 	_kutular = []
 	_esyalar.clear()
-	_esya("dis_kapi", MERDIVEN_YERI + MERDIVEN_ARA * (MERDIVEN_KAT - 1) + Vector3(4.75, 1.1, 8.45), 2.2)
+	_esya("dis_kapi", MERDIVEN_YERI + MERDIVEN_ARA * (MERDIVEN_KAT - 1) + Vector3(4.75, 1.1, 8.45) * MERDIVEN_OLCEK, 2.2)
 	faz = "oyun"
 	ft = 0.0
 	_eylem.clear()
@@ -1640,7 +1645,8 @@ func _merdiven_basla() -> void:
 ## En üst katta yukarı çıkan kol, en alt katta aşağı inen kol görünmez duvarla kapanır.
 func _merdiven_engeller() -> void:
 	var alt := MERDIVEN_YERI + MERDIVEN_ARA * (MERDIVEN_KAT - 1)
-	for e in [[MERDIVEN_YERI + Vector3(1.7, 1.5, 8.1), Vector3(0.2, 3.0, 3.0)], [alt + Vector3(1.7, 0.5, 5.1), Vector3(0.2, 3.0, 3.0)]]:
+	var S := MERDIVEN_OLCEK
+	for e in [[MERDIVEN_YERI + Vector3(1.7, 1.5, 8.1) * S, Vector3(0.2, 3.0, 3.0 * S)], [alt + Vector3(1.7, 0.5, 5.1) * S, Vector3(0.2, 3.0, 3.0 * S)]]:
 		var g := StaticBody3D.new()
 		var cs := CollisionShape3D.new()
 		var k := BoxShape3D.new()

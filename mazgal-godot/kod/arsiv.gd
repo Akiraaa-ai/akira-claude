@@ -39,7 +39,7 @@ const Sokak := preload("res://kod/sokak.gd")
 const TABELALAR := [
 	[4, Vector3(-0.95, 0, -10.0), 0.0],
 	[1, Vector3(0.95, 0, -22.0), 0.0],
-	[0, MERDIVEN_YERI + Vector3(-4.3, -4.0, 5.0), 90.0],
+	[0, MERDIVEN_YERI + Vector3(-4.3, -4.0, 5.0) * Ev.MERDIVEN_OLCEK, 90.0],
 ]
 const TABELA_OLCEK := 0.2   # tavan alçak: direk 2,2 m
 
@@ -154,11 +154,11 @@ func _ready() -> void:
 	# merdivenin yukarı çıkan kolu kapalı: Selim yalnızca aşağı iner
 	var engel := StaticBody3D.new()
 	var ecs := CollisionShape3D.new()
-	var ek := BoxShape3D.new(); ek.size = Vector3(0.2, 3.0, 3.0)
+	var ek := BoxShape3D.new(); ek.size = Vector3(0.2, 3.0, 3.0 * Ev.MERDIVEN_OLCEK)
 	ecs.shape = ek
 	engel.add_child(ecs)
 	add_child(engel)
-	engel.global_position = MERDIVEN_YERI + Vector3(1.7, 1.5, 8.1)
+	engel.global_position = MERDIVEN_YERI + Vector3(1.7, 1.5, 8.1) * Ev.MERDIVEN_OLCEK
 	_toz_kur()
 	_tabelalar()
 	for p in _paketler: (_paketler[p] as Node).free()
@@ -1025,7 +1025,7 @@ func _merdiven_gir() -> void:
 	siyah.modulate.a = _egri([[0, 0], [0.6, 1], [1.0, 1], [1.8, 0]], t)
 	if t > 0.7 and not _soylenen.has("merdiven_yer"):
 		_soylenen["merdiven_yer"] = true
-		oyuncu.global_position = MERDIVEN_YERI + Vector3(3.9, 0.05, 5.6)
+		oyuncu.global_position = MERDIVEN_YERI + Vector3(3.9, 0.05, 5.6) * Ev.MERDIVEN_OLCEK
 		oyuncu.rotation.y = PI * 0.5
 		oyuncu.velocity = Vector3.ZERO
 		# basamaklardan inerken yere yapışık kalsın
@@ -1038,7 +1038,7 @@ func _merdiven_gir() -> void:
 
 ## Merdivenin dibine inince kayıt kesilir (−2 yakında).
 func _merdiven() -> void:
-	var p := oyuncu.global_position - MERDIVEN_YERI
+	var p := (oyuncu.global_position - MERDIVEN_YERI) / Ev.MERDIVEN_OLCEK
 	if p.y < -3.4 and p.x < -2.4:
 		_oyuncu_dur(true)
 		_gec("cikis")
