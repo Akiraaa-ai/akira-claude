@@ -407,11 +407,22 @@ func _arka_muzik(dt: float) -> void:
 
 
 # ---------------------------------------------------------------- rüya (alp'in metni)
-## Bembeyaz, ışıl ışıl bir yer; kimse yok, yavaş bir piyano. Görünmeyen bir kadın konuşur.
-## Sonra piyano kesilir, ışık titrer, yağmur başlar; kadın Selim'e bağırır, fren, çarpma, karanlık.
+## Güneşli bir gün: Selim eski arabasıyla şehrin ortasındaki caddede ağır ağır gider, yavaş bir piyano.
+## Yan koltuktaki kadın hiç görünmez (kamera hep yola bakar), yalnızca sesi duyulur.
+## Sonra piyano kesilir, gök kararır, yağmur başlar; karşıdan farlar gelir, kadın Selim'e bağırır, fren, çarpma, karanlık.
 ## Bir saniyelik sessizlikten sonra alarm çalar, Selim nefes nefese uyanır.
-## Rüya evden çok yukarıda kurulur; sis ve ışık evi göstermez. Hepsi ışık efekti, model yok.
+## Rüya evden çok yukarıda kurulur: alp'in şehri (tek kopya, 1,4 ölçek) ve Selim'in arabası.
 const RUYA_MERKEZ := Vector3(0, 600, 0)
+const Sokak := preload("res://kod/sokak.gd")
+const RUYA_ARABA := "res://modeller2/selim araba/old_car.glb"
+## orta cadde (sokak sahnesinin koordinatları): doğudan batıya, sağ şerit
+const RUYA_BAS := Vector3(44.0, 0.0, -1.3)
+const RUYA_SON := Vector3(-150.0, 0.0, -1.3)
+var _ruya_araba: Node3D
+var _ruya_hiz := 6.0
+var _ruya_yol := 0.0
+var _ruya_yagmur: GPUParticles3D
+var _karsi_far: Node3D
 const RUYA_SIRA := [
 	["ruya01", 1.6], ["ruya02", 1.6], ["ruya03", 3.0],
 	["ruya04", 1.6], ["ruya05", 1.6], ["ruya06", 3.0],
@@ -434,8 +445,8 @@ func _ruya_kur() -> void:
 	_ruya_kok.position = RUYA_MERKEZ
 	# gökyüzü: tepede açık mavi, ufukta altın beyazı
 	var gok := ProceduralSkyMaterial.new()
-	gok.sky_top_color = Color(0.62, 0.78, 1.0)
-	gok.sky_horizon_color = Color(1.0, 0.94, 0.84)
+	gok.sky_top_color = Color(0.36, 0.58, 0.95)
+	gok.sky_horizon_color = Color(0.92, 0.9, 0.84)
 	gok.ground_bottom_color = Color(1.0, 0.96, 0.9)
 	gok.ground_horizon_color = Color(1.0, 0.94, 0.86)
 	gok.sun_angle_max = 40.0
@@ -447,18 +458,18 @@ func _ruya_kur() -> void:
 	e.background_mode = Environment.BG_SKY
 	e.sky = sky
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	e.ambient_light_energy = 1.2
+	e.ambient_light_energy = 0.8
 	e.tonemap_mode = Environment.TONE_MAPPER_ACES
 	e.tonemap_exposure = 0.85
 	e.glow_enabled = true
-	e.glow_intensity = 1.1
+	e.glow_intensity = 0.6
 	e.glow_bloom = 0.12
 	e.glow_hdr_threshold = 0.85
 	e.fog_enabled = true
-	e.fog_light_color = Color(1.0, 0.95, 0.88)
-	e.fog_density = 0.02
-	e.fog_sky_affect = 0.7
-	e.fog_sun_scatter = 0.7
+	e.fog_light_color = Color(0.86, 0.88, 0.9)
+	e.fog_density = 0.006
+	e.fog_sky_affect = 0.4
+	e.fog_sun_scatter = 0.2
 	e.adjustment_enabled = true
 	e.adjustment_saturation = 1.08
 	_ruya_env = e
@@ -468,13 +479,12 @@ func _ruya_kur() -> void:
 	_ruya_gunes = DirectionalLight3D.new()
 	_ruya_gunes.light_color = Color(1.0, 0.9, 0.75)
 	_ruya_gunes.light_energy = 1.4
-	_ruya_gunes.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY
-	_ruya_gunes.rotation_degrees = Vector3(-12.0, 160.0, 0.0)
+	_ruya_gunes.shadow_enabled = true
+	_ruya_gunes.directional_shadow_max_distance = 120.0
+	_ruya_gunes.rotation_degrees = Vector3(-38.0, 120.0, 0.0)
 	_ruya_kok.add_child(_ruya_gunes)
 	$Aksam.visible = false
-	# havada süzülen ışık tozları ve birkaç büyük, yumuşak ışık küresi
-	_ruya_kok.add_child(_isik_tozu(500, 0.05, Vector3(10, 5, 10), 9.0))
-	_ruya_kok.add_child(_isik_tozu(40, 0.7, Vector3(14, 6, 14), 12.0))
+	_ruya_sahne_kur()
 	ses_piyano = AudioStreamPlayer.new(); add_child(ses_piyano)
 	var piyano := "res://sesler/ruya_piyano.mp3" if ResourceLoader.exists("res://sesler/ruya_piyano.mp3") else "res://sesler/muzik_4.mp3"
 	if ResourceLoader.exists(piyano):
@@ -489,61 +499,123 @@ func _ruya_kur() -> void:
 	_ruya_sonraki = 3.5
 	_ruya_kirilma = -1.0
 	karartma = 1.0
+	# araba, kadının sözleri bitene kadar caddenin sonuna varmasın diye hız sözlerin süresine göre seçilir
+	var sure := 3.5 + 9.0
+	for sat: Array in RUYA_SIRA:
+		var yol: String = SATIRLAR[sat[0]][0]
+		sure += float(sat[1]) + (load(yol).get_length() if ResourceLoader.exists(yol) else 3.0)
+	_ruya_hiz = clampf(RUYA_BAS.distance_to(RUYA_SON) / sure, 3.0, 9.0)
+	_ruya_yol = 0.0
 
 
-func _isik_tozu(adet: int, boy: float, alan: Vector3, omur: float) -> GPUParticles3D:
+## Şehir modeli ve Selim'in arabası; şehirdeki eski model arabalar sokak sahnesindeki gibi çıkarılır.
+func _ruya_sahne_kur() -> void:
+	var sehir := Node3D.new()
+	sehir.name = "RuyaSehir"
+	_ruya_kok.add_child(sehir)
+	# sokak.tscn'deki Sehir düğümü (180° dönük, kaydırılmış) ve sokak.gd'deki ölçek
+	sehir.transform = Transform3D(Basis.from_scale(Vector3.ONE * Sokak.OLCEK), Vector3.ZERO) * Transform3D(Basis(Vector3.UP, PI), Vector3(-14.5, 0, -43.75))
+	for yol: String in Sokak.SEHIR_DOSYALARI:
+		if ResourceLoader.exists(yol):
+			sehir.add_child((load(yol) as PackedScene).instantiate())
+			break
+	for m in sehir.find_children("*", "MeshInstance3D", true, false):
+		var eski := (m as MeshInstance3D).mesh as ArrayMesh
+		if eski == null: continue
+		var kalan := []
+		for i in eski.get_surface_count():
+			var mat := eski.surface_get_material(i)
+			if mat and mat.resource_name in Sokak.ARABA_MALZEMELERI: continue
+			kalan.append(i)
+		if kalan.size() == eski.get_surface_count(): continue
+		var yeni := ArrayMesh.new()
+		for i in kalan:
+			yeni.add_surface_from_arrays(eski.surface_get_primitive_type(i), eski.surface_get_arrays(i))
+			yeni.surface_set_material(yeni.get_surface_count() - 1, eski.surface_get_material(i))
+		(m as MeshInstance3D).mesh = yeni
+	_ruya_araba = Node3D.new()
+	_ruya_araba.name = "RuyaAraba"
+	_ruya_kok.add_child(_ruya_araba)
+	if ResourceLoader.exists(RUYA_ARABA):
+		var model: Node3D = (load(RUYA_ARABA) as PackedScene).instantiate()
+		# sokak.tscn'deki Araba/Model dönüşü: arabanın önü -z
+		model.transform = Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(0, 0, 0.08))
+		_ruya_araba.add_child(model)
+	# yağmur (kırılmaya kadar kapalı) ve karşıdan gelen farlar
+	_ruya_yagmur = _yagmur_parcacik()
+	_ruya_yagmur.emitting = false
+	_ruya_kok.add_child(_ruya_yagmur)
+	_karsi_far = Node3D.new()
+	_karsi_far.visible = false
+	_ruya_kok.add_child(_karsi_far)
+	for x in [-0.65, 0.65]:
+		var f := SpotLight3D.new()
+		f.light_color = Color(1.0, 0.93, 0.8)
+		f.light_energy = 14.0
+		f.spot_range = 45.0
+		f.spot_angle = 28.0
+		f.position = Vector3(x, 1.0, 0)
+		_karsi_far.add_child(f)
+		var o := OmniLight3D.new()   # farın kendisi: gözü alan parlak nokta
+		o.light_color = Color(1.0, 0.95, 0.85)
+		o.light_energy = 3.0
+		o.omni_range = 1.2
+		o.position = Vector3(x, 1.0, -0.2)
+		_karsi_far.add_child(o)
+	_ruya_arac_koy(0.0)
+
+
+func _yagmur_parcacik() -> GPUParticles3D:
 	var p := GPUParticles3D.new()
-	p.amount = adet
-	p.lifetime = omur
-	p.preprocess = omur
-	p.visibility_aabb = AABB(-alan * 1.5, alan * 3.0)
-	p.position = Vector3(0, 0, -6)
+	p.amount = 3000
+	p.lifetime = 1.0
+	p.visibility_aabb = AABB(Vector3(-20, -20, -20), Vector3(40, 30, 40))
 	var m := ParticleProcessMaterial.new()
 	m.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-	m.emission_box_extents = alan
-	m.direction = Vector3(0, 1, 0)
-	m.spread = 180.0
-	m.initial_velocity_min = 0.02
-	m.initial_velocity_max = 0.12
-	m.gravity = Vector3(0, 0.03, 0)
-	m.scale_min = 0.5
-	m.scale_max = 1.5
-	var g := Gradient.new()
-	g.set_color(0, Color(1, 1, 1, 0)); g.set_color(1, Color(1, 1, 1, 0))
-	g.add_point(0.25, Color(1, 1, 1, 1)); g.add_point(0.75, Color(1, 1, 1, 1))
-	var gt := GradientTexture1D.new(); gt.gradient = g
-	m.color_ramp = gt
+	m.emission_box_extents = Vector3(14, 1, 14)
+	m.direction = Vector3(0.05, -1, 0)
+	m.spread = 2.0
+	m.initial_velocity_min = 14.0
+	m.initial_velocity_max = 17.0
+	m.gravity = Vector3(0, -9.8, 0)
 	p.process_material = m
-	var q := QuadMesh.new()
-	q.size = Vector2(boy, boy)
-	var parilti := Gradient.new()
-	parilti.set_color(0, Color(1, 0.96, 0.85, 1)); parilti.set_color(1, Color(1, 0.9, 0.7, 0))
-	var d := GradientTexture2D.new(); d.gradient = parilti; d.width = 64; d.height = 64
-	d.fill = GradientTexture2D.FILL_RADIAL; d.fill_from = Vector2(0.5, 0.5); d.fill_to = Vector2(0.5, 0.0)
 	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	mat.vertex_color_use_as_albedo = true
-	mat.albedo_texture = d
-	mat.albedo_color = Color(1, 1, 1, 0.55 if boy > 0.3 else 0.9)
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(0.7, 0.75, 0.85, 0.18)
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
+	var q := QuadMesh.new()
+	q.size = Vector2(0.012, 0.45)
 	q.material = mat
 	p.draw_pass_1 = q
 	return p
 
 
+## Arabayı caddede ilerletir; kamera sürücü koltuğunda (sokak.tscn'deki Araba/Kamera), hep yola bakar.
+func _ruya_arac_koy(sars: float) -> void:
+	var yon := (RUYA_SON - RUYA_BAS).normalized()
+	var p := RUYA_MERKEZ + RUYA_BAS + yon * _ruya_yol
+	var b := Basis(Vector3.UP, atan2(-yon.x, -yon.z))
+	_ruya_araba.global_transform = Transform3D(b, p)
+	var goz := p + b * Vector3(-0.45, 1.32 + sin(ft * 3.1) * 0.006, -0.1)
+	# baş hafifçe sağa sola, ama yan koltuğa dönmez
+	var bak_yon := Basis(Vector3.UP, sin(ft * 0.13) * 0.07 + sin(ft * 0.31) * 0.03) * (b * Vector3(0, -0.06, -1))
+	goz += Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.012 * sars
+	kamera.look_at_from_position(goz, goz + bak_yon, Vector3.UP)
+	kamera.rotation.z += sin(ft * 0.7) * 0.006
+	if _ruya_yagmur: _ruya_yagmur.global_position = p + Vector3(0, 9, 0) + yon * 6.0
+
+
 func _ruya(dt: float) -> void:
-	# kamera ışığın içinde çok yavaş süzülür, güneşe doğru hafifçe döner
-	var ileri := Vector3(sin(ft * 0.03) * 0.6, sin(ft * 0.21) * 0.08, -ft * 0.18)
-	var goz := RUYA_MERKEZ + ileri
-	var bak := goz + Vector3(sin(ft * 0.05) * 0.4 + 0.25, 0.12 + sin(ft * 0.09) * 0.05, -1.0)
 	var sars := 0.0
+	var hiz := _ruya_hiz
 	if _ruya_kirilma >= 0.0:
-		sars = clampf((ft - _ruya_kirilma - 2.0) / 4.0, 0.0, 1.0)
-	goz += Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * 0.01 * sars
-	kamera.look_at_from_position(goz, bak, Vector3.UP)
-	kamera.rotation.z = sin(ft * 0.11) * 0.02
+		var k0 := ft - _ruya_kirilma
+		sars = clampf((k0 - 2.0) / 4.0, 0.0, 1.0)
+		# fren: 5.8'den sonra araba sert yavaşlar
+		hiz = _ruya_hiz * (1.0 - smoothstep(5.8, 6.8, k0) * 0.85)
+	_ruya_yol = minf(_ruya_yol + hiz * dt, RUYA_BAS.distance_to(RUYA_SON))
+	_ruya_arac_koy(sars)
 	if _ruya_kirilma < 0.0:
 		# beyazdan açılır, piyano yükselir
 		karartma = 1.0 - smoothstep(0.3, 3.0, ft)
@@ -561,11 +633,25 @@ func _ruya(dt: float) -> void:
 		return
 	var k := ft - _ruya_kirilma
 	ses_ruya_yagmur.volume_db = move_toward(ses_ruya_yagmur.volume_db, -6.0, dt * 30.0)
+	if _ruya_yagmur and k > 0.8: _ruya_yagmur.emitting = true
+	_ruya_env.sky.sky_material.set("sky_top_color", Color(0.36, 0.58, 0.95).lerp(Color(0.12, 0.13, 0.15), smoothstep(0.0, 4.0, k)))
+	_ruya_env.sky.sky_material.set("sky_horizon_color", Color(0.92, 0.9, 0.84).lerp(Color(0.2, 0.21, 0.23), smoothstep(0.0, 4.0, k)))
+	_ruya_env.fog_density = lerpf(0.006, 0.03, smoothstep(0.0, 5.0, k))
+	# karşıdan, Selim'in şeridine doğru farlar: 7.3'te çarpışırlar
+	if k > 3.0 and _karsi_far:
+		var yon := (RUYA_SON - RUYA_BAS).normalized()
+		var biz := _ruya_araba.global_position
+		var uzak := lerpf(70.0, 1.5, smoothstep(3.0, 7.3, k) * smoothstep(3.0, 7.3, k) * 0.4 + clampf((k - 3.0) / 4.3, 0.0, 1.0) * 0.6)
+		_karsi_far.visible = true
+		# son anda farlar arabanın içini bembeyaz doldurur
+		for l in _karsi_far.get_children():
+			if l is SpotLight3D: (l as SpotLight3D).light_energy = 14.0 * (1.0 + 4.0 * smoothstep(5.5, 7.3, k))
+		_karsi_far.global_transform = Transform3D(Basis(Vector3.UP, atan2(yon.x, yon.z)), biz + yon * uzak + Vector3(0, 0, 0.6 * smoothstep(3.0, 7.0, k)))
 	# ışık titrer ve söner, gökyüzü griye döner
 	var titre := 1.0 if randf() < 0.75 else randf_range(0.15, 0.6)
 	_ruya_env.tonemap_exposure = lerpf(0.85, 0.3, smoothstep(0.0, 5.0, k)) * titre
 	_ruya_gunes.light_energy = lerpf(1.4, 0.1, smoothstep(0.0, 4.0, k)) * titre
-	_ruya_env.fog_light_color = Color(1.0, 0.95, 0.88).lerp(Color(0.25, 0.27, 0.3), smoothstep(0.0, 5.0, k))
+	_ruya_env.fog_light_color = Color(0.86, 0.88, 0.9).lerp(Color(0.25, 0.27, 0.3), smoothstep(0.0, 5.0, k))
 	_ruya_env.adjustment_saturation = lerpf(1.08, 0.3, smoothstep(0.0, 5.0, k))
 	for c in [[1.4, "ruya10"], [2.9, "ruya11"], [4.3, "ruya12"]]:
 		if k > float(c[0]) and not _soylenenler.has(c[1]): _soyle(c[1])
