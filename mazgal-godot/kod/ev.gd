@@ -208,6 +208,8 @@ var _yaw := 0.0
 var _pitch := 0.0
 var _kutular: Array = []
 var _oturuyor := false
+## evden çıkarken merdiven boşluğunda oyuncu kendi iner: yer ışınla bulunur, oda sınırları kalkar
+var _merdivende := false
 var _otur_konum := Vector3.ZERO
 var _bob := 0.0
 var _adim_t := 0.0
@@ -353,7 +355,7 @@ func _process(dt: float) -> void:
 	if govde.visible:
 		govde.gorunur = not _oturuyor
 		var kp := kamera.global_position
-		govde.guncelle(Vector3(kp.x, 0.0, kp.z), kamera.global_rotation.y, dt)
+		govde.guncelle(Vector3(kp.x, oyuncu.global_position.y if _merdivende else 0.0, kp.z), kamera.global_rotation.y, dt)
 	match faz:
 		"ruya": _ruya(dt)
 		"uyanis": _uyanis()
@@ -374,6 +376,7 @@ func _process(dt: float) -> void:
 		"geri": _geri()
 		"saat": _saat()
 		"cikis": _cikis()
+		"dis_kapi": _dis_kapi()
 	siyah.color.a = clampf(karartma, 0.0, 1.0)
 	_tv_guncelle(dt)
 	_daktilo_guncelle()
@@ -394,7 +397,7 @@ func _arka_muzik(dt: float) -> void:
 	if ses_arka == null or ses_arka.stream == null:
 		return
 	var hedef := -80.0
-	if not faz in ["ruya", "uyanis", "yayin", "geri", "saat", "cikis"]:
+	if not faz in ["ruya", "uyanis", "yayin", "geri", "saat", "cikis", "dis_kapi"] and not _merdivende:
 		hedef = ARKA_SES
 	if hedef > -80.0 and not ses_arka.playing:
 		ses_arka.play()
@@ -784,6 +787,7 @@ func _etkiles(ad: String) -> void:
 		"masa": _sahne("s_masa")
 		"telefon": _sahne("s_tel_al")
 		"koltuk": _sahne("s_koltuk")
+		"dis_kapi": _gec("dis_kapi")
 
 
 ## Kilitli kısa sahne: kamera oyuncunun baktığı yerden başlar.
@@ -1407,7 +1411,8 @@ func _cikis() -> void:
 		_eylem["otomat"] = true
 		_ses_cal("otomat", -8.0)
 		_merdiven_isik(true)
-	_merdiven_in(ft)
+	if _merdiven_isiklar.is_empty(): _merdiven_in(ft)
+	elif ft >= 9.0: _merdiven_basla()
 
 
 # ---------------------------------------------------------------- merdiven boşluğu
@@ -1427,7 +1432,7 @@ const MERDIVEN_PARLAK := 0.3
 var _merdiven_isiklar: Array[Light3D] = []
 
 
-static func merdiven_kur(ana: Node3D, yer: Vector3, ara: Vector3, kat: int) -> Array[Light3D]:
+static func merdiven_kur(ana: Node3D, yer: Vector3, ara: Vector3, kat: int, carpisma := false) -> Array[Light3D]:
 	var isiklar: Array[Light3D] = []
 	if not ResourceLoader.exists(MERDIVEN_MODEL): return isiklar
 	var paket := load(MERDIVEN_MODEL) as PackedScene
@@ -1437,6 +1442,18 @@ static func merdiven_kur(ana: Node3D, yer: Vector3, ara: Vector3, kat: int) -> A
 		m.name = "MerdivenKat%d" % k
 		ana.add_child(m)
 		m.global_position = b
+		if carpisma:
+			# katlar arası geçit: alt sahanlığın çıkmaz duvarı (z 6.6) bir alttaki katın merdiven başına açılır.
+			# En üst katta yukarıya, en alt katta aşağıya delik açılmaz.
+			var delikler: Array[AABB] = []
+			if k < kat - 1: delikler.append(AABB(Vector3(-4.9, -4.1, 6.5), Vector3(2.05, 2.15, 0.35)))
+			if k > 0:
+				delikler.append(AABB(Vector3(-4.9, 3.8, 6.5), Vector3(2.05, 2.15, 0.35)))
+				# alttaki katın tavanı, üstteki katın aşağı inen kolunun içinden geçer: kolun üstünde açılır
+				delikler.append(AABB(Vector3(-4.9, 5.85, 3.5), Vector3(6.35, 0.3, 3.15)))
+			for mi in m.find_children("*", "MeshInstance3D", true, false):
+				if not delikler.is_empty(): _gecit_ac(mi as MeshInstance3D, delikler)
+				(mi as MeshInstance3D).create_trimesh_collision()
 		# modelin ışığı dokuya pişmiş (emission); otomatik lamba yanınca o da yanar
 		for mi in m.find_children("*", "MeshInstance3D", true, false):
 			for i in (mi as MeshInstance3D).mesh.get_surface_count():
@@ -1465,6 +1482,40 @@ static func merdiven_kur(ana: Node3D, yer: Vector3, ara: Vector3, kat: int) -> A
 	return isiklar
 
 
+## Modelin yerel uzayında kutuların içinde kalan üçgenleri siler (görüntüden ve çarpışmadan).
+static func _gecit_ac(mi: MeshInstance3D, kutular: Array[AABB]) -> void:
+	var yerel := mi.transform   # modül kökünden mesh'e
+	var p := mi.get_parent()
+	while p and not p.name.begins_with("MerdivenKat"):
+		if p is Node3D: yerel = (p as Node3D).transform * yerel
+		p = p.get_parent()
+	var yeni := ArrayMesh.new()
+	for s in mi.mesh.get_surface_count():
+		var dizi := mi.mesh.surface_get_arrays(s)
+		var v: PackedVector3Array = dizi[Mesh.ARRAY_VERTEX]
+		var idx: PackedInt32Array = dizi[Mesh.ARRAY_INDEX]
+		if idx.is_empty():
+			idx = PackedInt32Array(range(v.size()))
+		var kalan := PackedInt32Array()
+		for i in range(0, idx.size(), 3):
+			var sil := false
+			for k: AABB in kutular:
+				if k.has_point(yerel * v[idx[i]]) and k.has_point(yerel * v[idx[i + 1]]) and k.has_point(yerel * v[idx[i + 2]]):
+					sil = true
+					break
+			if not sil:
+				kalan.append(idx[i]); kalan.append(idx[i + 1]); kalan.append(idx[i + 2])
+		dizi[Mesh.ARRAY_INDEX] = kalan
+		yeni.add_surface_from_arrays(mi.mesh.surface_get_primitive_type(s), dizi)
+		yeni.surface_set_material(s, mi.mesh.surface_get_material(s))
+	# yüzey malzemesi geçersiz kılınmışsa (ışık için kopyalanan) korunur
+	var ozel: Array = []
+	for s in mi.mesh.get_surface_count(): ozel.append(mi.get_surface_override_material(s))
+	mi.mesh = yeni
+	for s in ozel.size():
+		if ozel[s]: mi.set_surface_override_material(s, ozel[s])
+
+
 func _merdiven_isik(acik: bool) -> void:
 	for o in _merdiven_isiklar:
 		if o.has_meta("malzeme"):
@@ -1479,7 +1530,53 @@ func _merdiven_isik(acik: bool) -> void:
 		e.fog_density = 0.008
 
 
-## Kapı kilitlendikten sonra: üst kattan iki kat iner, zemin katta dış kapıya yürür, kapı açılınca yağmur.
+## Kapı kilitlenince Selim üst kat sahanlığında kendi yürür; iki kat inip zemin kattaki dış kapıda E'ye basar.
+## Bir modülde: sahanlık y=0 (x 1.5..4.8), aşağı kol z<6.6 (y -4'e), ara sahanlık x<-2.7, yukarı kol z>6.6 (y +3.9'a).
+func _merdiven_basla() -> void:
+	_merdivende = true
+	oyuncu.global_position = MERDIVEN_YERI + Vector3(3.9, 0.0, 5.6)
+	oyuncu.velocity = Vector3.ZERO
+	_yaw = PI * 0.5
+	_pitch = -0.2
+	_oturuyor = false
+	_kutular = []
+	_esyalar.clear()
+	_esya("dis_kapi", MERDIVEN_YERI + MERDIVEN_ARA * (MERDIVEN_KAT - 1) + Vector3(4.75, 1.1, 8.45), 2.2)
+	faz = "oyun"
+	ft = 0.0
+	_eylem.clear()
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	_gorev("Binadan çık")
+	_oyun_kamera(0.0)
+
+
+## En üst katta yukarı çıkan kol, en alt katta aşağı inen kol görünmez duvarla kapanır.
+func _merdiven_engeller() -> void:
+	var alt := MERDIVEN_YERI + MERDIVEN_ARA * (MERDIVEN_KAT - 1)
+	for e in [[MERDIVEN_YERI + Vector3(1.7, 1.5, 8.1), Vector3(0.2, 3.0, 3.0)], [alt + Vector3(1.7, 0.5, 5.1), Vector3(0.2, 3.0, 3.0)]]:
+		var g := StaticBody3D.new()
+		var cs := CollisionShape3D.new()
+		var k := BoxShape3D.new()
+		k.size = e[1]
+		cs.shape = k
+		g.add_child(cs)
+		add_child(g)
+		g.global_position = e[0]
+
+
+## Dış kapı: kilit, kapı, yağmur sesi yükselir, kararır, sokak.
+func _dis_kapi() -> void:
+	if not _eylem.has("dis_kapi"):
+		_eylem["dis_kapi"] = true
+		_gorev("")
+		_ses_cal("kilit", -8.0)
+		get_tree().create_timer(0.3, false).timeout.connect(func() -> void: _ses_cal("dolap", -4.0))
+	karartma = _egri([[0, 0], [0.4, 0], [1.4, 1]], ft)
+	_yagmur_ac(ft, 0.3, 2.4)
+	if ft >= 2.8: _sokaga()
+
+
+## (model yoksa) Kapı kilitlendikten sonra: üst kattan iki kat iner, zemin katta dış kapıya yürür, kapı açılınca yağmur.
 func _merdiven_in(ft: float) -> void:
 	if _merdiven_isiklar.is_empty():
 		# model yoksa eski karanlık geçiş
@@ -2048,7 +2145,8 @@ func _yeni_esyalar() -> void:
 		k.global_position += Vector3(34.68, 0.445, -0.3) - Vector3(kutu.get_center().x, kutu.position.y, kutu.get_center().z)
 	for p in _paketler: (_paketler[p] as Node).free()
 	_paketler.clear()
-	_merdiven_isiklar = merdiven_kur(ana, MERDIVEN_YERI, MERDIVEN_ARA, MERDIVEN_KAT)
+	_merdiven_isiklar = merdiven_kur(ana, MERDIVEN_YERI, MERDIVEN_ARA, MERDIVEN_KAT, true)
+	if not _merdiven_isiklar.is_empty(): _merdiven_engeller()
 
 
 ## Yeni TV ve sehpası (alp'in modeli): eski tüplü TV ile sehpanın yerine geçer, yayın düz ekrana basılır.
@@ -2868,6 +2966,9 @@ func _physics_process(dt: float) -> void:
 	oyuncu.velocity = oyuncu.velocity.lerp(yon * YURUME, minf(1.0, dt * 8.0))
 	var once := oyuncu.global_position
 	oyuncu.move_and_slide()
+	if _merdivende:
+		_basamak(dt)
+		return
 	var p := oyuncu.global_position
 	p.y = 0.0
 	if not _icerde(p):
@@ -2880,6 +2981,17 @@ func _physics_process(dt: float) -> void:
 		if dt > 0.0:
 			oyuncu.velocity.x = (p.x - once.x) / dt
 			oyuncu.velocity.z = (p.z - once.z) / dt
+	oyuncu.global_position = p
+
+
+## Merdivende ayak altındaki basamağı ışınla bulur; gövde basamaklara yumuşakça iner/çıkar.
+func _basamak(dt: float) -> void:
+	var p := oyuncu.global_position
+	var q := PhysicsRayQueryParameters3D.create(p + Vector3(0, 0.9, 0), p + Vector3(0, -1.5, 0))
+	q.exclude = [oyuncu.get_rid()]
+	var r := get_world_3d().direct_space_state.intersect_ray(q)
+	if r.is_empty(): return
+	p.y = lerpf(p.y, (r.position as Vector3).y, minf(1.0, dt * 12.0))
 	oyuncu.global_position = p
 
 

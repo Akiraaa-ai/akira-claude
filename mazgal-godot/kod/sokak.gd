@@ -1175,6 +1175,7 @@ func _kulube_kur() -> void:
 		# sandalye alp'te indirildiği adıyla da durabilir
 		if not ResourceLoader.exists(yol) and yol.get_file() == "sandalye.glb":
 			yol = yol.get_base_dir() + "/game-ready_folding_chair.glb"
+			if not ResourceLoader.exists(yol): yol = "res://modeller2/game-ready_folding_chair.glb"
 		if not ResourceLoader.exists(yol): continue
 		var n: Node3D = (load(yol) as PackedScene).instantiate()
 		$Kulube.add_child(n)
