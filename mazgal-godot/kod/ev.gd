@@ -59,9 +59,9 @@ const DOLAP := Vector3(24.38, 1.9, -3.1)            # mutfağın üst dolabı (N
 const BUZDOLABI_MODELI := "res://modeller2/seliminevi/buzdolabi.glb"   # alp gönderince
 const BUZDOLABI_YERI := Vector3(24.2, 1.0, 2.4)
 # Oyuncunun dolaşabileceği alanlar (odalar ve kapının önündeki koridor)
-const BANYO_ALAN := [AABB(Vector3(11.08, 0, -3.35), Vector3(0.84, 3, 1.95)), AABB(Vector3(10.95, 0, -1.5), Vector3(2.1, 3, 1.32)), AABB(Vector3(10.95, 0, -0.3), Vector3(0.8, 3, 2.5))]   # kapı önündeki dar koridor + banyo (duş kabininin camları dışında)
-const MUTFAK_ALAN := [AABB(Vector3(23.7, 0, -3.6), Vector3(4.25, 3, 6.9)), AABB(Vector3(27.9, 0, 2.27), Vector3(0.9, 3, 0.56))]   # mutfak + kapı aralığı (hola HOL_ALAN[4] ile bağlanır)
-const SALON_ALAN := [AABB(Vector3(33.3, 0, -2.7), Vector3(5.4, 3, 5.5)), AABB(Vector3(36.29, 0, 2.7), Vector3(0.62, 3, 1.55))]   # salon + kapı aralığı
+const BANYO_ALAN := [AABB(Vector3(10.95, 0, -1.3), Vector3(2.1, 3, 1.12)), AABB(Vector3(10.95, 0, -0.3), Vector3(0.92, 3, 2.5))]   # banyo (duş kabininin camları dışında)
+const MUTFAK_ALAN := [AABB(Vector3(23.7, 0, -3.6), Vector3(4.25, 3, 6.9))]
+const SALON_ALAN := [AABB(Vector3(33.3, 0, -2.7), Vector3(5.4, 3, 5.5))]
 const YURUME := 1.7
 const GOZ := 1.48
 ## Sinematik yollar 1.62 göz hizasıyla yazıldı; Selim kısaltıldı, ayakta duran kareler bu kadar alçalır.
@@ -75,41 +75,36 @@ const KAPI_MODELI := "res://modeller2/seliminevi/doors_stylish_glass_door.glb"
 const SAAT_MODELI := "res://modeller2/seliminevi/vintage_wooden_wall_clock_- (1).glb"
 const SEHPA_MODELI := "res://modeller2/seliminevi/tv_stand.glb"
 const PAKET_MODELI := "res://modeller2/seliminevi/sigara/sigara_paketi.gltf"
-# Oda kapıları: [kapı ortası, yaw (yerel +x geçiş yönü), aynalı, karanlık perde hangi yanda (yerel x: +1, -1, 0 yok)].
-# Hepsi tuğla hola açılır.
+# Kapılar: [kapı ortası, yaw (yerel +x geçiş yönü), aynalı, arkasındaki karanlık hangi yanda (yerel x: +1, -1, 0 yok)].
+# Yatak odası kapısı tuğla hola açılır. Öbür odalar evde başka yerlerde durur: holdeki kapı ve odanın
+# kendi kapısı karanlığa açılır, Selim karanlığa adım atınca öbür tarafta gözünü açar. Her geçişte tek kapı.
 const KAPI_YATAK := [Vector3(3.30, 0.0, 1.6), 0.0, false, 0.0]
-const KAPI_MUTFAK := [Vector3(28.33, 0.0, 2.55), 180.0, true, 0.0]
-const KAPI_SALON := [Vector3(36.6, 0.0, 2.935), 90.0, false, 0.0]
-const KAPI_BANYO_GIRIS := [Vector3(11.49, -0.01, -3.575), 90.0, false, 0.0]   # banyonun önündeki küçük antrenin kapısı
+const KAPI_MUTFAK := [Vector3(28.33, 0.0, 2.55), 180.0, true, -1.0]
+const KAPI_SALON := [Vector3(36.6, 0.0, 2.935), 90.0, false, -1.0]
+const KAPI_HOL_BANYO := [Vector3(7.46, 0.0, 1.8), 0.0, false, 1.0]
+const KAPI_HOL_MUTFAK := [Vector3(5.4, 0.0, 0.34), 90.0, false, 1.0]
+const KAPI_HOL_SALON := [Vector3(5.4, 0.0, 3.26), -90.0, false, 1.0]
+const BANYO_KARANLIK := [Vector3(10.5, -0.01, -3.1), Vector3(12.2, 2.45, -1.56)]   # banyo kapısının dışı
 
-# Tuğla hol (Selim'in odasının tuğlası): yatak odası, banyo, mutfak ve salon kapıları buna açılır.
-# Dikdörtgenler [x0, z0, x1, z1]: holün iç yüzü. Odalar evde ayrı yerlerde durduğu için hol odaların
-# güneyinden uzun bir koridor olarak geçer, kollarla kapılara bağlanır.
+# Tuğla hol (Selim'in odasının tuğlası): küçük bir dikdörtgen. Batıda yatak odası, doğuda banyo,
+# kuzeyde mutfak, güneyde salon kapısı. Dikdörtgenler [x0, z0, x1, z1]: holün iç yüzü.
 const HOL := [
-	[3.36, 0.9, 4.96, 5.3],      # yatak odası kapısının önü
-	[3.36, 3.7, 37.6, 5.3],      # uzun hol
-	[9.0, -5.1, 10.6, 3.7],      # banyoya giden kol (banyonun batısından kuzeye)
-	[9.0, -5.1, 12.3, -3.62],    # banyo kapısının önü
-	[28.42, 1.95, 30.02, 3.7],   # mutfak kapısının önü
-	[35.95, 3.02, 37.25, 3.7],   # salon kapısının önü
+	[3.36, 0.4, 7.4, 3.2],
 ]
-# Holün oda kapılarının bulunduğu kenarları: duvarda kapı boşluğu kalır. [kenar, sabit, kapının ortası]
-const HOL_KAPILAR := [["-x", 3.36, 1.6], ["-x", 28.42, 2.55], ["-z", 3.02, 36.6], ["+z", -3.62, 11.49]]
-# kapı eşiklerinde odanın zemini ile hol arasında kalan aralık
-const HOL_ESIK := [[3.2, 1.0, 3.4, 2.2], [28.28, 2.0, 28.45, 3.1], [36.0, 2.86, 37.2, 3.05]]
+# Holün kapılarının bulunduğu kenarları: duvarda kapı boşluğu kalır. [kenar, sabit, kapının ortası]
+const HOL_KAPILAR := [["-x", 3.36, 1.6], ["+x", 7.4, 1.8], ["-z", 0.4, 5.4], ["+z", 3.2, 5.4]]
+# kapı eşiğinde yatak odasının zemini ile hol arasında kalan aralık
+const HOL_ESIK := [[3.2, 1.0, 3.4, 2.2]]
 const HOL_TAVAN := 2.6
-const HOL_LAMBALAR := [Vector3(4.16, 2.3, 2.2), Vector3(7.0, 2.3, 4.5), Vector3(9.8, 2.3, 0.2), Vector3(9.8, 2.3, -4.35),
-	Vector3(14.5, 2.3, 4.5), Vector3(20.5, 2.3, 4.5), Vector3(26.0, 2.3, 4.5), Vector3(29.2, 2.3, 2.8), Vector3(32.5, 2.3, 4.5), Vector3(36.6, 2.3, 4.5)]
-const HOL_TITREYEN := 5   # bu ampul arada bir çakıp söner
+const HOL_LAMBALAR := [Vector3(4.5, 2.3, 1.8), Vector3(6.4, 2.3, 1.8)]
+const HOL_TITREYEN := 1   # bu ampul arada bir çakıp söner
 # oyuncunun holde dolaşabileceği yer (duvarlardan 0.28 m içeride)
-const HOL_ALAN := [AABB(Vector3(3.64, 0, 1.0), Vector3(1.04, 3, 4.02)), AABB(Vector3(3.64, 0, 3.98), Vector3(33.58, 3, 1.04)),
-	AABB(Vector3(9.28, 0, -4.82), Vector3(1.04, 3, 9.3)), AABB(Vector3(9.28, 0, -4.82), Vector3(2.74, 3, 0.92)),
-	AABB(Vector3(28.7, 0, 2.23), Vector3(1.04, 3, 2.3)), AABB(Vector3(36.23, 0, 3.3), Vector3(0.74, 3, 1.2))]
+const HOL_ALAN := [AABB(Vector3(3.64, 0, 0.68), Vector3(3.48, 3, 2.24))]
 # hol kapılarına giden yol (test botu için; oyuncu kendi yürür)
 const HOL_ROTA := {
-	"banyo": [Vector3(4.16, 0, 4.5), Vector3(9.8, 0, 4.5), Vector3(9.8, 0, -4.35), Vector3(10.9, 0, -4.35)],
-	"mutfak": [Vector3(9.8, 0, -4.35), Vector3(9.8, 0, 4.5), Vector3(29.2, 0, 4.5), Vector3(29.2, 0, 3.2)],
-	"salon_kapisi": [Vector3(36.6, 0, 4.5)],
+	"banyo": [Vector3(6.5, 0, 1.8)],
+	"mutfak": [Vector3(5.4, 0, 1.2)],
+	"salon_kapisi": [Vector3(5.4, 0, 2.4)],
 }
 const KAPI_EN := 1.07
 const KAPI_BOY := 2.14
@@ -180,9 +175,10 @@ var _ibre_dinlenme := {}   # ibre -> [saatin içindeki duruşu, 12'den saat yön
 var kapi_yatak: Node3D
 var kapi_mutfak: Node3D
 var kapi_salon: Node3D
-var kapi_banyo_giris: Node3D
+var kapi_hol_banyo: Node3D
+var kapi_hol_mutfak: Node3D
+var kapi_hol_salon: Node3D
 var _hol_hedef := ""
-var _holden := false          # odaya holden kapıya basılarak girildi: oyuncu yerinde kalır
 var _kapanacak := {}          # menteşe -> kapanmaya başladığı an
 var _hol_lambalar: Array[OmniLight3D] = []
 var _uzaklasinca := {}        # açık kalan kapı -> true: Selim kanadın süpürdüğü yerden uzaklaşınca kapanır
@@ -254,7 +250,6 @@ func _ready() -> void:
 	_kabuk(Vector3(-2.855, 0, -2.855) + SALON, Vector3(2.855, 4.2, 2.855) + SALON, {"+x": beton_x, "+z": beton_z}, beton_x, {"+z": KAPI_SALON[0].x})
 	kapi_yatak = _kapi_kur(KAPI_YATAK)
 	kapi_mutfak = _kapi_kur(KAPI_MUTFAK)
-	kapi_mutfak.set_meta("yon", -1.0)   # holden itilince mutfağa doğru açılır, holü kapatmaz
 	kapi_salon = _kapi_kur(KAPI_SALON)
 	_banyo_kapisi_kur()
 	_dus_kapisi_kur()
@@ -266,12 +261,15 @@ func _ready() -> void:
 	_paket_kur()
 	_dus_kur()
 	_ayna_kur()
-	# tuğla hol ve banyonun önündeki küçük antre
+	# tuğla hol; holdeki kapılar Selim'den öteye, karanlığa doğru itilerek açılır
 	var tahta := _duvar_malzemesi($YatakOdasi, "Plane_Material_001_0", 0.3)
 	var siva := _duvar_malzemesi($YatakOdasi, "Plane_004_Material_004_0", 0.25)
 	_hol_kur(tugla, tahta, siva)
-	_koridor(Vector3(10.88, -0.01, -3.55), Vector3(12.1, 2.45, -1.52), "+z", true, tugla, tahta, siva)
-	kapi_banyo_giris = _kapi_kur(KAPI_BANYO_GIRIS)
+	kapi_hol_banyo = _kapi_kur(KAPI_HOL_BANYO)
+	kapi_hol_mutfak = _kapi_kur(KAPI_HOL_MUTFAK)
+	kapi_hol_salon = _kapi_kur(KAPI_HOL_SALON)
+	for k: Node3D in [kapi_hol_banyo, kapi_hol_mutfak, kapi_hol_salon]: k.set_meta("yon", -1.0)
+	_karanlik_kutu(self, BANYO_KARANLIK[0], BANYO_KARANLIK[1], "+z")
 	_arayuz_kur()
 	_oyun_arayuzu_kur()
 	_damla_kur()
@@ -602,8 +600,8 @@ func _uyanis() -> void:
 		[19.2, Vector3(1.6, 1.65, 1.3), Vector3(4.0, 1.45, 1.6)],
 		[20.6, Vector3(2.3, 1.65, 1.6), Vector3(4.2, 1.45, 1.6)],
 		[22.0, Vector3(3.35, 1.65, 1.6), Vector3(5.0, 1.45, 1.6)],
-		# hola çıkar, holün uzandığı yana döner
-		[23.4, Vector3(4.1, 1.62, 1.75), Vector3(4.2, 1.48, 4.2)],
+		# hola çıkar; karşısında banyonun kapısı
+		[23.4, Vector3(4.1, 1.62, 1.7), Vector3(7.0, 1.48, 1.78)],
 	], ft)
 	# göz kırpma ve bulanık açılış
 	karartma = _egri([[0, 1], [1.2, 1], [1.8, 0.4], [2.1, 0.92], [2.9, 0.2], [3.2, 0.7], [4.2, 0.0], [6.3, 0.0], [6.45, 0.85], [6.7, 0.0], [20.0, 0]], ft)
@@ -632,9 +630,11 @@ func _uyanis() -> void:
 		_eylem["geri_cek"] = true
 		eller.birak("sag", 0.9)
 	# nefes, iç çekiş, çarşaf, yatak, yalın ayak adımlar
-	if ft > 2.0 and not _eylem.has("nefes"):
+	if ft > 0.4 and not _eylem.has("nefes"):
 		_eylem["nefes"] = true; _ses_cal("nefes_agir", -6.0)
-	if ft > 10.4 and not _soylendi("ruya_sonra"): _soyle("ruya_sonra")
+	# gözünü açar açmaz, alarm daha çalarken söylenir; alarm o sırada biraz kısılır
+	if ft > 2.2 and not _soylendi("ruya_sonra"): _soyle("ruya_sonra")
+	ses_alarm.volume_db = -15.0 if ft > 2.2 and ft < ALARM_KAPAN else -9.0
 	if ft > 9.2 and not _eylem.has("ic_cekis"):
 		_eylem["ic_cekis"] = true; _ses_cal("ic_cekis", -4.0)
 	if ft > 9.8 and not _eylem.has("carsaf"):
@@ -669,55 +669,49 @@ func _hol_basla(hedef: String) -> void:
 	match hedef:
 		"banyo":
 			_gorev("Banyoya git")
-			_esya("hol_banyo", KAPI_BANYO_GIRIS[0] + Vector3(0, 1.05, 0), 2.0)
+			_esya("hol_banyo", KAPI_HOL_BANYO[0] + Vector3(0, 1.05, 0), 2.0)
 		"mutfak":
 			_gorev("Mutfağa git")
-			_esya("hol_mutfak", KAPI_MUTFAK[0] + Vector3(0, 1.05, 0), 2.0)
+			_esya("hol_mutfak", KAPI_HOL_MUTFAK[0] + Vector3(0, 1.05, 0), 2.0)
 		"salon_kapisi":
 			_gorev("Salona git")
-			_esya("hol_salon", KAPI_SALON[0] + Vector3(0, 1.05, 0), 2.0)
+			_esya("hol_salon", KAPI_HOL_SALON[0] + Vector3(0, 1.05, 0), 2.0)
 
 
-## Holden banyonun antresine: kapıyı iter, içeri girer, kapı arkasından kapanır.
-func _banyoya_gir() -> void:
-	var kapi: Vector3 = KAPI_BANYO_GIRIS[0]
-	var on := Vector3(kapi.x, 1.62, kapi.z - 0.8)
+## Holdeki kapıdan odaya: kapıyı iter, karanlığa adım atar; ekran kararır, odanın içinde gözünü açar.
+func _holden_odaya(kapi: Node3D, tanim: Array, sonraki: String) -> void:
+	var p: Vector3 = tanim[0]
+	var a := deg_to_rad(float(tanim[1]))
+	var ileri := Vector3(cos(a), 0.0, -sin(a))   # kapının yerel +x'i: holden dışarı
+	var on := Vector3(p.x, 1.62, p.z) - ileri * 0.8
 	var bas := _ham(kamera.global_position)
 	var t1 := maxf(0.9, Vector2(bas.x - on.x, bas.z - on.z).length() / 1.0)
-	var hedef := Vector3(11.55, 1.62, -3.0)
-	# kapı antreye doğru itilir (Selim'in durduğu yere süpürmez)
-	kapi_banyo_giris.set_meta("yon", 1.0)
-	_uzaklasinca[kapi_banyo_giris] = true
-	_gecis_basla([[0.0, bas, kapi + Vector3(0, 1.1, 0)],
-			[t1, on, kapi + Vector3(0, 1.25, 0.6)],
-			[t1 + 1.3, on + Vector3(0, 0, 0.05), kapi + Vector3(0, 1.35, 1.6)],
-			[t1 + 2.2, Vector3(kapi.x, 1.62, kapi.z + 0.1), Vector3(11.52, 1.45, -1.0)],
-			[t1 + 3.0, hedef, Vector3(hedef.x, GOZ + sin(-0.08), hedef.z + 1.0)]],
-		kapi_banyo_giris, Vector2(t1 + 0.1, t1 + 1.1), t1 + 3.0, null, [], "banyo")
-	_gecis["acik_kalsin"] = true
+	_gecis_basla([[0.0, bas, p + Vector3(0, 1.1, 0)],
+			[t1, on, p + Vector3(0, 1.25, 0) + ileri * 0.6],
+			[t1 + 1.3, on + ileri * 0.05, p + Vector3(0, 1.35, 0) + ileri * 1.6],
+			[t1 + 2.3, Vector3(p.x, 1.62, p.z) + ileri * 0.35, p + Vector3(0, 1.4, 0) + ileri * 2.0]],
+		kapi, Vector2(t1 + 0.1, t1 + 1.1), t1 + 2.3, null, [], sonraki)
+	_gecis["karart"] = 0.7
 
 
-## Banyo: antreden başlar. Kapı, ışık, lavabo, duş.
+## Banyo: kapının hemen içinden, karanlıkta başlar. Işık, duş, sonra lavaboda diş fırçalama.
 func _banyo_basla() -> void:
 	_saat_goster("18:20")
-	_oyuncu_yerlestir(Vector3(11.55, 0.0, -3.0), PI, BANYO_ALAN)
+	_oyuncu_yerlestir(Vector3(11.5, 0.0, -1.05), PI, BANYO_ALAN)
 	$Isiklar/BanyoLamba.light_energy = 0.0
 	_gorev("Duş al")
-	_esya("banyo_kapi", Vector3(11.48, 1.05, -1.47), 2.1)
+	_esya("banyo_isik", ISIK_DUGMESI, 1.8)
 	get_tree().create_timer(2.0, false).timeout.connect(func() -> void: if not _soylendi("ic01"): _soyle("ic01"))
 
 
-## Mutfak: kapının önünden başlar (holden gelindiyse oyuncu olduğu yerde kalır, kapı hemen açılır).
+## Mutfak: kapının hemen içinden başlar, kapı arkasında kapalı.
 func _mutfak_basla() -> void:
 	_saat_goster("19:05")
-	var kutular: Array = MUTFAK_ALAN + [HOL_ALAN[4]]
-	if _holden: _yerinde_kal(kutular)
-	else: _oyuncu_yerlestir(Vector3(29.25, 0.0, 2.5), PI * 0.5, kutular)
+	_oyuncu_yerlestir(Vector3(27.45, 0.0, 2.5), PI * 0.5, MUTFAK_ALAN)
 	_gorev("Bir şeyler ye")
 	get_tree().create_timer(2.5, false).timeout.connect(func() -> void: if not _soylendi("ic02"): _soyle("ic02"))
-	_esya("mutfak_kapi", KAPI_MUTFAK[0] + Vector3(0, 1.05, 0), 2.0)
-	if _holden: _etkiles("mutfak_kapi")
-	_holden = false
+	if ResourceLoader.exists(BUZDOLABI_MODELI): _esya("buzdolabi", BUZDOLABI_YERI, 2.0)
+	else: _esya("dolap", DOLAP, 2.0)
 	# telefon masada, ekranı kapalı
 	telefon.visible = true
 	_tel_ekran(false)
@@ -726,83 +720,55 @@ func _mutfak_basla() -> void:
 	telefon.scale = Vector3.ONE * TEL_OLCEK
 
 
-## Salon: kapının önünden başlar, koltuğa oturunca TV sinematiği başlar.
+## Salon: kapının hemen içinden başlar, koltuğa oturunca TV sinematiği başlar.
 func _salon_basla() -> void:
 	_salon_giris = T   # duvar saati salona girince 20:00'ı gösterir
 	_saat_goster("20:00")
 	$Aksam.visible = false   # gece: güneş artık pencereden vurmaz
 	($Ortam as WorldEnvironment).environment.ambient_light_energy = 0.2
-	var kutular: Array = SALON_ALAN + [HOL_ALAN[5], AABB(Vector3(35.2, 0, 3.98), Vector3(2.1, 3, 1.04))]
-	if _holden: _yerinde_kal(kutular)
-	else: _oyuncu_yerlestir(Vector3(36.6, 0.0, 4.2), 0.0, kutular)
-	_esya("salon_kapi", KAPI_SALON[0] + Vector3(0, 1.05, 0), 2.0)
-	if _holden: _etkiles("salon_kapi")
-	_holden = false
-
-
-## Holden odaya kapıya basarak girildi: oyuncu yerinde kalır, yalnızca dolaşabileceği yer değişir.
-func _yerinde_kal(kutular: Array) -> void:
-	_kutular = kutular
-	_esyalar.clear()
-	faz = "oyun"
-	ft = 0.0
-	_eylem.clear()
-	_hol_hedef = ""
+	_oyuncu_yerlestir(Vector3(36.6, 0.0, 2.2), 0.0, SALON_ALAN)
+	_esya("koltuk", KOLTUK + Vector3(0.2, -0.5, 0), 3.2)
 
 
 func _etkiles(ad: String) -> void:
 	_esya_kaldir(ad)
 	match ad:
-		"hol_banyo":
+		"hol_banyo", "hol_mutfak", "hol_salon":
 			_gorev("")
 			_hol_hedef = ""
-			_banyoya_gir()
-		"hol_mutfak":
-			_holden = true
-			_gec("mutfak")
-		"hol_salon":
-			_holden = true
-			_gec("salon_kapisi")
-		"banyo_kapi":
-			_zaman["banyo_kapi"] = T
-			_esya("banyo_isik", ISIK_DUGMESI, 1.8)
+			match ad:
+				"hol_banyo": _holden_odaya(kapi_hol_banyo, KAPI_HOL_BANYO, "banyo")
+				"hol_mutfak": _holden_odaya(kapi_hol_mutfak, KAPI_HOL_MUTFAK, "mutfak")
+				_: _holden_odaya(kapi_hol_salon, KAPI_HOL_SALON, "salon_kapisi")
 		"banyo_isik":
 			_zaman["banyo_isik"] = T
 			eller.uzan("sag", ISIK_DUGMESI + Vector3(0.04, 0, 0), 0.25)
 			get_tree().create_timer(0.45, false).timeout.connect(func() -> void: eller.birak("sag", 0.4))
 			_ses_cal("dugme", -8.0)
 			_ses_cal("floresan_tik", -6.0)
-			_esya("lavabo", LAVABO, 1.7)
-			# duşa lavaboyu beklemeden de girilebilir
 			_esya("dus", DUS_KAPI, 2.6)
 		"lavabo": _sahne("s_lavabo")
-		"dus":
-			_esya_kaldir("lavabo")
-			_sahne("s_dus")
+		"dus": _sahne("s_dus")
 		"banyo_cikis":
 			_sahne("gecis")
-			# kapı Selim'e doğru açılır: kapının süpürdüğü yerin dışında, kol tarafında durup çeker
+			# banyonun kapısı dışarı, karanlığa açılır; Selim karanlığa adım atar, holde gözünü açar
+			var on := Vector3(11.55, 1.62, -0.95)
 			_gecis_basla([[0.0, _bas_konum, _bas_bakis],
-					[1.2, Vector3(11.3, 1.62, -2.3), Vector3(11.2, 1.3, -3.6)],
-					[2.0, Vector3(10.98, 1.62, -3.12), Vector3(11.2, 1.1, -3.65)],
-					[3.1, Vector3(11.02, 1.62, -3.15), Vector3(11.5, 1.4, -4.4)],
-					[3.9, Vector3(11.49, 1.62, -3.575), Vector3(11.3, 1.5, -5.0)],
-					[4.9, Vector3(11.2, 1.62, -4.35), Vector3(8.8, 1.48, -4.4)]],
-				kapi_banyo_giris, Vector2(2.1, 3.0), 4.9,
-				null, [], "hol:mutfak")
-			_gecis["kapa"] = 4.5
+					[1.1, on, Vector3(11.6, 1.1, -1.6)],
+					[2.5, on + Vector3(0, 0, -0.05), Vector3(11.55, 1.4, -2.6)],
+					[3.5, Vector3(11.55, 1.62, -1.8), Vector3(11.55, 1.45, -3.2)]],
+				null, Vector2.ZERO, 3.5, null, [], "hol:mutfak")
+			_gecis["karart"] = 0.7
+			_gecis["hol_kapi"] = kapi_hol_banyo
+			_gecis["hol_yer"] = KAPI_HOL_BANYO
+			_zaman["banyo_kapi"] = T + 1.2
+			get_tree().create_timer(0.8, false).timeout.connect(func() -> void: eller.uzan("sag", Vector3(11.8, 1.0, -1.42), 0.4))
+			get_tree().create_timer(1.6, false).timeout.connect(func() -> void: eller.birak("sag", 0.5))
 			_gorev("")
-		"mutfak_kapi":
-			_zaman["mutfak_kapi"] = T
-			if ResourceLoader.exists(BUZDOLABI_MODELI): _esya("buzdolabi", BUZDOLABI_YERI, 2.0)
-			else: _esya("dolap", DOLAP, 2.0)
 		"buzdolabi": _sahne("s_buzdolabi")
 		"dolap": _sahne("s_dolap")
 		"masa": _sahne("s_masa")
 		"telefon": _sahne("s_tel_al")
-		"salon_kapi":
-			_zaman["salon_kapi"] = T
-			_esya("koltuk", KOLTUK + Vector3(0.2, -0.5, 0), 3.2)
 		"koltuk": _sahne("s_koltuk")
 
 
@@ -813,30 +779,45 @@ func _sahne(ad: String) -> void:
 	_gec(ad)
 
 
+## Duştan sonra lavaboda dişlerini fırçalar, ağzını çalkalar, aynada kendine bakar.
+## (Diş fırçası modeli gelene kadar yalnızca eli görünür.)
 func _s_lavabo() -> void:
 	var dur := Vector3(11.78, 1.6, -0.56)
-	_yol([[0.0, _bas_konum, _bas_bakis], [1.2, dur, LAVABO + Vector3(0, -0.1, 0)], [5.6, dur + Vector3(-0.08, -0.12, 0), LAVABO], [6.6, dur, AYNA], [11.0, dur + Vector3(-0.03, 0, 0), AYNA + Vector3(0, 0.02, 0)]], ft)
-	if ft > 1.0 and not _eylem.has("l_el"):
+	_yol([[0.0, _bas_konum, _bas_bakis], [1.2, dur, LAVABO + Vector3(0, -0.1, 0)], [2.4, dur, AYNA],
+		[9.0, dur + Vector3(-0.02, 0.01, 0), AYNA + Vector3(0, 0.03, 0)],
+		[9.8, dur + Vector3(-0.1, -0.16, 0), LAVABO], [11.2, dur + Vector3(-0.08, -0.12, 0), LAVABO],
+		[12.4, dur, AYNA], [14.0, dur + Vector3(-0.03, 0, 0), AYNA + Vector3(0, 0.02, 0)]], ft)
+	if ft > 0.9 and not _eylem.has("l_el"):
 		_eylem["l_el"] = true
-		eller.uzan("sag", LAVABO + Vector3(0.12, 0.12, 0.1), 0.7)
-		eller.uzan("sol", LAVABO + Vector3(0.12, 0.12, -0.12), 0.7)
-		su_hedef = 0.6
-	if ft > 2.6 and not _eylem.has("l_yuz"):
-		_eylem["l_yuz"] = true
-		eller.kamerada("sag", Vector3(0.07, -0.15, -0.24), 0.5)
-		eller.kamerada("sol", Vector3(-0.07, -0.15, -0.24), 0.5)
-		_ses_cal("su_carpma", -6.0)
-	if ft > 3.2 and not _eylem.has("l_damla"):
-		_eylem["l_damla"] = true; damla_hedef = 1.0
-	if ft > 4.2 and not _eylem.has("l_birak"):
-		_eylem["l_birak"] = true
-		eller.birak("sag", 0.6); eller.birak("sol", 0.6)
-		su_hedef = 0.0
-	# aynada kendine bakar; soğuk suyla ayna yalnızca biraz buğulanır
-	ayna_bugu = maxf(ayna_bugu, clampf((ft - 6.0) / 5.0, 0.0, 0.3)) if ft > 6.0 else ayna_bugu
-	if ft >= 11.0:
+		eller.uzan("sag", LAVABO + Vector3(0.12, 0.12, 0.1), 0.6)
+	if ft > 1.6 and not _eylem.has("l_agiz"):
+		_eylem["l_agiz"] = true
+		eller.kamerada("sag", Vector3(0.04, -0.17, -0.17), 0.6)
+		eller.yumruk("sag", 1.0)   # fırçayı tutan el
+	# fırçalama: el ağzın önünde kısa kısa gidip gelir
+	if ft > 2.4 and ft < 8.8:
+		var adim := int((ft - 2.4) / 0.16)
+		if not _eylem.has("f%d" % adim):
+			_eylem["f%d" % adim] = true
+			eller.kamerada("sag", Vector3(0.02 + 0.04 * (adim % 2), -0.17 + 0.012 * ((adim >> 2) % 2), -0.17), 0.15)
+	if ft > 2.5 and not _eylem.has("l_ses"):
+		_eylem["l_ses"] = true; _ses_cal("dis_fircalama", -6.0)
+	if ft > 8.9 and not _eylem.has("l_birak"):
+		_eylem["l_birak"] = true; eller.birak("sag", 0.5)
+	# lavaboya eğilir, suyu açıp ağzını çalkalar
+	if ft > 9.7 and not _eylem.has("l_su"):
+		_eylem["l_su"] = true; su_hedef = 0.6
+		eller.uzan("sag", LAVABO + Vector3(0.12, 0.12, 0.0), 0.5)
+	if ft > 10.4 and not _eylem.has("l_calkala"):
+		_eylem["l_calkala"] = true; _ses_cal("su_carpma", -12.0)
+	if ft > 10.7 and not _eylem.has("l_cek"):
+		_eylem["l_cek"] = true; eller.birak("sag", 0.6)
+	if ft > 11.3 and not _eylem.has("l_kapa"):
+		_eylem["l_kapa"] = true; su_hedef = 0.0
+	if ft >= 14.0:
 		_oyuna_don()
-		_esya("dus", DUS_KAPI, 2.6)
+		_gorev("Mutfağa geç")
+		_esya("banyo_cikis", Vector3(11.48, 1.05, -1.47), 1.6)
 
 
 func _s_dus() -> void:
@@ -886,8 +867,8 @@ func _s_dus() -> void:
 		damla_hedef = 0.0
 		_dus_kapisi(0.0)
 		_oyuncu_yerlestir(Vector3(11.75, 0.0, -0.9), 0.0, BANYO_ALAN)
-		_gorev("Mutfağa geç")
-		_esya("banyo_cikis", Vector3(11.48, 1.05, -1.47), 1.6)
+		_gorev("Dişlerini fırçala")
+		_esya("lavabo", LAVABO, 1.7)
 
 
 ## Duş kabini: yan camdaki kapı modelde dar ve alçaktı (0.61 x 1.45 m). Boşluk genişler, kapının
@@ -990,9 +971,10 @@ func _kapi_kolu(mentese: Node3D) -> Vector3:
 
 
 func _gecis_oyna() -> void:
-	karartma = 0.0
 	var g := _gecis
 	var kesme: float = g["kesme"]
+	# karanlığa açılan kapıdan geçerken ekran kararır
+	karartma = smoothstep(kesme - float(g["karart"]), kesme, ft) if g.has("karart") else 0.0
 	if ft < kesme:
 		_yol(g["a_yol"], ft)
 		var kapi: Node3D = g["a_kapi"]
@@ -1016,6 +998,17 @@ func _gecis_oyna() -> void:
 		# karşı kapı yok: Selim aynı evin holüne ya da odasına geçti
 		var kapi: Node3D = g["a_kapi"]
 		if kapi and not _eylem.has("kapa") and not g.has("acik_kalsin"): _kapanacak[kapi] = T
+		if g.has("hol_yer"):
+			# holde, odanın kapısının önünde gözünü açar; kapı arkasından kapanır
+			var tn: Array = g["hol_yer"]
+			var hk: Node3D = g["hol_kapi"]
+			var a := deg_to_rad(float(tn[1]))
+			var ileri := Vector3(cos(a), 0.0, -sin(a))
+			var p: Vector3 = tn[0] - ileri * 0.75
+			kamera.look_at_from_position(Vector3(p.x, GOZ, p.z), Vector3(p.x, GOZ - 0.12, p.z) - ileri, Vector3.UP)
+			hk.set_meta("k", 1.0)
+			hk.rotation.y = PI * 0.5 * 0.95 * float(hk.get_meta("yon", 1.0))
+			_kapanacak[hk] = T
 		var sonraki: String = g["sonraki"]
 		if sonraki.begins_with("hol:"): _hol_basla(sonraki.substr(4))
 		else: _gec(sonraki)
@@ -1155,15 +1148,17 @@ func _s_tel_birak() -> void:
 		_tel_ekran(false)
 		eller.birak("sag", 0.6)
 	if ft >= 3.4:
-		# kalkar, mutfak kapısından hola çıkar; salona kendi yürür
+		# kalkar, mutfak kapısını karanlığa doğru iter, holde gözünü açar; salona kendi yürür
 		var bas := Vector3(27.4, 1.25, 1.85) + Vector3(0.1, 0.3, 0.2)
 		_gecis_basla([[0.0, bas, Vector3(29, 1.4, 2.6)],
-				[1.1, Vector3(28.0, 1.62, 2.45), Vector3(29.6, 1.5, 2.55)],
-				[2.0, Vector3(28.95, 1.62, 2.65), Vector3(29.9, 1.2, 2.9)],
-				[3.0, Vector3(29.2, 1.62, 3.45), Vector3(30.2, 1.45, 4.7)],
-				[3.9, Vector3(29.45, 1.62, 4.35), Vector3(33.0, 1.48, 4.5)]],
-			null, Vector2.ZERO, 3.9,
+				[1.1, Vector3(27.6, 1.62, 2.5), Vector3(28.6, 1.3, 2.55)],
+				[2.5, Vector3(27.65, 1.62, 2.52), Vector3(29.2, 1.45, 2.55)],
+				[3.5, Vector3(28.5, 1.62, 2.55), Vector3(30.0, 1.45, 2.55)]],
+			kapi_mutfak, Vector2(1.3, 2.3), 3.5,
 			null, [], "hol:salon_kapisi")
+		_gecis["karart"] = 0.7
+		_gecis["hol_kapi"] = kapi_hol_mutfak
+		_gecis["hol_yer"] = KAPI_HOL_MUTFAK
 
 
 ## Selim salona girince önce koltuğun üstündeki fotoğraf duvarına bakar (yaklaşık 30 sn), resimleri
@@ -1504,16 +1499,36 @@ func _kapi_kur(tanim: Array) -> Node3D:
 		var n := model.find_child(ad, true, false)
 		if n: n.reparent(mentese, true)
 	mentese.set_meta("k", 0.0)
-	if float(tanim[3]) != 0.0:
-		var karanlik := StandardMaterial3D.new()
-		karanlik.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		karanlik.albedo_color = Color(0.008, 0.008, 0.01)
-		var perde := MeshInstance3D.new()
-		var bm := BoxMesh.new(); bm.size = Vector3(0.02, 3.0, 3.0); bm.material = karanlik
-		perde.mesh = bm
-		perde.position = Vector3(1.4 * float(tanim[3]), 1.5, 0.0)
-		kok.add_child(perde)
+	var yan := float(tanim[3])
+	if yan > 0.0: _karanlik_kutu(kok, Vector3(0.07, -0.01, -0.85), Vector3(1.8, 2.4, 0.85), "-x")
+	elif yan < 0.0: _karanlik_kutu(kok, Vector3(-1.8, -0.01, -0.85), Vector3(-0.07, 2.4, 0.85), "+x")
 	return mentese
+
+
+## Kapının arkasındaki karanlık: a..b kutusunun açık yüzü dışındaki beş yüzü, ışık almayan siyah.
+func _karanlik_kutu(ana: Node3D, a: Vector3, b: Vector3, acik: String) -> void:
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(0.006, 0.006, 0.008)
+	mat.disable_fog = true
+	var o := (a + b) * 0.5
+	var s := b - a
+	var k := 0.02
+	var yuzler := {
+		"-y": [Vector3(o.x, a.y, o.z), Vector3(s.x, k, s.z)], "+y": [Vector3(o.x, b.y, o.z), Vector3(s.x, k, s.z)],
+		"-x": [Vector3(a.x, o.y, o.z), Vector3(k, s.y, s.z)], "+x": [Vector3(b.x, o.y, o.z), Vector3(k, s.y, s.z)],
+		"-z": [Vector3(o.x, o.y, a.z), Vector3(s.x, s.y, k)], "+z": [Vector3(o.x, o.y, b.z), Vector3(s.x, s.y, k)],
+	}
+	for y: String in yuzler:
+		if y == acik: continue
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = yuzler[y][1]
+		bm.material = mat
+		mi.mesh = bm
+		mi.position = yuzler[y][0]
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		ana.add_child(mi)
 
 
 ## Kapıyı t0..t1 arasında açar (t0 > t1 verilirse kapatır). Açılırken gıcırtı, kapanınca tok ses.
@@ -2450,7 +2465,7 @@ func _oyuncu_kur() -> void:
 	oyuncu.motion_mode = CharacterBody3D.MOTION_MODE_FLOATING
 	var cs := CollisionShape3D.new()
 	var kapsul := CapsuleShape3D.new()
-	kapsul.radius = 0.22
+	kapsul.radius = 0.17   # dar banyo ve kapı aralarında takılmasın
 	kapsul.height = 1.1
 	cs.shape = kapsul
 	# yerdeki halı, eşik gibi alçak şeylere takılmasın diye gövde yerden 0.5 m yukarıda başlar
@@ -2706,66 +2721,6 @@ func _dunya_kutusu(n: Node3D) -> AABB:
 		kutu = k if ilk else kutu.merge(k)
 		ilk = false
 	return kutu
-
-
-## Küçük koridor (banyonun önündeki antre): taban, tavan, yan duvarlar ve dip (kapı tarafı açık).
-## dip_kapili ise açık tarafın karşısındaki dip duvarda ortada kapı boşluğu bırakılır.
-func _koridor(a: Vector3, b: Vector3, acik: String, dip_kapili: bool, mat: Material, zemin: Material, tavan: Material) -> void:
-	var k := 0.05
-	var o := (a + b) * 0.5
-	var s := b - a
-	var yuzler := {
-		"-y": [Vector3(o.x, a.y - k * 0.5, o.z), Vector3(s.x, k, s.z)],
-		"+y": [Vector3(o.x, b.y + k * 0.5, o.z), Vector3(s.x, k, s.z)],
-		"-x": [Vector3(a.x - k * 0.5, o.y, o.z), Vector3(k, s.y, s.z)],
-		"+x": [Vector3(b.x + k * 0.5, o.y, o.z), Vector3(k, s.y, s.z)],
-		"-z": [Vector3(o.x, o.y, a.z - k * 0.5), Vector3(s.x, s.y, k)],
-		"+z": [Vector3(o.x, o.y, b.z + k * 0.5), Vector3(s.x, s.y, k)],
-	}
-	# koridorda loş bir ampul
-	var lamba := OmniLight3D.new()
-	lamba.light_color = Color(1.0, 0.78, 0.55)
-	lamba.light_energy = 0.7
-	lamba.omni_range = 3.5
-	lamba.shadow_enabled = true
-	lamba.position = Vector3(o.x, b.y - 0.3, o.z)
-	add_child(lamba)
-	var dip := ""
-	if dip_kapili:
-		dip = ("-" if acik.begins_with("+") else "+") + acik.substr(1)
-		var x_dip := dip.ends_with("x")
-		var yuz: Array = yuzler[dip]
-		var mrk: Vector3 = yuz[0]
-		var c := mrk.z if x_dip else mrk.x
-		var u0 := (a.z if x_dip else a.x)
-		var u1 := (b.z if x_dip else b.x)
-		var k0 := c - KAPI_EN * 0.5
-		var k1 := c + KAPI_EN * 0.5
-		var ust := a.y + KAPI_BOY + 0.04
-		# kapının iki yanı ve üstü
-		for d in [[u0, k0, a.y, b.y], [k1, u1, a.y, b.y], [k0, k1, ust, b.y]]:
-			var um: float = (d[0] + d[1]) * 0.5
-			var ue: float = d[1] - d[0]
-			var ym: float = (d[2] + d[3]) * 0.5
-			var ye: float = d[3] - d[2]
-			if ue <= 0.001 or ye <= 0.001: continue
-			var parca := MeshInstance3D.new()
-			var pb := BoxMesh.new()
-			pb.size = Vector3(k, ye, ue) if x_dip else Vector3(ue, ye, k)
-			pb.material = mat
-			parca.mesh = pb
-			parca.position = Vector3(mrk.x, ym, um) if x_dip else Vector3(um, ym, mrk.z)
-			add_child(parca)
-	for y: String in yuzler:
-		if y == acik or y == dip: continue
-		var mi := MeshInstance3D.new()
-		var bm := BoxMesh.new()
-		bm.size = yuzler[y][1]
-		bm.material = zemin if y == "-y" else tavan if y == "+y" else mat
-		mi.mesh = bm
-		mi.position = yuzler[y][0]
-		add_child(mi)
-		mi.create_trimesh_collision()
 
 
 ## Tuğla holü kurar: her dikdörtgenin zemini ve tavanı, birleşik şeklin dış kenarlarına duvar.
@@ -3184,6 +3139,15 @@ func _yedek_ses(ad: String) -> AudioStream:
 			for i in int(hiz * 1.4):
 				var t := float(i) / hiz
 				o.append((randf() * 2.0 - 1.0) * exp(-t * 120.0) * 0.8 + (sin(TAU * 100.0 * t) * 0.08 + sin(TAU * 200.0 * t) * 0.03) * smoothstep(0.05, 0.3, t))
+			return _wav(o, hiz)
+		"dis_fircalama":
+			# fırçanın dişlerde kısa kısa sürtünmesi
+			var yuksek := 0.0
+			for i in int(hiz * 6.0):
+				var t := float(i) / hiz
+				var r := randf() * 2.0 - 1.0
+				yuksek = r - yuksek * 0.6
+				o.append(yuksek * 0.12 * (0.35 + 0.65 * absf(sin(PI * t * 3.2))) * smoothstep(0.0, 0.2, t) * (1.0 - smoothstep(5.6, 6.0, t)))
 			return _wav(o, hiz)
 		"su_carpma":
 			var dusuk := 0.0
