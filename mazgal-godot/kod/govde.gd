@@ -12,6 +12,7 @@ extends Node3D
 ##                                 düşer, aşağı bakınca bacaklar ve botlar görünür.
 
 const MODEL := "res://modeller2/selim/Ch17_nonPBR.fbx"
+const MODEL_2 := "res://modeller2/selimvucudanimasyon/Ch17_nonPBR.fbx"   # alp'in bilgisayarında burada
 const ANIM_YOLU := "res://modeller2/selimvucudanimasyon/"
 const ANIMLER := {"yuru": "yürüme.fbx", "dur": "Standing Torch Idle 03.fbx"}
 const GIZLI := ["Ch17_Helmet"]                     # baret Selim'in değil
@@ -35,10 +36,11 @@ var _kol_parca: Array[MeshInstance3D] = []     # gövdenin kolları
 
 
 func _ready() -> void:
-	if not ResourceLoader.exists(MODEL):
+	var yol := MODEL if ResourceLoader.exists(MODEL) else MODEL_2
+	if not ResourceLoader.exists(yol):
 		push_warning("Selim'in modeli yok: " + MODEL)
 		return
-	_model = (load(MODEL) as PackedScene).instantiate()
+	_model = (load(yol) as PackedScene).instantiate()
 	add_child(_model)
 	_model.rotation.y = PI     # model +z'ye bakıyor
 	var iskelet := _model.find_child("Skeleton3D", true, false) as Skeleton3D

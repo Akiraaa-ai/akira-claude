@@ -9,6 +9,7 @@ extends Node3D
 ##   yumruk("sag", 0..1)                parmaklar kapanır
 
 const MODEL := "res://modeller2/selim/Ch17_nonPBR.fbx"
+const MODEL_2 := "res://modeller2/selimvucudanimasyon/Ch17_nonPBR.fbx"   # alp'in bilgisayarında burada
 const ON := "mixamorig1_"
 # kollarda görünen parçalar: çıplak el ve kol derisi (Body) ile gömleğin kolu (Shirt)
 const KOL_PARCALARI := ["Ch17_Body", "Ch17_Shirt"]
@@ -34,11 +35,12 @@ var gorunur_mu := false
 
 
 func _ready() -> void:
-	if not ResourceLoader.exists(MODEL):
+	var yol := MODEL if ResourceLoader.exists(MODEL) else MODEL_2
+	if not ResourceLoader.exists(yol):
 		push_warning("Selim'in modeli yok: " + MODEL)
 		visible = false
 		return
-	var m: Node3D = (load(MODEL) as PackedScene).instantiate()
+	var m: Node3D = (load(yol) as PackedScene).instantiate()
 	add_child(m)
 	_iskelet = m.find_child("Skeleton3D", true, false) as Skeleton3D
 	for g in m.find_children("*", "MeshInstance3D", true, false):

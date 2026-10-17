@@ -226,6 +226,8 @@ var tel_ekran_mi: MeshInstance3D
 var _kaydirilan := 0
 var ses_alarm: AudioStreamPlayer
 var ses_titresim: AudioStreamPlayer
+var ses_ambiyans: AudioStreamPlayer
+var ses_saat_tik: AudioStreamPlayer
 var _ses_havuz: Array[AudioStreamPlayer] = []
 var _sesler := {}
 var gorev_yazi: Label
@@ -402,7 +404,7 @@ const RUYA_MERKEZ := Vector3(0, 600, 0)
 const RUYA_SIRA := [
 	["ruya01", 1.6], ["ruya02", 1.6], ["ruya03", 3.0],
 	["ruya04", 1.6], ["ruya05", 1.6], ["ruya06", 3.0],
-	["ruya07", 1.8], ["ruya08", 1.8], ["ruya09", 2.6],
+	["ruya08", 1.8], ["ruya09", 1.8], ["ruya07", 2.6],
 ]
 var _ruya_kok: Node3D
 var _ruya_env: Environment
@@ -582,6 +584,7 @@ func _ruya_bitir() -> void:
 	$Aksam.visible = true
 	if ses_piyano: ses_piyano.stop()
 	if ses_ruya_yagmur: ses_ruya_yagmur.stop()
+	if ses_ambiyans and ses_ambiyans.stream and not ses_ambiyans.playing: ses_ambiyans.play()
 
 
 # ---------------------------------------------------------------- 1. uyanma (sinematik)
@@ -1296,16 +1299,19 @@ func _saat() -> void:
 	var saat_on := SAAT_YERI + Vector3(-0.05, 0, 0)
 	_yol([[0.0, KOLTUK, EKRAN + Vector3(0, 0.05, 0)], [3.0, KOLTUK, saat_on], [16.0, KOLTUK + Vector3(0.02, 0, 0), saat_on]], ft)
 	if ft > 0.6 and not _soylendi("ev2"): _soyle("ev2")
+	if ses_saat_tik and ses_saat_tik.stream:
+		if ft < 13.05 and not ses_saat_tik.playing: ses_saat_tik.play()
+		elif ft >= 13.05 and ses_saat_tik.playing: ses_saat_tik.stop()
 	kamera.fov = lerpf(70.0, 7.0, smoothstep(0.8, 3.6, ft))
 	sallanti = lerpf(1.0, 0.25, smoothstep(0.8, 3.6, ft))
-	# saat su gibi akar: 20:10 -> 00:00
+	# saat su gibi akar: 20:10 -> 23:00
 	var u := smoothstep(4.0, 13.0, ft)
 	u = u * u * (3.0 - 2.0 * u)
-	dakika = lerpf(_saat_bas, 24.0 * 60.0, u)
+	dakika = lerpf(_saat_bas, 23.0 * 60.0, u)
 	# göz kapakları ağırlaşır: yavaş, uzun kırpışlar
 	karartma = _egri([[0, 0], [5.2, 0], [5.9, 0.75], [6.4, 0.1], [8.3, 0.1], [9.1, 0.9], [9.8, 0.2], [11.4, 0.2], [12.1, 0.95], [12.9, 0.15], [13.6, 0.0], [16, 0]], ft)
 	_bulanik(_egri([[0, 0], [5.0, 0], [6.0, 0.12], [9.5, 0.2], [12.6, 0.25], [13.3, 0.0], [16, 0]], ft))
-	# 00:00 olunca saat çalar; Selim irkilir
+	# 23:00 olunca saat çalar; Selim irkilir
 	if ft > 13.05 and not _eylem.has("gong"):
 		_eylem["gong"] = true
 		for i in 3:
@@ -1355,14 +1361,17 @@ func _cikis() -> void:
 
 
 # ---------------------------------------------------------------- merdiven boşluğu
-## alp'in merdiven boşluğu modeli (horror_corridor_vr_room_baked.glb). Evden çıkarken 3 kat inilir.
-## Kat modülleri birbirine bağlanmadığı için yan yana durur; aralarda göz kırpılır (kesme).
+## alp'in merdiven boşluğu modeli (horror_corridor_vr_room_baked.glb). Evden çıkarken 2 kat kesintisiz inilir.
+## Bir modül bir tam kat: sahanlıktan bir kol aşağı (-4.0), bir kol yukarı (+3.9) gider. Modüller 7.9 m arayla
+## üst üste dizilince bir katın aşağı kolu, alttaki katın yukarı kolunun başına bağlanır.
 ## Aynı boşluk ileride yeraltında da kullanılacak: merdiven_kur() başka sahneden de çağrılabilir.
 const MERDIVEN_MODEL := YENI_MODELLER + "horror_corridor_vr_room_baked.glb"
-## Taban y=10: göz yükseklikleri hep _alcak eşiğinin üstünde kalsın (aynı boy düzeltmesi her karede).
-const MERDIVEN_YERI := Vector3(80.0, 10.0, 0.0)
-const MERDIVEN_ARA := Vector3(0.0, 0.0, 20.0)
+## Taban y=30 (en alt kat 14.2): göz yükseklikleri hep _alcak eşiğinin üstünde kalsın (aynı boy düzeltmesi her karede).
+const MERDIVEN_YERI := Vector3(80.0, 30.0, 0.0)
+## 1 cm yana kayma: üst üste binen duvarlar aynı düzlemde titreşmesin
+const MERDIVEN_ARA := Vector3(0.01, -7.9, 0.01)
 const MERDIVEN_KAT := 3
+const KAT_SURE := 11.0
 ## pişmiş ışığın gece payı (1 = modeldeki gibi gündüz parlaklığı)
 const MERDIVEN_PARLAK := 0.3
 var _merdiven_isiklar: Array[Light3D] = []
@@ -1431,32 +1440,40 @@ func _merdiven_in(ft: float) -> void:
 	if ft < 9.0: return
 	var y := MERDIVEN_YERI
 	var a := MERDIVEN_ARA
-	var kat := 0 if ft < 15.2 else (1 if ft < 21.4 else 2)
+	# her kat 11 sn: sahanlık, aşağı kol, dönüş sahanlığı, ikinci kol, alttaki sahanlık
+	var kat := clampi(int((ft - 9.0) / KAT_SURE), 0, 2)
 	var b := y + a * kat
 	if kat < 2:
-		var s := 9.0 + 6.2 * kat
+		var s := 9.0 + KAT_SURE * kat
 		_yol([
 			[s, b + Vector3(3.9, 1.6, 5.6), b + Vector3(0.0, 1.2, 5.3)],
 			[s + 1.0, b + Vector3(3.2, 1.6, 5.3), b + Vector3(-1.0, 0.0, 5.1)],
 			[s + 2.2, b + Vector3(1.6, 1.3, 5.1), b + Vector3(-2.2, -1.6, 5.1)],
 			[s + 4.6, b + Vector3(-2.6, -1.8, 5.1), b + Vector3(-4.6, -2.6, 5.4)],
-			[s + 5.6, b + Vector3(-3.7, -2.4, 4.6), b + Vector3(-4.0, -2.6, 7.8)],
+			[s + 5.6, b + Vector3(-3.7, -2.4, 4.9), b + Vector3(-4.0, -2.6, 7.8)],
+			[s + 6.6, b + Vector3(-3.6, -2.4, 7.9), b + Vector3(0.0, -5.5, 8.1)],
+			[s + 9.2, b + Vector3(1.0, -5.6, 8.1), b + Vector3(3.0, -6.5, 7.6)],
+			[s + 10.2, b + Vector3(2.8, -6.3, 7.6), b + Vector3(3.2, -6.6, 5.3)],
+			[s + KAT_SURE, b + a + Vector3(3.9, 1.6, 5.6), b + a + Vector3(0.0, 1.2, 5.3)],
 		], ft)
-		if ft > s + 0.4 and ft < s + 5.6: _adim_say(0.42)
+		if ft > s + 0.4 and ft < s + 10.2: _adim_say(0.42)
 	else:
+		var s := 9.0 + KAT_SURE * 2
 		_yol([
-			[21.4, b + Vector3(3.0, 1.6, 5.3), b + Vector3(4.6, 1.4, 7.0)],
-			[23.2, b + Vector3(3.9, 1.6, 7.3), b + Vector3(5.0, 1.45, 7.7)],
+			[s, b + Vector3(3.9, 1.6, 5.6), b + Vector3(0.0, 1.2, 5.3)],
+			[s + 0.8, b + Vector3(3.0, 1.6, 5.3), b + Vector3(4.6, 1.4, 7.0)],
+			[s + 2.6, b + Vector3(3.9, 1.6, 7.3), b + Vector3(5.0, 1.45, 7.7)],
 		], ft)
-		if ft > 21.6 and ft < 23.0: _adim_say(0.5)
-	# açılış, katlar arası göz kırpma, dış kapıda kararma
-	karartma = _egri([[9.0, 1], [9.7, 0], [14.6, 0], [15.1, 1], [15.3, 1], [15.8, 0], [20.8, 0], [21.3, 1], [21.5, 1], [22.0, 0], [23.7, 0], [24.5, 1]], ft)
-	if ft > 23.4 and not _eylem.has("dis_kapi"):
+		if ft > s + 0.2 and ft < s + 2.4: _adim_say(0.5)
+	# açılışta göz açılır, dış kapıda kararır; katlar arasında kesme yok
+	var son := 9.0 + KAT_SURE * 2
+	karartma = _egri([[9.0, 1], [9.7, 0], [son + 2.3, 0], [son + 3.1, 1]], ft)
+	if ft > son + 2.0 and not _eylem.has("dis_kapi"):
 		_eylem["dis_kapi"] = true
 		_ses_cal("kilit", -8.0)
 		get_tree().create_timer(0.3, false).timeout.connect(func() -> void: _ses_cal("dolap", -4.0))
-	_yagmur_ac(ft, 23.6, 25.8)
-	if ft >= 26.2: _sokaga()
+	_yagmur_ac(ft, son + 2.2, son + 4.4)
+	if ft >= son + 4.8: _sokaga()
 
 
 func _yagmur_ac(ft: float, bas: float, son: float) -> void:
@@ -1985,11 +2002,36 @@ func _yeni_tv(em: Material) -> void:
 		if em is StandardMaterial3D:
 			(em as StandardMaterial3D).uv1_scale = Vector3.ONE
 			(em as StandardMaterial3D).uv1_offset = Vector3.ZERO
+		_ekran_uv_duzelt(ekran)
 		ekran.material_override = em
 		ekran.layers = 2
 	tv.visible = false
 	var eski := get_node_or_null("TVSehpasi") as Node3D
 	if eski: eski.visible = false
+
+
+## Yeni TV'nin ekran yüzeyinin UV'si 90 derece dönük (görüntü dikey çıkıyordu).
+## UV'yi ekranın dünyadaki duruşuna göre yeniden yazar: soldan sağa (+z) u, yukarıdan aşağı v.
+## Ekran 4:3'ten geniş: görüntü genişliğe oturur, üstü ve altı eşit kırpılır.
+func _ekran_uv_duzelt(ekran: MeshInstance3D) -> void:
+	var am := ArrayMesh.new()
+	var en := 1.0; var boy := 1.0
+	for y in ekran.mesh.get_surface_count():
+		var a := ekran.mesh.surface_get_arrays(y)
+		var v: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
+		var dv: Array[Vector3] = []
+		var alt := Vector3.INF; var ust := -Vector3.INF
+		for p in v:
+			var d := ekran.global_transform * p
+			dv.append(d); alt = alt.min(d); ust = ust.max(d)
+		en = maxf(ust.z - alt.z, 0.001); boy = maxf(ust.y - alt.y, 0.001)
+		var gorunen := minf(1.0, boy / en * 4.0 / 3.0)
+		var uv := PackedVector2Array()
+		for d in dv:
+			uv.append(Vector2((d.z - alt.z) / en, 0.5 - gorunen * 0.5 + gorunen * (ust.y - d.y) / boy))
+		a[Mesh.ARRAY_TEX_UV] = uv
+		am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, a)
+	ekran.mesh = am
 
 
 ## Bir modelin (ya da içindeki bir parçanın) kopyasını, alt yüzünün ortası verilen noktaya gelecek şekilde koyar.
@@ -3224,6 +3266,14 @@ func _oyun_sesleri_kur() -> void:
 	ses_titresim = AudioStreamPlayer.new(); add_child(ses_titresim)
 	ses_titresim.stream = _ses_bul("titresim")
 	ses_titresim.volume_db = -14.0
+	# evin uğultusu: rüyadan çıkınca başlar, hep alçaktan çalar
+	ses_ambiyans = AudioStreamPlayer.new(); add_child(ses_ambiyans)
+	ses_ambiyans.stream = _ses_bul("ev_ambiyans")
+	ses_ambiyans.volume_db = -22.0
+	# saate bakarken tik tak
+	ses_saat_tik = AudioStreamPlayer.new(); add_child(ses_saat_tik)
+	ses_saat_tik.stream = _ses_bul("saat_tik")
+	ses_saat_tik.volume_db = -12.0
 
 
 ## sesler/<ad>.mp3 (ya da .ogg/.wav) varsa onu çalar; yoksa basit bir yedek ses, o da yoksa sessiz geçer.
@@ -3255,7 +3305,7 @@ func _ses_bul(ad: String) -> AudioStream:
 			break
 	if akis == null:
 		akis = _yedek_ses(ad)
-	elif ad == "alarm" or ad == "titresim":
+	elif ad in ["alarm", "titresim", "crt", "ev_ambiyans", "saat_tik"]:
 		if akis is AudioStreamMP3: (akis as AudioStreamMP3).loop = true
 		elif akis is AudioStreamOggVorbis: (akis as AudioStreamOggVorbis).loop = true
 	_sesler[ad] = akis

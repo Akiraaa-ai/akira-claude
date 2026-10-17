@@ -75,6 +75,7 @@ func oynat(t: float) -> bool:
 		_duman.emitting = true
 		_koz_parca.emitting = true
 		_ses_cal("sigara_cek", -10.0)
+		_nefes_cek()
 	if _bir_kez("cakmak_birak", t, 3.95):
 		eller.birak("sol", 0.6)
 	if _bir_kez("cakmak_cep", t, 4.6): _cakmak.visible = false
@@ -96,6 +97,7 @@ func oynat(t: float) -> bool:
 		if _bir_kez("cek%d" % i, t, a):
 			_durum = "agizda"
 			_ses_cal("sigara_cek", -10.0)
+			_nefes_cek()
 		cekis = maxf(cekis, smoothstep(a, a + 0.4, t) * (1.0 - smoothstep(u - 1.0, u - 0.5, t)))
 		if _bir_kez("indir%d" % (i + 1), t, u - 0.6):
 			_durum = "elde"
@@ -113,9 +115,19 @@ func oynat(t: float) -> bool:
 	return t >= SURE
 
 
+var _nefes_no := 0
+
+## Sigarayı çekerken duyulan nefes (alp'in kısa nefes kayıtları sırayla).
+func _nefes_cek() -> void:
+	_ses_cal(["selim_nefes_01", "selim_nefes_03", "selim_nefes_05"][_nefes_no % 3], -4.0)
+
+
 func _ufle_bas() -> void:
 	_yapildi["ufle_an"] = _zaman()
 	_ses_cal("duman_ufle", -9.0)
+	# alp'in kendi nefes kayıtlarından uzun olanlar: dumanı üfler
+	_nefes_no += 1
+	_ses_cal("selim_nefes_04" if _nefes_no % 2 == 0 else "selim_nefes_02", -4.0)
 	_ufle.restart()
 	_ufle.emitting = true
 

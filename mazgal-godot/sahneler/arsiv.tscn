@@ -1,0 +1,56 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://kod/arsiv.gd" id="1"]
+[ext_resource type="Script" path="res://kod/oyuncu.gd" id="2"]
+
+[sub_resource type="Environment" id="env"]
+background_mode = 1
+background_color = Color(0.01, 0.012, 0.012, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.4, 0.48, 0.42, 1)
+ambient_light_energy = 0.06
+tonemap_mode = 3
+ssao_enabled = true
+glow_enabled = true
+glow_intensity = 0.5
+fog_enabled = true
+fog_light_color = Color(0.05, 0.06, 0.055, 1)
+fog_density = 0.035
+adjustment_enabled = true
+adjustment_saturation = 0.85
+
+[sub_resource type="CapsuleShape3D" id="kapsul"]
+radius = 0.28
+height = 1.8
+
+[node name="Arsiv" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Ortam" type="WorldEnvironment" parent="."]
+environment = SubResource("env")
+
+[node name="Selim" type="CharacterBody3D" parent="."]
+script = ExtResource("2")
+
+[node name="Govde" type="CollisionShape3D" parent="Selim"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+shape = SubResource("kapsul")
+
+[node name="Kafa" type="Node3D" parent="Selim"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.51, 0)
+
+[node name="Kamera" type="Camera3D" parent="Selim/Kafa"]
+fov = 78.0
+near = 0.03
+far = 120.0
+
+[node name="Fener" type="SpotLight3D" parent="Selim/Kafa/Kamera"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.25, -0.25, -0.2)
+light_color = Color(1, 0.93, 0.8, 1)
+light_energy = 5.0
+shadow_enabled = true
+spot_range = 22.0
+spot_angle = 24.0
+spot_angle_attenuation = 1.6
+
+[node name="Adim" type="AudioStreamPlayer3D" parent="Selim"]

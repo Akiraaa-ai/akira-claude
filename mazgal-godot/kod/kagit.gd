@@ -3,14 +3,24 @@ extends RefCounted
 ## Bunlar 3D model değil: yüzeye yansıtılan düz dokulardır (Decal). Yazılar oyunun içinde çizilir.
 
 ## Kağıt dokusu: arka plan rengi üstüne satır satır yazı. satirlar: [[metin, boy, renk, hiza], ...]
-static func yazi_dokusu(kok: Node, boyut: Vector2i, zemin: Color, satirlar: Array) -> ImageTexture:
+## resim: kağıda iliştirilen fotoğraf (ör. vesikalık), resim_yer: piksel olarak yeri; boşsa sağ üst köşe.
+static func yazi_dokusu(kok: Node, boyut: Vector2i, zemin: Color, satirlar: Array, resim := "", resim_yer := Rect2()) -> ImageTexture:
 	var vp := SubViewport.new()
 	vp.size = boyut
-	vp.transparent_bg = false
+	vp.transparent_bg = zemin.a < 1.0
 	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	kok.add_child(vp)
 	var arka := ColorRect.new(); arka.color = zemin; arka.size = Vector2(boyut)
 	vp.add_child(arka)
+	if resim != "" and ResourceLoader.exists(resim):
+		var r := TextureRect.new()
+		r.texture = load(resim)
+		r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		r.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		var yer := resim_yer if resim_yer.size != Vector2.ZERO else Rect2(boyut.x - 150, 100, 120, 160)
+		r.position = yer.position
+		r.size = yer.size
+		vp.add_child(r)
 	var yazi := SystemFont.new()
 	yazi.font_names = PackedStringArray(["Courier New", "Liberation Mono", "DejaVu Sans Mono", "monospace"])
 	var el := SystemFont.new()

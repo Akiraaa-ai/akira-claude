@@ -288,7 +288,7 @@ const SATIRLAR := {
 	"ic10": ["res://sesler/selim_ic_10.mp3", "SELİM", "Eve gidip biraz uyuyayım."],
 }
 ## Selim'in evinin önü: araba ilk gece buradan kalkar, eve dönünce buraya park edilir.
-const EV_PARK := Vector3(-14.0, 0.0, 30.0)
+const EV_PARK := Vector3(-17.0, 0.0, 30.0)   # sol kaldırıma yanaşık (kaldırım x -18.25)
 var eve_donus := false
 const Eller := preload("res://kod/eller.gd")
 const Govde := preload("res://kod/govde.gd")
@@ -652,7 +652,8 @@ func _gumbur_sesi() -> AudioStream:
 
 func _gumbur_sesi_yap() -> AudioStream:
 	for uz in ["ogg", "mp3", "wav"]:
-		if ResourceLoader.exists("res://sesler/carpma." + uz): return load("res://sesler/carpma." + uz)
+		# carpma.mp3 rüyadaki araba kazası; düşüşün kendi sesi yere_carpma
+		if ResourceLoader.exists("res://sesler/yere_carpma." + uz): return load("res://sesler/yere_carpma." + uz)
 	return _wav_yap(1.2, func(t: float) -> float:
 		return sin(TAU * (70.0 - t * 30.0) * t) * exp(-t * 5.0) * 0.9 + (randf() * 2.0 - 1.0) * exp(-t * 18.0) * 0.5)
 
@@ -850,6 +851,20 @@ func _vardiya_bitti(v: float) -> void:
 		_ipucu("Arabana dön", 0.0)
 		_rota_i = 0
 		_gec("yuruyus")
+		_bodycam_birak()
+
+
+## 1. gece kulübeden çıkarken yaka kamerasını çıkarıp masaya bırakır; kayıt kapanır.
+## 2. gece takıp öyle gider.
+func _bodycam_birak() -> void:
+	eller.kamerada("sag", Vector3(0.12, -0.42, -0.12), 0.6)
+	get_tree().create_timer(0.7, false).timeout.connect(func() -> void:
+		eller.uzan("sag", _k(BODYCAM_YERI) + Vector3(0, 0.05, 0), 0.7))
+	get_tree().create_timer(1.3, false).timeout.connect(func() -> void:
+		if _bodycam_model: _bodycam_model.visible = true
+		_kisa_ses(_bip(), oyuncu.global_position + Vector3(0, 1.2, 0), 0.8, -8.0)
+		if bodycam and bodycam.acik: bodycam.kapat())
+	get_tree().create_timer(1.9, false).timeout.connect(func() -> void: eller.birak("sag", 0.6))
 
 
 ## Eve varınca: ekran kararır, ev sahnesi 2. gecenin rüyasıyla başlar.
@@ -973,8 +988,12 @@ func _kulube_kur() -> void:
 	_ktv_kur()
 	# alp'in göndereceği eşyalar: dosyası varsa yerine konur
 	for e in KULUBE_ESYALARI:
-		if not ResourceLoader.exists(e[0]): continue
-		var n: Node3D = (load(e[0]) as PackedScene).instantiate()
+		var yol: String = e[0]
+		# sandalye alp'te indirildiği adıyla da durabilir
+		if not ResourceLoader.exists(yol) and yol.get_file() == "sandalye.glb":
+			yol = yol.get_base_dir() + "/game-ready_folding_chair.glb"
+		if not ResourceLoader.exists(yol): continue
+		var n: Node3D = (load(yol) as PackedScene).instantiate()
 		$Kulube.add_child(n)
 		n.position = e[1]; n.rotation_degrees.y = e[2]; n.scale = Vector3.ONE * float(e[3])
 		if str(e[0]).get_file().begins_with("bodycam"): _bodycam_model = n
@@ -1543,20 +1562,17 @@ func _dusus(dt: float) -> void:
 		_ugultu_guc = 0.0
 		_gec("karanlik")
 
-# labirent Godot'a taşınınca buradan ona geçilecek; şimdilik kayıt kesilir ve ana menüye dönülür
+# düşüşten sonra kamera bir an kesilir; Selim −1 Arşiv'de, kuyunun dibinde uyanır
+const ARSIV := "res://sahneler/arsiv.tscn"
 func _karanlik() -> void:
 	siyah.modulate.a = 1.0
-	# kamera son bir kez açılıp karlanır, sonra kesilir
 	if bodycam and bodycam.acik and dt_durum > 1.2:
 		bodycam.kapat()
-	if dt_durum > 2.5 and not _soylenen.has("kesildi"):
-		_soylenen["kesildi"] = true
-		altyazi.text = "KAYIT KESİLDİ"
-		altyazi.visible = true
-		_altyazi_bitis = T_simdi() + 4.0
-	if dt_durum > 7.0:
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-		get_tree().change_scene_to_file("res://sahneler/baslangic.tscn")
+	if dt_durum > 4.0 and not _soylenen.has("arsiv"):
+		_soylenen["arsiv"] = true
+		var d := get_node_or_null("/root/Duraklat")
+		if d: d.yukle(ARSIV)
+		else: get_tree().change_scene_to_file(ARSIV)
 
 func _en_yakin_lamba(p: Vector3) -> SpotLight3D:
 	var en: SpotLight3D = null
