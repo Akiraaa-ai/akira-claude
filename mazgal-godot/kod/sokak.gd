@@ -31,8 +31,62 @@ func _ready() -> void:
 	_sinir_duvarlari()
 	_park_arabalari.call_deferred()
 	_posta_kutusu()
+	_mazgal_kur()
 	if has_meta("arkaplan"): return   # ana menünün arkasındaki görüntü
 	_yolculuk_kur()
+
+# Mazgal, şehir modelinin yola gömülü kahverengi rögar kapağıdır (alp: "şehirdeki mazgallardan kullansak").
+# Kapağın kendi üçgenleri kopyalanır: kopya yana kaymış durur, yerinde aynı yuvarlak biçimde kapkara bir ağız açılır.
+const MAZGAL_MALZEME := "Street_Assets.001"
+func _mazgal_kur() -> void:
+	if sehir.get_child_count() == 0: return
+	var m := sehir.get_child(0).find_child("Plane_001", true, false) as MeshInstance3D
+	if m == null or not (m.mesh is ArrayMesh): return
+	var xf := m.global_transform
+	for si in m.mesh.get_surface_count():
+		var mat := m.mesh.surface_get_material(si) as BaseMaterial3D
+		if mat == null or mat.resource_name != MAZGAL_MALZEME: continue
+		var arr := m.mesh.surface_get_arrays(si)
+		var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var uv: PackedVector2Array = arr[Mesh.ARRAY_TEX_UV]
+		var ind: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		var bulundu := false
+		for t in ind.size() / 3:
+			var c := (xf * v[ind[t * 3]] + xf * v[ind[t * 3 + 1]] + xf * v[ind[t * 3 + 2]]) / 3.0
+			if Vector2(c.x - MAZGAL.x, c.z - MAZGAL.z).length() > 0.7: continue
+			bulundu = true
+			for q in 3:
+				var w := xf * v[ind[t * 3 + q]]
+				st.set_normal(Vector3.UP)
+				st.set_uv(uv[ind[t * 3 + q]])
+				st.add_vertex(Vector3(w.x - MAZGAL.x, 0.0, w.z - MAZGAL.z))
+		if not bulundu: return
+		var kapak_mesh := st.commit()
+		# yana itilmiş kapak
+		var kapak := MeshInstance3D.new()
+		kapak.name = "MazgalKapak"
+		kapak.mesh = kapak_mesh
+		kapak.material_override = mat
+		add_child(kapak)
+		kapak.global_position = MAZGAL + Vector3(0.66, 0.012, 0.3)
+		kapak.rotation.y = 0.55
+		# kapağın yerinde kuyunun karanlığı (aynı yuvarlak maske, ışık ve sis almaz)
+		var kara := mat.duplicate() as BaseMaterial3D
+		kara.albedo_color = Color.BLACK
+		kara.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		kara.disable_fog = true
+		kara.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+		kara.alpha_scissor_threshold = 0.5
+		var agiz := MeshInstance3D.new()
+		agiz.name = "MazgalAgzi"
+		agiz.mesh = kapak_mesh
+		agiz.material_override = kara
+		agiz.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(agiz)
+		agiz.global_position = MAZGAL + Vector3(0.0, 0.005, 0.0)
+		return
 
 # şehir modelindeki park halindeki arabalar (tekerlek ve kasa yüzeyleri) çıkarılır; yerine alp'in arabası gelir
 const ARABA_MALZEMELERI := ["WheelTex", "CarTex_1"]
@@ -245,8 +299,8 @@ var _iz_sayi := 0
 var _iz_sol := false
 const Bodycam := preload("res://kod/bodycam.gd")
 const KONUSMA := ["amir1", "selim1", "amir2", "selim2", "amir3", "selim3"]
-# açık mazgalın yeri (kulübeden sola, caddenin ortası); alp'in açık mazgal modeli gelince buraya konur
-const MAZGAL := Vector3(-61.0, 0.0, -88.0)
+# açık mazgal: kulübeden sola, caddenin ortasında şehir modelinin kendi rögar kapaklarından biri (_mazgal_kur)
+const MAZGAL := Vector3(-55.887, 0.0, -87.044)
 
 var durum := "yuruyus"
 var dt_durum := 0.0

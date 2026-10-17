@@ -1350,20 +1350,132 @@ func _cikis() -> void:
 	if ft > 8.6 and not _eylem.has("otomat"):
 		_eylem["otomat"] = true
 		_ses_cal("otomat", -8.0)
-	if ft > 9.0 and ft < 12.4: _adim_say(0.42)
-	if ft > 10.5:
-		if _yagmur_ev == null:
-			_yagmur_ev = AudioStreamPlayer.new()
-			_yagmur_ev.stream = _ses_bul("yagmur")
-			add_child(_yagmur_ev)
-			_yagmur_ev.volume_db = -40.0
-			_yagmur_ev.play()
-		_yagmur_ev.volume_db = lerpf(-40.0, -6.0, smoothstep(10.5, 13.0, ft))
-	if ft >= 13.2:
-		_bitti = true
-		var d := get_node_or_null("/root/Duraklat")
-		if d: d.yukle(SONRAKI)
-		else: get_tree().change_scene_to_file(SONRAKI)
+		_merdiven_isik(true)
+	_merdiven_in(ft)
+
+
+# ---------------------------------------------------------------- merdiven boşluğu
+## alp'in merdiven boşluğu modeli (horror_corridor_vr_room_baked.glb). Evden çıkarken 3 kat inilir.
+## Kat modülleri birbirine bağlanmadığı için yan yana durur; aralarda göz kırpılır (kesme).
+## Aynı boşluk ileride yeraltında da kullanılacak: merdiven_kur() başka sahneden de çağrılabilir.
+const MERDIVEN_MODEL := YENI_MODELLER + "horror_corridor_vr_room_baked.glb"
+## Taban y=10: göz yükseklikleri hep _alcak eşiğinin üstünde kalsın (aynı boy düzeltmesi her karede).
+const MERDIVEN_YERI := Vector3(80.0, 10.0, 0.0)
+const MERDIVEN_ARA := Vector3(0.0, 0.0, 20.0)
+const MERDIVEN_KAT := 3
+## pişmiş ışığın gece payı (1 = modeldeki gibi gündüz parlaklığı)
+const MERDIVEN_PARLAK := 0.3
+var _merdiven_isiklar: Array[Light3D] = []
+
+
+static func merdiven_kur(ana: Node3D, yer: Vector3, ara: Vector3, kat: int) -> Array[Light3D]:
+	var isiklar: Array[Light3D] = []
+	if not ResourceLoader.exists(MERDIVEN_MODEL): return isiklar
+	var paket := load(MERDIVEN_MODEL) as PackedScene
+	for k in kat:
+		var b := yer + ara * k
+		var m := paket.instantiate() as Node3D
+		m.name = "MerdivenKat%d" % k
+		ana.add_child(m)
+		m.global_position = b
+		# modelin ışığı dokuya pişmiş (emission); otomatik lamba yanınca o da yanar
+		for mi in m.find_children("*", "MeshInstance3D", true, false):
+			for i in (mi as MeshInstance3D).mesh.get_surface_count():
+				var mat := (mi as MeshInstance3D).get_active_material(i) as BaseMaterial3D
+				if mat == null or not mat.emission_enabled: continue
+				mat = mat.duplicate() as BaseMaterial3D
+				mat.set_meta("parlak", mat.emission_energy_multiplier)
+				mat.emission_energy_multiplier = 0.0
+				(mi as MeshInstance3D).set_surface_override_material(i, mat)
+				var tut := OmniLight3D.new()   # malzemeyi lambalarla birlikte bulmak için
+				tut.visible = false
+				tut.set_meta("malzeme", mat)
+				ana.add_child(tut)
+				isiklar.append(tut)
+		# sahanlıkta, basamağın ortasında ve alt sahanlıkta otomatik lamba
+		for l in [Vector3(3.2, 2.6, 6.6), Vector3(-0.6, 0.4, 5.1), Vector3(-4.0, -1.5, 6.6)]:
+			var o := OmniLight3D.new()
+			o.light_color = Color(1.0, 0.86, 0.62)
+			o.omni_range = 5.5
+			o.omni_attenuation = 1.6
+			o.light_energy = 0.0
+			o.shadow_enabled = false
+			ana.add_child(o)
+			o.global_position = b + l
+			isiklar.append(o)
+	return isiklar
+
+
+func _merdiven_isik(acik: bool) -> void:
+	for o in _merdiven_isiklar:
+		if o.has_meta("malzeme"):
+			var mat := o.get_meta("malzeme") as BaseMaterial3D
+			mat.emission_energy_multiplier = float(mat.get_meta("parlak")) * (MERDIVEN_PARLAK if acik else 0.0)
+		else:
+			o.light_energy = 0.55 if acik else 0.0
+	# merdiven boşluğunda gece: ortam ışığı ve sis neredeyse söner, sadece otomatik lambalar
+	if acik:
+		var e := ($Ortam as WorldEnvironment).environment
+		e.ambient_light_energy = 0.04
+		e.fog_density = 0.008
+
+
+## Kapı kilitlendikten sonra: üst kattan iki kat iner, zemin katta dış kapıya yürür, kapı açılınca yağmur.
+func _merdiven_in(ft: float) -> void:
+	if _merdiven_isiklar.is_empty():
+		# model yoksa eski karanlık geçiş
+		if ft > 9.0 and ft < 12.4: _adim_say(0.42)
+		_yagmur_ac(ft, 10.5, 13.0)
+		if ft >= 13.2: _sokaga()
+		return
+	if ft < 9.0: return
+	var y := MERDIVEN_YERI
+	var a := MERDIVEN_ARA
+	var kat := 0 if ft < 15.2 else (1 if ft < 21.4 else 2)
+	var b := y + a * kat
+	if kat < 2:
+		var s := 9.0 + 6.2 * kat
+		_yol([
+			[s, b + Vector3(3.9, 1.6, 5.6), b + Vector3(0.0, 1.2, 5.3)],
+			[s + 1.0, b + Vector3(3.2, 1.6, 5.3), b + Vector3(-1.0, 0.0, 5.1)],
+			[s + 2.2, b + Vector3(1.6, 1.3, 5.1), b + Vector3(-2.2, -1.6, 5.1)],
+			[s + 4.6, b + Vector3(-2.6, -1.8, 5.1), b + Vector3(-4.6, -2.6, 5.4)],
+			[s + 5.6, b + Vector3(-3.7, -2.4, 4.6), b + Vector3(-4.0, -2.6, 7.8)],
+		], ft)
+		if ft > s + 0.4 and ft < s + 5.6: _adim_say(0.42)
+	else:
+		_yol([
+			[21.4, b + Vector3(3.0, 1.6, 5.3), b + Vector3(4.6, 1.4, 7.0)],
+			[23.2, b + Vector3(3.9, 1.6, 7.3), b + Vector3(5.0, 1.45, 7.7)],
+		], ft)
+		if ft > 21.6 and ft < 23.0: _adim_say(0.5)
+	# açılış, katlar arası göz kırpma, dış kapıda kararma
+	karartma = _egri([[9.0, 1], [9.7, 0], [14.6, 0], [15.1, 1], [15.3, 1], [15.8, 0], [20.8, 0], [21.3, 1], [21.5, 1], [22.0, 0], [23.7, 0], [24.5, 1]], ft)
+	if ft > 23.4 and not _eylem.has("dis_kapi"):
+		_eylem["dis_kapi"] = true
+		_ses_cal("kilit", -8.0)
+		get_tree().create_timer(0.3, false).timeout.connect(func() -> void: _ses_cal("dolap", -4.0))
+	_yagmur_ac(ft, 23.6, 25.8)
+	if ft >= 26.2: _sokaga()
+
+
+func _yagmur_ac(ft: float, bas: float, son: float) -> void:
+	if ft <= bas: return
+	if _yagmur_ev == null:
+		_yagmur_ev = AudioStreamPlayer.new()
+		_yagmur_ev.stream = _ses_bul("yagmur")
+		add_child(_yagmur_ev)
+		_yagmur_ev.volume_db = -40.0
+		_yagmur_ev.play()
+	_yagmur_ev.volume_db = lerpf(-40.0, -6.0, smoothstep(bas, son, ft))
+
+
+func _sokaga() -> void:
+	if _bitti: return
+	_bitti = true
+	var d := get_node_or_null("/root/Duraklat")
+	if d: d.yukle(SONRAKI)
+	else: get_tree().change_scene_to_file(SONRAKI)
 
 
 # ---------------------------------------------------------------- kamera
@@ -1852,6 +1964,7 @@ func _yeni_esyalar() -> void:
 		k.global_position += Vector3(34.68, 0.445, -0.3) - Vector3(kutu.get_center().x, kutu.position.y, kutu.get_center().z)
 	for p in _paketler: (_paketler[p] as Node).free()
 	_paketler.clear()
+	_merdiven_isiklar = merdiven_kur(ana, MERDIVEN_YERI, MERDIVEN_ARA, MERDIVEN_KAT)
 
 
 ## Yeni TV ve sehpası (alp'in modeli): eski tüplü TV ile sehpanın yerine geçer, yayın düz ekrana basılır.
