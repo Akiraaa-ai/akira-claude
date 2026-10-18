@@ -338,7 +338,11 @@ const ISIK_SEKMESI := [   # [köşe, ölçü]
 ]
 
 func _isik_sekmesi_kur() -> void:
+	# odalar tek tek, her biri ayrı karede hesaplanır: hepsi aynı anda yapılınca
+	# paylaşımlı ekran kartı (Intel Iris Xe) belleği doluyor ve oyun yükleme ekranında çöküyordu
 	for r in ISIK_SEKMESI:
+		await get_tree().process_frame
+		await get_tree().process_frame
 		var g := VoxelGI.new()
 		g.subdiv = VoxelGI.SUBDIV_64
 		g.size = r[1]
