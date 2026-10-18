@@ -56,8 +56,9 @@ const DUS_KAPI := Vector3(6.05, 1.05, 4.26)   # duş kabininin kapısı (yan cam
 const DUS_GENIS := 4.61   # kabin kapısının serbest kenarı (dünya z); modeldeki 0.64 dardı
 const DUS_UST := 1.75    # kapı camların üst hizasına kadar uzar
 const DOLAP := Vector3(-0.65, 1.9, -9.1)            # mutfağın üst dolabı (Nesquik, kâse)
-const BUZDOLABI_MODELI := "res://modeller2/seliminevi/buzdolabi.glb"   # alp gönderince
-const BUZDOLABI_YERI := Vector3(-0.83, 1.0, -3.6)
+## alp'in eski buzdolabı (gerçek ölçüsünde, 85 cm boyunda tezgâh altı); önü holün tarafına (+x) bakar
+const BUZDOLABI_MODELI := "res://modeller2/modeller2/abandoned_retro_refrigerator_-_post-apocalyptic.glb"
+const BUZDOLABI_YERI := Vector3(-0.83, 0.62, -3.6)
 # Oyuncunun dolaşabileceği alanlar (odalar ve kapının önündeki koridor)
 const BANYO_ALAN := [AABB(Vector3(5.1, 0, 2.51), Vector3(2.1, 3, 1.12)), AABB(Vector3(5.1, 0, 3.51), Vector3(0.92, 3, 2.5))]   # banyo (duş kabininin camları dışında)
 const MUTFAK_ALAN := [AABB(Vector3(-1.33, 0, -9.5), Vector3(4.15, 3, 6.8))]
@@ -1514,6 +1515,20 @@ func _ev_cikis() -> void:
 		($Isiklar/SalonLamba as Light3D).light_energy = 0.0
 		if _salon_ampul: _salon_ampul.light_energy = 0.0
 	_kapi_ac(kapi_dis, ft, 0.3, 1.2)
+	# merdiven modeli varsa kararma yok: kapı açılınca görüntü merdiven boşluğuna yumuşakça geçer,
+	# kapının kapanması, kilit ve otomatik lamba sesleri orada, karanlık sahanlıkta duyulur
+	if not _merdiven_isiklar.is_empty():
+		if ft > 1.25:
+			_capraz_gecis(0.8)
+			_merdiven_basla()
+			var t := get_tree()
+			t.create_timer(0.6, false).timeout.connect(func() -> void: _ses_cal("dolap", -4.0))
+			t.create_timer(1.2, false).timeout.connect(func() -> void: _ses_cal("anahtar", -10.0))
+			t.create_timer(1.7, false).timeout.connect(func() -> void: _ses_cal("kilit", -6.0))
+			t.create_timer(2.4, false).timeout.connect(func() -> void:
+				_ses_cal("otomat", -8.0)
+				_merdiven_isik(true))
+		return
 	karartma = _egri([[0, 0], [1.0, 0], [1.8, 1]], ft)
 	if ft > 1.9 and not _eylem.has("kapi_kapa"):
 		_eylem["kapi_kapa"] = true
@@ -1526,8 +1541,22 @@ func _ev_cikis() -> void:
 		_eylem["otomat"] = true
 		_ses_cal("otomat", -8.0)
 		_merdiven_isik(true)
-	if _merdiven_isiklar.is_empty(): _merdiven_in(ft)
-	elif ft >= 4.0: _merdiven_basla()
+	_merdiven_in(ft)
+
+
+## Ekranın o anki görüntüsünü üstte tutup yavaşça eritir: iki yer arasında siyah ekransız geçiş.
+func _capraz_gecis(sure: float) -> void:
+	var resim := get_viewport().get_texture().get_image()
+	var tr := TextureRect.new()
+	tr.texture = ImageTexture.create_from_image(resim)
+	tr.set_anchors_preset(Control.PRESET_FULL_RECT)
+	tr.stretch_mode = TextureRect.STRETCH_SCALE
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	siyah.get_parent().add_child(tr)
+	siyah.get_parent().move_child(tr, siyah.get_index())
+	var tw := create_tween()
+	tw.tween_property(tr, "modulate:a", 0.0, sure).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_callback(tr.queue_free)
 
 
 ## Ev tek parça olunca odaların modellerinde fazla kalan parçalar: salonun hola bakan pencereleri,
@@ -2341,6 +2370,8 @@ func _ev_daginikligi(ana: Node3D) -> void:
 		_boyla(KUPALAR, "Cups_Cup1_0", Vector3(2.95, ust, -0.35), 30.0, 0.1, ana)
 		_parca_koy(FENER + "flashlight.glb", "", Vector3(2.85, ust, -1.25), 70.0, 0.25 / 494.5, ana)
 		_parca_koy(FENER + "simple_battery (1).glb", "", Vector3(3.0, ust, -1.05), 0.0, 0.05 / 3.38, ana)
+		# alp'in kitap sırası masanın duvar tarafında (modelde kitap boyu 77 birim, gerçekte 24 cm)
+		_parca_koy(SELIM_EVI + "some_chinese_books.glb", "", Vector3(3.08, ust, -0.68), 0.0, 0.24 / 0.771, ana)
 	_boyla(KUPALAR, "Cups_Cup2_0", Vector3(6.02, 0.445, -2.42), 140.0, 0.1, ana)
 	for k: Array in [[Vector3(9.4, 0.0, -4.33), 0.0], [Vector3(9.43, 0.38, -4.32), 8.0], [Vector3(9.95, 0.0, -3.88), 90.0], [Vector3(2.75, 0.0, 2.95), 90.0]]:
 		var koli := _parca_koy(OFIS + "cardboard_box.glb", "", k[0], k[1], 1.0, ana)
@@ -2363,6 +2394,11 @@ func _ev_daginikligi(ana: Node3D) -> void:
 	_parca_koy(SELIM_EVI + "newspaper.glb", "", Vector3(6.85, 0.012, -3.6), 25.0, 0.04, ana)
 	_boyla(SELIM_EVI + "wine_bottle_-_matthew.glb", "", Vector3(-1.05, 0.98, -5.4), 0.0, 0.3, ana)
 	_parca_koy(SELIM_EVI + "toilet_paper.glb", "", Vector3(5.0, 0.0, 4.75), 0.0, 1.0, ana)
+	# eski buzdolabı mutfakta; ikinci kirli sepeti yatak odasında pencerenin yanında (modelde 1,85 birim, gerçek eni 60 cm)
+	var buz := _parca_koy(BUZDOLABI_MODELI, "", Vector3(BUZDOLABI_YERI.x - 0.27, 0.0, BUZDOLABI_YERI.z), 90.0, 1.0, ana)
+	if buz: _esya_engeli(buz)
+	var sepet2 := _parca_koy(YENI_MODELLER + "laundry_basket.glb", "", Vector3(1.75, 0.0, 3.08), 0.0, 0.6 / 1.845, ana)
+	if sepet2: _esya_engeli(sepet2)
 
 
 ## Parçayı gerçek boyuna (yükseklik, metre) getirerek koyar.
