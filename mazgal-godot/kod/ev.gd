@@ -257,7 +257,7 @@ func _ready() -> void:
 	var beton_x := _duvar_malzemesi($Salon, "Plane_Material_002_0", 0.19)
 	_kabuk(Vector3(-2.40, -0.04, -2.40), Vector3(3.22, 4.25, 3.35), {"+x": tugla, "+z": tugla}, null, {"+x": KAPI_YATAK[0].z})
 	_kabuk(Vector3(-0.55, 0, -3.99) + Vector3(24, 0, 0), Vector3(4.25, 2.82, 3.50) + Vector3(24, 0, 0), {"-x": mutfak_duvar, "+x": mutfak_duvar, "-z": mutfak_duvar, "+z": mutfak_duvar}, mutfak_duvar, {"+x": KAPI_MUTFAK[0].z})
-	_kabuk(Vector3(-2.855, 0, -2.855) + SALON, Vector3(2.855, 4.2, 2.855) + SALON, {"+x": beton_x, "+z": beton_z}, beton_x, {"+z": KAPI_SALON[0].x})
+	_kabuk(Vector3(-2.855, 0, -2.855) + SALON, Vector3(2.855, 2.7, 2.855) + SALON, {"+x": beton_x, "+z": beton_z}, beton_x, {"+z": KAPI_SALON[0].x})
 	kapi_yatak = _kapi_kur(KAPI_YATAK)
 	kapi_mutfak = _kapi_kur(KAPI_MUTFAK)
 	kapi_salon = _kapi_kur(KAPI_SALON)
@@ -3776,7 +3776,7 @@ const AMPUL_OLCEK := 0.032   # model 3,8 birim boyunda; gerçek ampul 12 cm
 const AMPULLER := [
 	[Vector3(0.4, 3.88, 0.47), "", 7.0, 0.9],                 # yatak odası (model tavanı)
 	[Vector3(25.85, 2.85, -0.25), "MutfakLamba", 7.5, 1.5],   # mutfak (_kabuk tavanı)
-	[Vector3(36.0, 4.23, 0.0), "", 7.5, 1.0],                 # salon (_kabuk tavanı)
+	[Vector3(36.0, 2.73, 0.0), "", 7.5, 1.0],                 # salon (_kabuk tavanı)
 	[Vector3(11.79, 2.215, 0.78), "BanyoLamba", 0.0, 0.0],   # banyo: modelin tavan armatürünün altında, floresan gibi çakar
 ]
 var _ampuller := []   # [ışık, parlayan malzeme, ilk parlaklık]
