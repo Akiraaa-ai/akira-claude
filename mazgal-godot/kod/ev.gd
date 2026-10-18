@@ -359,6 +359,13 @@ const ISIK_SEKMESI := [   # [köşe, ölçü]
 ]
 
 func _isik_sekmesi_kur() -> void:
+	_malzemeleri_duzelt()   # sekme hesaplanmadan önce: yüzeyler doğru pürüzlülükle sekmeye girsin
+	# gürültü dokuları arka planda üretilir; hazır olmadan sekme hesaplanırsa boş doku okunur
+	for t in _gurultuler:
+		var bekle := 0
+		while t.get_image() == null and bekle < 120:
+			await get_tree().process_frame
+			bekle += 1
 	# odalar tek tek, her biri ayrı karede hesaplanır: hepsi aynı anda yapılınca
 	# paylaşımlı ekran kartı (Intel Iris Xe) belleği doluyor ve oyun yükleme ekranında çöküyordu
 	for r in ISIK_SEKMESI:
@@ -372,6 +379,180 @@ func _isik_sekmesi_kur() -> void:
 		g.data = VoxelGIData.new()
 		g.data.propagation = 0.7
 		g.bake()
+
+# ---------------------------------------------------------------- gerçekçi malzemeler
+## Oda modellerinden gelen bazı malzemeler yanlış dışa aktarılmış: kumaş ve ahşap pürüzlülük 0 ve yarı metal
+## olduğu için plastik gibi parlıyordu. Her malzeme türüne kendi değeri verilir; kumaşa dokuma, sıvaya ve
+## parkeye dünya hizasında kir ve yüzey kabarıklığı eklenir. Geometri ve modeller değişmez.
+const KUMAS := 0
+const AHSAP := 1
+const METAL := 2
+const KAGIT := 3
+const TARAMA := 4   # fotoğraftan taranmış eşyalar
+const ODA_MALZEMELERI := {
+	"YatakOdasi": {"Material.003": KUMAS, "Material.004": KUMAS, "Material.005": KUMAS, "Material.006": KUMAS,
+		"Material.007": KUMAS, "Material.008": KUMAS, "Material.015": KUMAS, "Material.017": KUMAS,
+		"Material.016": METAL, "Material.009": AHSAP, "Material.011": KAGIT, "Material.012": KAGIT,
+		"Material.010": TARAMA, "Material.014": TARAMA, "Material.019": TARAMA},
+	"Salon": {"Material.004": KUMAS, "Material.006": METAL, "Material.012": KAGIT, "Material.013": KAGIT,
+		"Material.014": KAGIT, "Material.005": TARAMA, "Material.007": TARAMA, "Material.010": TARAMA, "Material.011": TARAMA},
+}
+const METAL_ADLARI := ["metal", "steel", "chrome", "krom", "iron", "alumin", "brass", "faucet", "handle", "knob", "çelik"]
+const KUMAS_ADLARI := ["fabric", "cloth", "textile", "carpet", "rug", "pillow", "blanket", "sheet", "curtain", "towel",
+	"sofa", "couch", "cushion", "linen", "kumas", "hali", "halı", "yastik", "yastık", "perde", "havlu", "battaniye"]
+const ATLA_ADLARI := ["glass", "mirror", "screen", "ekran", "ayna", "water", "liquid"]
+
+var _gurultuler: Array[NoiseTexture2D] = []
+
+func _malzemeleri_duzelt() -> void:
+	var kumas_n := _gurultu_normali(0.07, 3, 3.0)
+	var kopya := {}
+	for oda_adi in ["YatakOdasi", "Banyo", "Mutfak", "Salon"]:
+		var oda := get_node_or_null(oda_adi)
+		if oda: _malzeme_gez(oda, ODA_MALZEMELERI.get(oda_adi, {}), kumas_n, kopya)
+	# sonradan konan eşyalar (alp'in modelleri) ve hol
+	for c in get_children():
+		if c is Node3D and not (c.name in ["YatakOdasi", "Banyo", "Mutfak", "Salon", "Kamera", "Isiklar"]):
+			_malzeme_gez(c, {}, kumas_n, kopya)
+	_yuzey_detayi()
+	# ampullerin gölgesi: küçük ışık kaynağı, yumuşak ve titremeyen kenarlar
+	for l in find_children("*", "OmniLight3D", true, false):
+		var o := l as OmniLight3D
+		if o.shadow_enabled and o.omni_range <= 8.0:
+			o.light_size = 0.04
+			o.shadow_blur = 1.2
+			o.shadow_normal_bias = 1.5
+
+
+func _malzeme_gez(kok: Node, tablo: Dictionary, kumas_n: Texture2D, kopya: Dictionary) -> void:
+	var dugumler: Array = kok.find_children("*", "MeshInstance3D", true, false)
+	if kok is MeshInstance3D: dugumler.append(kok)
+	for n in dugumler:
+		var mi := n as MeshInstance3D
+		if mi.mesh == null or mi.material_override: continue
+		for i in mi.mesh.get_surface_count():
+			if mi.get_surface_override_material(i): continue
+			var m := mi.mesh.surface_get_material(i) as BaseMaterial3D
+			if m == null or m.resource_name == "": continue   # kodun kendi malzemeleri olduğu gibi kalır
+			if kopya.has(m):
+				if kopya[m]: mi.set_surface_override_material(i, kopya[m])
+				continue
+			var yeni := _malzeme_ayarla(m, tablo, mi.name.to_lower(), kumas_n)
+			kopya[m] = yeni
+			if yeni: mi.set_surface_override_material(i, yeni)
+
+
+## Değişiklik gerekmiyorsa null döner.
+func _malzeme_ayarla(m: BaseMaterial3D, tablo: Dictionary, mesh_adi: String, kumas_n: Texture2D) -> BaseMaterial3D:
+	if m.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED or m.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED:
+		return null
+	var ad := (m.resource_name + " " + mesh_adi).to_lower()
+	for k in ATLA_ADLARI:
+		if ad.contains(k): return null
+	var tur := -1
+	if tablo.has(m.resource_name):
+		tur = tablo[m.resource_name]
+	else:
+		for k in METAL_ADLARI:
+			if ad.contains(k): tur = METAL
+		if tur < 0:
+			for k in KUMAS_ADLARI:
+				if ad.contains(k): tur = KUMAS
+	var r := m.duplicate() as BaseMaterial3D
+	var pur_doku := r.roughness_texture != null
+	var met_doku := r.metallic_texture != null
+	match tur:
+		KUMAS:
+			r.metallic = 0.0
+			if not pur_doku: r.roughness = 0.95
+			r.metallic_specular = 0.3
+			# kumaşın kenarlarda hafif açılan tüyü
+			r.rim_enabled = true
+			r.rim = 0.25
+			r.rim_tint = 0.6
+			if not r.normal_enabled:
+				r.normal_enabled = true
+				r.normal_texture = kumas_n
+				r.normal_scale = 0.6
+		AHSAP:
+			r.metallic = 0.0
+			if not pur_doku: r.roughness = 0.62
+			r.metallic_specular = 0.45
+		METAL:
+			if not met_doku: r.metallic = maxf(r.metallic, 0.8)
+			if not pur_doku: r.roughness = clampf(r.roughness, 0.3, 0.55)
+		KAGIT:
+			r.metallic = 0.0
+			if not pur_doku: r.roughness = 0.8
+		TARAMA:
+			r.metallic = 0.0
+			if not pur_doku: r.roughness = 0.82
+		_:
+			# bilinmeyen eşya: yalnızca açıkça hatalı değerler düzeltilir
+			var degisti := false
+			if not met_doku and r.metallic > 0.05 and r.metallic < 0.9:
+				r.metallic = 0.0; degisti = true
+			if not pur_doku and r.roughness < 0.15:
+				r.roughness = 0.6; degisti = true
+			if not degisti: return null
+	return r
+
+
+## Dikişsiz gürültüden üretilen yüzey kabarıklığı (normal) dokusu.
+func _gurultu_normali(siklik: float, oktav: int, guc: float) -> NoiseTexture2D:
+	var g := FastNoiseLite.new()
+	g.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	g.frequency = siklik
+	g.fractal_octaves = oktav
+	var t := NoiseTexture2D.new()
+	t.width = 512; t.height = 512
+	t.seamless = true
+	t.as_normal_map = true
+	t.bump_strength = guc
+	t.noise = g
+	_gurultuler.append(t)
+	return t
+
+
+## Dünya hizasında, büyük ölçekli renk farkı (kir, sararma, toz) dokusu.
+func _gurultu_lekesi(siklik: float, koyu: Color, acik: Color) -> NoiseTexture2D:
+	var g := FastNoiseLite.new()
+	g.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	g.frequency = siklik
+	g.fractal_octaves = 5
+	var rampa := Gradient.new()
+	rampa.set_color(0, koyu)
+	rampa.set_color(1, acik)
+	var t := NoiseTexture2D.new()
+	t.width = 512; t.height = 512
+	t.seamless = true
+	t.noise = g
+	t.color_ramp = rampa
+	_gurultuler.append(t)
+	return t
+
+
+## Sıva duvar, tavan ve parke: tekrarlanan dokunun üstüne dünya hizasında kir ve kabarıklık.
+func _yuzey_detayi() -> void:
+	var siva_n := _gurultu_normali(0.02, 5, 2.0)
+	for d in [[_ev_duvar, 0.92, _gurultu_lekesi(0.006, Color(0.7, 0.66, 0.6), Color(1, 1, 1)), BaseMaterial3D.BLEND_MODE_MUL, 0.45],
+			[_ev_tavan, 0.95, _gurultu_lekesi(0.006, Color(0.8, 0.78, 0.74), Color(1, 1, 1)), BaseMaterial3D.BLEND_MODE_MUL, 0.3],
+			[_ev_parke, 0.5, _gurultu_lekesi(0.01, Color(0, 0, 0), Color(0.05, 0.045, 0.04)), BaseMaterial3D.BLEND_MODE_ADD, 0.0]]:
+		var m := d[0] as StandardMaterial3D
+		if m == null: continue
+		m.metallic = 0.0
+		m.roughness = d[1]
+		m.detail_enabled = true
+		m.detail_uv_layer = BaseMaterial3D.DETAIL_UV_2
+		m.detail_blend_mode = d[3]
+		m.detail_albedo = d[2]
+		if d[4] > 0.0 and not m.normal_enabled:
+			m.normal_enabled = true
+			m.normal_texture = siva_n
+			m.normal_scale = d[4]
+		m.uv2_triplanar = true
+		m.uv2_world_triplanar = true
+		m.uv2_scale = Vector3.ONE * 0.35
 
 
 # ---------------------------------------------------------------- akış

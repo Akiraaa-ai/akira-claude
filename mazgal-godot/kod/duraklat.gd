@@ -237,7 +237,8 @@ func _kaliteyi_uygula(kok: Node) -> void:
 			env.set_meta("asil_ssao", env.ssao_enabled); env.set_meta("asil_ssr", env.ssr_enabled)
 			env.set_meta("asil_hacim", env.volumetric_fog_enabled); env.set_meta("asil_glow", env.glow_enabled)
 			env.set_meta("asil_ssil", env.ssil_enabled)
-		env.ssao_enabled = env.get_meta("asil_ssao") and kalite >= 1
+		# köşe ve temas gölgesi (SSAO) düşük kalitede de açık: yarım çözünürlükte, en ucuz ayarla
+		env.ssao_enabled = env.get_meta("asil_ssao")
 		env.ssr_enabled = env.get_meta("asil_ssr") and kalite >= 2
 		env.volumetric_fog_enabled = env.get_meta("asil_hacim") and kalite >= 1
 		env.glow_enabled = env.get_meta("asil_glow")
@@ -260,6 +261,8 @@ func _kaliteyi_uygula(kok: Node) -> void:
 	vp.positional_shadow_atlas_size = golge
 	var yumusak := [RenderingServer.SHADOW_QUALITY_SOFT_VERY_LOW, RenderingServer.SHADOW_QUALITY_SOFT_LOW, RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM, RenderingServer.SHADOW_QUALITY_SOFT_HIGH][kalite] as RenderingServer.ShadowQuality
 	RenderingServer.directional_soft_shadow_filter_set_quality(yumusak)
+	var ao := [RenderingServer.ENV_SSAO_QUALITY_VERY_LOW, RenderingServer.ENV_SSAO_QUALITY_LOW, RenderingServer.ENV_SSAO_QUALITY_MEDIUM, RenderingServer.ENV_SSAO_QUALITY_HIGH][kalite] as RenderingServer.EnvironmentSSAOQuality
+	RenderingServer.environment_set_ssao_quality(ao, kalite <= 1, 0.5, 2, 50.0, 300.0)
 	RenderingServer.positional_soft_shadow_filter_set_quality(yumusak)
 
 
