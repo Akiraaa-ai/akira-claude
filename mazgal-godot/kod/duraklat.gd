@@ -237,8 +237,8 @@ func _kaliteyi_uygula(kok: Node) -> void:
 			env.set_meta("asil_ssao", env.ssao_enabled); env.set_meta("asil_ssr", env.ssr_enabled)
 			env.set_meta("asil_hacim", env.volumetric_fog_enabled); env.set_meta("asil_glow", env.glow_enabled)
 			env.set_meta("asil_ssil", env.ssil_enabled)
-		# köşe ve temas gölgesi (SSAO) düşük kalitede de açık: yarım çözünürlükte, en ucuz ayarla
-		env.ssao_enabled = env.get_meta("asil_ssao")
+		# düşük kalitede SSAO kapalı: Iris Xe'de ekran kartı belleği yetmiyor
+		env.ssao_enabled = env.get_meta("asil_ssao") and kalite >= 1
 		env.ssr_enabled = env.get_meta("asil_ssr") and kalite >= 2
 		env.volumetric_fog_enabled = env.get_meta("asil_hacim") and kalite >= 1
 		env.glow_enabled = env.get_meta("asil_glow")
