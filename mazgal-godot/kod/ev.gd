@@ -121,7 +121,7 @@ const HOL_ALAN := [AABB(Vector3(3.58, 0, -3.92), Vector3(0.63, 3, 4.92)), AABB(V
 var EV_ALAN: Array = YATAK_ALAN + HOL_ALAN + BANYO_ALAN + MUTFAK_ALAN + SALON_ALAN
 const ODA_GIRIS := {
 	"banyo": AABB(Vector3(4.9, 0, 2.55), Vector3(2.3, 3, 3.5)),
-	"mutfak": AABB(Vector3(-1.5, 0, -9.9), Vector3(4.6, 3, 7.2)),
+	"mutfak": AABB(Vector3(-1.5, 0, -9.9), Vector3(5.0, 3, 7.2)),   # x 3.5'e kadar: kapı eşiği de sayılır
 	"salon_kapisi": AABB(Vector3(4.7, 0, -4.7), Vector3(5.5, 3, 5.5)),
 }
 const KAPI_EN := 1.07
@@ -271,10 +271,21 @@ func _ready() -> void:
 	for oda in [$YatakOdasi, $Banyo, $Mutfak, $Salon]:
 		_camlari_duzelt(oda)
 	# Modellerin açık kalan duvarlarını odanın kendi duvar malzemesiyle kapat; kapıların yerinde boşluk kalır
-	var tugla := _duvar_malzemesi($YatakOdasi, "Plane_002_Material_002_0", 0.6)
-	var mutfak_duvar := _duvar_malzemesi($Mutfak, "pCube38_standardSurface1_0", 0.0)
-	var beton_z := _duvar_malzemesi($Salon, "Plane_Material_003_0", 0.2)
-	var beton_x := _duvar_malzemesi($Salon, "Plane_Material_002_0", 0.19)
+	# alp (18 Ekim): tuğla yok; bütün odalarda aynı kirli sıva duvar, aynı tavan, aynı siyah parke
+	var siva_duvar := _duvar_malzemesi($Salon, "Plane_Material_002_0", 0.19)
+	if siva_duvar is StandardMaterial3D: (siva_duvar as StandardMaterial3D).albedo_color *= Color(0.95, 0.92, 0.86)   # açık, hafif sararmış sıva
+	_ev_duvar = siva_duvar
+	_ev_tavan = siva_duvar.duplicate()
+	if _ev_tavan is StandardMaterial3D: (_ev_tavan as StandardMaterial3D).albedo_color *= Color(0.92, 0.92, 0.9)
+	_ev_parke = _duvar_malzemesi($YatakOdasi, "Plane_Material_001_0", 0.3)
+	if _ev_parke is StandardMaterial3D:
+		(_ev_parke as StandardMaterial3D).albedo_color = Color(0.13, 0.115, 0.105)
+		(_ev_parke as StandardMaterial3D).metallic = 0.0
+		(_ev_parke as StandardMaterial3D).roughness = 0.55
+	var tugla := siva_duvar
+	var mutfak_duvar := siva_duvar
+	var beton_z := siva_duvar
+	var beton_x := siva_duvar
 	_kabuk(Vector3(-2.40, -0.04, -2.40), Vector3(3.22, 4.25, 3.35), {"+x": tugla, "+z": tugla}, null, {"+x": KAPI_YATAK[0].z}, {"+z": [YATAK_PENCERE_X, YATAK_PENCERE_EN]})
 	_yatak_penceresi()
 	_film_katmani()
@@ -295,9 +306,8 @@ func _ready() -> void:
 	_dus_kur()
 	_ayna_kur()
 	# tuğla hol; holdeki kapılar Selim'den öteye, karanlığa doğru itilerek açılır
-	var tahta := _duvar_malzemesi($YatakOdasi, "Plane_Material_001_0", 0.3)
-	var siva := _duvar_malzemesi($YatakOdasi, "Plane_004_Material_004_0", 0.25)
-	_hol_kur(tugla, tahta, siva)
+	_hol_kur(_ev_duvar, _ev_parke, _ev_tavan)
+	_tek_tip_ev()
 	_ampuller_kur()
 	_tablolar_kur()
 	kapi_dis = _kapi_kur(KAPI_DIS)
@@ -483,6 +493,9 @@ const RUYA_SIRA := [
 var _ruya_kok: Node3D
 var _ruya_env: Environment
 var _ev_env: Environment
+var _ev_duvar: Material
+var _ev_tavan: Material
+var _ev_parke: Material
 var _ruya_gunes: DirectionalLight3D
 var ses_piyano: AudioStreamPlayer
 var ses_ruya_yagmur: AudioStreamPlayer
@@ -1562,7 +1575,8 @@ func _capraz_gecis(sure: float) -> void:
 ## Ev tek parça olunca odaların modellerinde fazla kalan parçalar: salonun hola bakan pencereleri,
 ## banyonun kapı önündeki hol döşemesi.
 func _ev_parcalari_gizle() -> void:
-	for ad in ["Plane_002_Material_006_0", "Plane_002_Material_012_0", "Plane_004_Material_006_0", "Plane_004_Material_013_0", "Plane_Material_006_0"]:
+	# aile ve düğün fotoğraflarının büyük çerçeveleri (Plane_002/_004 ..._006/_012/_013) artık gizlenmiyor
+	for ad in ["Plane_Material_006_0"]:
 		var n := $Salon.find_child(ad, true, false) as Node3D
 		if n: n.visible = false
 	var h := $Banyo.find_child("HallFlag__0", true, false) as Node3D
@@ -2390,7 +2404,16 @@ func _ev_daginikligi(ana: Node3D) -> void:
 	_parca_koy(SELIM_EVI + "wall_shelf_with_clutter.glb", "", Vector3(3.08, 1.35, -0.9), RAF_ACI, 1.0, ana)
 	# salon halısında uyuyan kedi, koltuğun önünde yere düşmüş gazete, mutfak tezgâhında boş şarap şişesi,
 	# banyoda lavabo ile klozet arasında yerde tuvalet kâğıdı
-	_parca_koy(SELIM_EVI + "sleeping_cat_scan.glb", "", Vector3(6.9, 0.012, -1.1), 40.0, 1.0, ana)
+	_parca_koy(SELIM_EVI + "sleeping_cat_scan.glb", "", Vector3(7.0, 0.012, 1.85), 40.0, 1.0, ana)   # koridorda, duvar dibinde
+	# salon daha dağınık (alp'in dosyaları tekrar kullanılır): koliler, kâğıt, şişeler, kupa, gazete
+	for k: Array in [[Vector3(5.05, 0.0, 0.55), 20.0], [Vector3(9.95, 0.0, 0.5), 0.0], [Vector3(9.97, 0.38, 0.52), 12.0]]:
+		var koli2 := _parca_koy(OFIS + "cardboard_box.glb", "", k[0], k[1], 1.0, ana)
+		if koli2 and float((k[0] as Vector3).y) == 0.0: _esya_engeli(koli2)
+	_parca_koy(SELIM_EVI + "ai.maker_present_a_stack_of_old_papers.glb", "", Vector3(9.95, 0.0, -0.95), 70.0, 0.35 / 0.83, ana)
+	_parca_koy(YENI_MODELLER + "tf2_hd_bottle_pack.glb", "", Vector3(6.3, 0.0, 0.6), 140.0, 0.015, ana)
+	_boyla(KUPALAR, "Cups_Cup1_0", Vector3(5.35, 0.0, -3.5), 75.0, 0.1, ana)
+	_parca_koy(SELIM_EVI + "newspaper.glb", "", Vector3(8.9, 0.012, -1.4), 130.0, 0.04, ana)
+	_parca_koy(SELIM_EVI + "some_chinese_books.glb", "", Vector3(9.0, 0.0, -4.45), 90.0, 0.24 / 0.771, ana)
 	_parca_koy(SELIM_EVI + "newspaper.glb", "", Vector3(6.85, 0.012, -3.6), 25.0, 0.04, ana)
 	_boyla(SELIM_EVI + "wine_bottle_-_matthew.glb", "", Vector3(-1.05, 0.98, -5.4), 0.0, 0.3, ana)
 	_parca_koy(SELIM_EVI + "toilet_paper.glb", "", Vector3(5.0, 0.0, 4.75), 0.0, 1.0, ana)
@@ -3392,7 +3415,7 @@ func _ev_guncelle(dt: float) -> void:
 		# holün ortasındaki ampul: çoğu zaman yanar, arada bir titreyip söner
 		var l := _hol_lambalar[HOL_TITREYEN]
 		var d := fmod(T, 9.0)
-		l.light_energy = 0.75 if d < 7.6 or fmod(d * 7.3 + sin(T * 31.0), 1.0) > 0.45 else 0.05
+		l.light_energy = 0.35 if d < 7.6 or fmod(d * 7.3 + sin(T * 31.0), 1.0) > 0.45 else 0.05
 	if _zaman.has("banyo_kapi"): _banyo_kapisi(T - float(_zaman["banyo_kapi"]) + 0.5)
 	if _zaman.has("mutfak_kapi"):
 		_kapi_ac(kapi_mutfak, T - float(_zaman["mutfak_kapi"]), 0.0, 1.1)
@@ -3406,9 +3429,9 @@ func _ev_guncelle(dt: float) -> void:
 		var t := T - float(_zaman["banyo_isik"])
 		var lamba := $Isiklar/BanyoLamba as OmniLight3D
 		if t < 1.4:
-			lamba.light_energy = 1.3 if fmod(t * 6.1 + sin(t * 23.0) * 0.4, 1.0) > 0.6 else 0.04
+			lamba.light_energy = 0.42 if fmod(t * 6.1 + sin(t * 23.0) * 0.4, 1.0) > 0.6 else 0.04
 		else:
-			lamba.light_energy = 1.3 + sin(T * 120.0) * 0.015
+			lamba.light_energy = 0.42 + sin(T * 120.0) * 0.006
 	damla_hedef = move_toward(damla_hedef, 0.0, dt * 0.07)
 	damla = move_toward(damla, damla_hedef, dt * 2.0)
 	_damla_mat.set_shader_parameter("miktar", damla)
@@ -3536,7 +3559,7 @@ func _hol_kur(duvar: Material, zemin: Material, tavan: Material) -> void:
 	for i in HOL_LAMBALAR.size():
 		var l := OmniLight3D.new()
 		l.light_color = Color(1.0, 0.8, 0.58)
-		l.light_energy = 0.75
+		l.light_energy = 0.35
 		l.omni_range = 4.2
 		l.omni_attenuation = 1.4
 		l.shadow_enabled = i == 0 or i == HOL_TITREYEN
@@ -3725,6 +3748,51 @@ void fragment() {
 	mat.shader = sh
 	r.material = mat
 	cl.add_child(r)
+
+
+## Bütün odalar aynı: tavan EV_TAVAN yüksekliğinde ve aynı renkte, zemin aynı siyah parke (banyo kendi fayansında kalır),
+## modelin tuğla duvarları sıvayla kaplanır, salonun halısı odayı kaplar.
+const EV_TAVAN := 2.6
+const EV_ODALARI := [   # [x0, z0, x1, z1]
+	[-2.4, -2.4, 3.22, 3.35],       # yatak odası
+	[-1.58, -9.99, 3.22, -2.5],     # mutfak
+	[4.595, -4.76, 10.305, 0.95],   # salon
+]
+func _tek_tip_ev() -> void:
+	# modelin kendi zeminleri gizlenir, yerine (aynı yükseklikte, çarpışmalı) siyah parke gelir; mutfağın zemini
+	# modelin içinde ayrı parça olmadığı için parke onun 3 mm üstünde durur
+	for ad in ["Plane_Material_001_0"]:
+		for oda in [$YatakOdasi, $Salon]:
+			var z := oda.find_child(ad, true, false) as Node3D
+			if z: z.visible = false
+	for i in EV_ODALARI.size():
+		var r: Array = EV_ODALARI[i]
+		var o := Vector3((r[0] + r[2]) * 0.5, 0.0, (r[1] + r[3]) * 0.5)
+		var en := Vector3(r[2] - r[0], 0.0, r[3] - r[1])
+		var ust := 0.003 if i == 1 else 0.0
+		for p in [[o + Vector3(0, ust - 0.025, 0), Vector3(en.x, 0.05, en.z), _ev_parke, true], [o + Vector3(0, EV_TAVAN + 0.05, 0), Vector3(en.x + 0.3, 0.1, en.z + 0.3), _ev_tavan, false]]:
+			var mi := MeshInstance3D.new()
+			var bm := BoxMesh.new()
+			bm.size = p[1]
+			bm.material = p[2]
+			mi.mesh = bm
+			mi.position = p[0]
+			add_child(mi)
+			if p[3]: mi.create_trimesh_collision()
+	for ad in ["Plane_001_Material_002_0", "Plane_002_Material_002_0", "Plane_009_Material_002_0", "Plane_010_Material_002_0"]:
+		var d := $YatakOdasi.find_child(ad, true, false) as MeshInstance3D
+		if d: d.material_override = _ev_duvar
+	for ad in ["Plane_Material_002_0", "Plane_Material_003_0"]:
+		var d := $Salon.find_child(ad, true, false) as MeshInstance3D
+		if d: d.material_override = _ev_duvar
+	# salonun halısı bütün zemini kaplar
+	var hali := $Salon.find_child("Plane_001_Material_004_0", true, false) as MeshInstance3D
+	if hali:
+		var k: AABB = hali.global_transform * hali.get_aabb()
+		var r: Array = EV_ODALARI[2]
+		var hedef := Vector3((r[0] + r[2]) * 0.5, k.get_center().y, (r[1] + r[3]) * 0.5)
+		var s := Vector3((r[2] - r[0] - 0.1) / maxf(k.size.x, 0.01), 1.0, (r[3] - r[1] - 0.1) / maxf(k.size.z, 0.01))
+		hali.global_transform = Transform3D(Basis.from_scale(s), hedef) * Transform3D(Basis(), -k.get_center()) * hali.global_transform
 
 
 ## parcalar'dan [a, b] aralığını çıkarır.
@@ -4160,9 +4228,10 @@ const AMPUL_MODELI := "res://modeller2/seliminevi/led_light_bulb_9w.glb"
 const AMPUL_OLCEK := 0.032   # model 3,8 birim boyunda; gerçek ampul 12 cm
 ## [ampulün tavana değdiği nokta, ışığın adı ya da yeni ışık için boş, menzil, parlaklık]
 const AMPULLER := [
-	[Vector3(0.4, 3.88, 0.47), "", 7.0, 0.9],                 # yatak odası (model tavanı)
-	[Vector3(0.82, 2.85, -6.25), "MutfakLamba", 7.5, 1.5],   # mutfak (_kabuk tavanı)
-	[Vector3(7.45, 2.73, -1.905), "", 7.5, 1.0],                 # salon (_kabuk tavanı)
+	# depresyondaki birinin evi: ampuller loş (alp)
+	[Vector3(0.4, EV_TAVAN, 0.47), "", 6.0, 0.3],                 # yatak odası
+	[Vector3(0.82, EV_TAVAN, -6.25), "MutfakLamba", 6.0, 0.5],   # mutfak
+	[Vector3(7.45, EV_TAVAN, -1.905), "", 6.0, 0.4],                 # salon
 	[Vector3(5.94, 2.215, 4.59), "BanyoLamba", 0.0, 0.0],   # banyo: modelin tavan armatürünün altında, floresan gibi çakar
 ]
 var _ampuller := []   # [ışık, parlayan malzeme, ilk parlaklık]
