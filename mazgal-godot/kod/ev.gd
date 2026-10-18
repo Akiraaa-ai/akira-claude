@@ -2417,6 +2417,7 @@ func _ev_daginikligi(ana: Node3D) -> void:
 	_boyla(KUPALAR, "Cups_Cup1_0", Vector3(5.35, 0.0, -3.5), 75.0, 0.1, ana)
 	_parca_koy(SELIM_EVI + "newspaper.glb", "", Vector3(8.9, 0.012, -1.4), 130.0, 0.04, ana)
 	_parca_koy(SELIM_EVI + "some_chinese_books.glb", "", Vector3(9.0, 0.0, -4.45), 90.0, 0.24 / 0.771, ana)
+	_posterler_kur(ana)
 	# pencereler (alp: her odaya): salonun TV duvarında, mutfağın dip duvarında; dışarısı gece
 	var py := (PENCERE_ALT + PENCERE_UST) * 0.5
 	_pencere_modeli(Vector3(10.33, py, -0.2), Vector3(-1, 0, 0), true)
@@ -3727,6 +3728,33 @@ func _yatak_penceresi() -> void:
 	e.tonemap_exposure = 1.0
 	var yl := get_node_or_null("Isiklar/YatakLamba") as OmniLight3D
 	if yl: yl.light_energy = 0.22
+
+
+## alp'in posterleri (seliminevi/poster_1..4.jpg): duvara yapışık kâğıt, 50 cm eninde. [dosya, yer, yüzün baktığı açı]
+const POSTERLER := [
+	["poster_1.jpg", Vector3(-1.35, 1.6, 3.37), 180.0],   # yatak odası, pencerenin solu
+	["poster_4.jpg", Vector3(2.15, 1.6, 3.37), 180.0],    # yatak odası, pencerenin sağı
+	["poster_2.jpg", Vector3(3.24, 1.55, 0.45), -90.0],   # yatak odası, masa ile kapı arası
+	["poster_3.jpg", Vector3(6.4, 1.65, -4.75), 0.0],     # salon
+]
+func _posterler_kur(ana: Node3D) -> void:
+	for p in POSTERLER:
+		var yol: String = SELIM_EVI + p[0]
+		if not ResourceLoader.exists(yol): continue
+		var tex: Texture2D = load(yol)
+		var mi := MeshInstance3D.new()
+		var qm := QuadMesh.new()
+		qm.size = Vector2(0.5, 0.5 * float(tex.get_height()) / float(tex.get_width()))
+		var m := StandardMaterial3D.new()
+		m.albedo_texture = tex
+		m.albedo_color = Color(0.85, 0.82, 0.76)   # eskimiş kâğıt
+		m.roughness = 0.85
+		m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+		qm.material = m
+		mi.mesh = qm
+		ana.add_child(mi)
+		mi.global_position = p[1]
+		mi.rotation_degrees.y = p[2]
 
 
 ## alp'in pencere modeli: orta = duvar yüzünde pencerenin ortası, ice = odanın içine doğru.
