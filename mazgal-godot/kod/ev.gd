@@ -63,9 +63,9 @@ const BANYO_ALAN := [AABB(Vector3(10.95, 0, -1.3), Vector3(2.1, 3, 1.12)), AABB(
 const MUTFAK_ALAN := [AABB(Vector3(23.7, 0, -3.5), Vector3(4.15, 3, 6.8))]
 const SALON_ALAN := [AABB(Vector3(33.3, 0, -2.7), Vector3(5.4, 3, 5.5))]
 const YURUME := 1.7
-const GOZ := 1.48
+const GOZ := 1.6
 ## Sinematik yollar 1.62 göz hizasıyla yazıldı; Selim kısaltıldı, ayakta duran kareler bu kadar alçalır.
-const BOY_FARK := 0.14
+const BOY_FARK := 0.02
 const Eller := preload("res://kod/eller.gd")
 const Govde := preload("res://kod/govde.gd")
 const Kagit := preload("res://kod/kagit.gd")
@@ -308,6 +308,29 @@ func _ready() -> void:
 	if d: d.baslangic_noktasi = ""
 	# yeni oyun ve eve dönüş: Selim uyanmadan önce rüya görür
 	_gec(nokta if nokta in KAYIT_NOKTALARI else "ruya")
+	_isik_sekmesi_kur.call_deferred()
+
+
+## Işık duvarlardan seker (VoxelGI): odalar gökyüzünün mavisiyle değil, lambanın sıcak ışığıyla dolar.
+## Eşyalar kurulduktan sonra oda oda bir kez hesaplanır; lambalar yanıp sönünce sekme de canlı değişir.
+const ISIK_SEKMESI := [   # [köşe, ölçü]
+	[Vector3(-3.0, -0.2, -3.0), Vector3(6.5, 4.6, 6.5)],     # yatak odası
+	[Vector3(3.2, -0.2, 0.2), Vector3(4.4, 3.0, 3.2)],       # hol
+	[Vector3(10.4, -0.2, -1.8), Vector3(3.2, 2.8, 4.2)],     # banyo
+	[Vector3(20.5, -0.2, -4.2), Vector3(8.2, 3.3, 7.8)],     # mutfak
+	[Vector3(33.0, -0.2, -3.0), Vector3(6.2, 3.1, 6.2)],     # salon
+]
+
+func _isik_sekmesi_kur() -> void:
+	for r in ISIK_SEKMESI:
+		var g := VoxelGI.new()
+		g.subdiv = VoxelGI.SUBDIV_64
+		g.size = r[1]
+		add_child(g)
+		g.global_position = r[0] + r[1] * 0.5
+		g.data = VoxelGIData.new()
+		g.data.propagation = 0.7
+		g.bake()
 
 
 # ---------------------------------------------------------------- akış
