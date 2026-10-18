@@ -2175,7 +2175,7 @@ const MUTFAK_TAKIMI := "res://modeller2/seliminevi/low_poly_outdoor_table_patio_
 const MASA_BOYU := 0.746
 const MASA_YERI := Vector3(2.3, 0.0, -5.1)
 const SANDALYE_YERI := Vector3(2.37, 0.0, -4.32)
-const SANDALYE_ACI := 0.0
+const SANDALYE_ACI := 90.0     # modelde sandalyenin arkalığı -x; çevrilince arkalık +z, oturak masaya bakar
 func _mutfak_takimi() -> void:
 	if not ResourceLoader.exists(MUTFAK_TAKIMI): return
 	for ad in MUTFAK_MOBILYA:
