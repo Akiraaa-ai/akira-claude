@@ -248,8 +248,8 @@ func _kaliteyi_uygula(kok: Node) -> void:
 	var vp := get_viewport()
 	vp.msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X, Viewport.MSAA_8X][kalite]
 	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if kalite <= 1 else Viewport.SCALING_3D_MODE_BILINEAR
-	vp.scaling_3d_scale = [0.67, 0.85, 1.0, 1.0][kalite]
-	vp.mesh_lod_threshold = [4.0, 2.0, 1.0, 0.0][kalite]
+	vp.scaling_3d_scale = [0.77, 0.85, 1.0, 1.0][kalite]
+	vp.mesh_lod_threshold = [1.5, 1.2, 1.0, 0.0][kalite]   # 4.0 modelleri kabalaştırıyordu
 	var golge: int = [2048, 4096, 8192, 8192][kalite]
 	RenderingServer.directional_shadow_atlas_set_size(golge, true)
 	vp.positional_shadow_atlas_size = golge
