@@ -104,6 +104,11 @@ const PENCERE_EN := 0.9
 const PENCERE_ALT := 0.9
 const PENCERE_UST := 2.05
 const PERDE_MODELI := "res://modeller2/seliminevi/perde.glb"
+## Yatak odasının dış duvarındaki (+z) pencere: ortası (x), eni. Gece; içeriye sokak lambasının
+## turuncu ışığı jaluzi çizgileriyle tek, sert bir huzme olarak düşer, havadaki toz huzmede görünür.
+const YATAK_PENCERE_X := 0.35
+const YATAK_PENCERE_EN := 1.25
+const JALUZI_MODELI := "res://modeller2/seliminevi/jaluzi.glb"   # alp gönderince pencerenin önüne
 const HOL_LAMBALAR := [Vector3(3.9, 2.3, -1.8), Vector3(5.6, 2.3, 1.6), Vector3(9.0, 2.3, 1.6)]
 const HOL_TITREYEN := 1   # bu ampul arada bir çakıp söner
 # Selim'in evde dolaşabileceği yerler (duvarlardan ~0.28 m içeride): odalar, hol ve kapı geçitleri
@@ -269,7 +274,9 @@ func _ready() -> void:
 	var mutfak_duvar := _duvar_malzemesi($Mutfak, "pCube38_standardSurface1_0", 0.0)
 	var beton_z := _duvar_malzemesi($Salon, "Plane_Material_003_0", 0.2)
 	var beton_x := _duvar_malzemesi($Salon, "Plane_Material_002_0", 0.19)
-	_kabuk(Vector3(-2.40, -0.04, -2.40), Vector3(3.22, 4.25, 3.35), {"+x": tugla, "+z": tugla}, null, {"+x": KAPI_YATAK[0].z})
+	_kabuk(Vector3(-2.40, -0.04, -2.40), Vector3(3.22, 4.25, 3.35), {"+x": tugla, "+z": tugla}, null, {"+x": KAPI_YATAK[0].z}, {"+z": [YATAK_PENCERE_X, YATAK_PENCERE_EN]})
+	_yatak_penceresi()
+	_film_katmani()
 	_kabuk(Vector3(-0.55, 0, -3.99) + Vector3(-1.03, 0, -6.0), Vector3(4.25, 2.82, 3.50) + Vector3(-1.03, 0, -6.0), {"-x": mutfak_duvar, "+x": mutfak_duvar, "-z": mutfak_duvar, "+z": mutfak_duvar}, mutfak_duvar, {"+x": KAPI_MUTFAK[0].z})
 	_kabuk(Vector3(-2.855, 0, -2.855) + SALON, Vector3(2.855, 2.7, 2.855) + SALON, {"+x": beton_x, "+z": beton_z}, beton_x, {"+z": KAPI_SALON[0].x})
 	kapi_yatak = _kapi_kur(KAPI_YATAK)
@@ -722,7 +729,7 @@ func _ruya_bitir() -> void:
 	if _ruya_kok: _ruya_kok.queue_free()
 	_ruya_kok = null
 	($Ortam as WorldEnvironment).environment = _ev_env
-	$Aksam.visible = true
+	$Aksam.visible = false   # uyanınca gece; ışık yalnız yatak odası penceresinden, sokak lambasından gelir
 	if ses_piyano: ses_piyano.stop()
 	if ses_ruya_yagmur: ses_ruya_yagmur.stop()
 	if ses_ambiyans and ses_ambiyans.stream and not ses_ambiyans.playing: ses_ambiyans.play()
@@ -1864,7 +1871,7 @@ func _duvar_malzemesi(oda: Node, mesh_adi: String, yogunluk: float) -> Material:
 
 ## Odanın açık kalan kenarlarına o odanın kendi duvar malzemesiyle duvar (ve istenirse tavan) çeker.
 ## kenarlar: {"+x": malzeme, ...}; kapilar: {"+x": kapının duvar boyunca ortası} — orada kapı boşluğu bırakılır.
-func _kabuk(a: Vector3, b: Vector3, kenarlar: Dictionary, tavan: Material, kapilar := {}) -> void:
+func _kabuk(a: Vector3, b: Vector3, kenarlar: Dictionary, tavan: Material, kapilar := {}, pencereler := {}) -> void:
 	var k := 0.1
 	var bosluk := 0.03
 	var boy := b.y - a.y
@@ -1891,6 +1898,13 @@ func _kabuk(a: Vector3, b: Vector3, kenarlar: Dictionary, tavan: Material, kapil
 			dilimler.append([u0, k0, a.y, b.y])
 			dilimler.append([k1, u1, a.y, b.y])
 			dilimler.append([k0, k1, ust, b.y])
+		elif pencereler.has(kenar):
+			var p0: float = pencereler[kenar][0] - pencereler[kenar][1] * 0.5
+			var p1: float = pencereler[kenar][0] + pencereler[kenar][1] * 0.5
+			dilimler.append([u0, p0, a.y, b.y])
+			dilimler.append([p1, u1, a.y, b.y])
+			dilimler.append([p0, p1, a.y, PENCERE_ALT])
+			dilimler.append([p0, p1, PENCERE_UST, b.y])
 		else:
 			dilimler.append([u0, u1, a.y, b.y])
 		for d in dilimler:
@@ -3562,6 +3576,119 @@ func _pencere_kur(orta: Vector3, dis: float, x_kenari: bool, k: float) -> void:
 			pk = _dunya_kutusu(perde)
 			var hedef := orta - yon * (k * 0.5 + 0.02 + (pk.size.x if x_kenari else pk.size.z) * 0.5)
 			perde.global_position += Vector3(hedef.x - pk.get_center().x, 0.02 - pk.position.y, hedef.z - pk.get_center().z)
+
+
+## Yatak odası penceresi: cam, dışarıda gece göğü, karşı kaldırımdaki sokak lambasının ışığı.
+## Işık jaluzi çizgileriyle (ışığın önüne konan desen) yere ve yatağın ayak ucuna düşer; hacimli sis huzmeyi gösterir.
+func _yatak_penceresi() -> void:
+	var z := 3.35 + 0.03 + 0.05
+	var y := (PENCERE_ALT + PENCERE_UST) * 0.5
+	var h := PENCERE_UST - PENCERE_ALT
+	var cam := MeshInstance3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(YATAK_PENCERE_EN, h)
+	var cm := StandardMaterial3D.new()
+	cm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	cm.albedo_color = Color(0.5, 0.52, 0.5, 0.18)   # kirli cam
+	cm.metallic = 0.5
+	cm.roughness = 0.25
+	cm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	qm.material = cm
+	cam.mesh = qm
+	add_child(cam)
+	cam.position = Vector3(YATAK_PENCERE_X, y, z)
+	var gok := MeshInstance3D.new()
+	var gq := QuadMesh.new()
+	gq.size = Vector2(10.0, 7.0)
+	var gm := StandardMaterial3D.new()
+	gm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	gm.albedo_color = Color(0.05, 0.035, 0.03)   # lamba ışığının boyadığı gece göğü
+	gm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	gq.material = gm
+	gok.mesh = gq
+	add_child(gok)
+	gok.position = Vector3(YATAK_PENCERE_X, y, z + 5.0)
+	# sokak lambası: yukarıdan, pencereye çapraz; sodyum turuncusu
+	var lamba := SpotLight3D.new()
+	lamba.light_color = Color(1.0, 0.62, 0.3)
+	lamba.light_energy = 9.0
+	lamba.light_volumetric_fog_energy = 4.0
+	lamba.spot_range = 11.0
+	lamba.spot_angle = 16.0
+	lamba.spot_attenuation = 0.6
+	lamba.shadow_enabled = true
+	lamba.shadow_blur = 0.6
+	lamba.light_projector = _jaluzi_deseni()
+	lamba.name = "SokakLambasi"   # düşük grafik ayarında da gölgesi açık kalır, yoksa duvardan sızar
+	add_child(lamba)
+	lamba.position = Vector3(YATAK_PENCERE_X + 1.4, 3.8, z + 3.2)
+	lamba.look_at(Vector3(YATAK_PENCERE_X - 0.7, 0.0, 1.0))
+	var engel := StaticBody3D.new()
+	var sekil := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(YATAK_PENCERE_EN, 3.0, 0.1)
+	sekil.shape = bs
+	engel.add_child(sekil)
+	add_child(engel)
+	engel.position = Vector3(YATAK_PENCERE_X, 1.5, z)
+	if ResourceLoader.exists(JALUZI_MODELI):
+		var j := _parca_koy(JALUZI_MODELI, "", Vector3(YATAK_PENCERE_X, PENCERE_ALT, z - 0.08), 0.0, 1.0, self)
+		if j:
+			var jk := _dunya_kutusu(j)
+			j.scale *= (YATAK_PENCERE_EN + 0.06) / maxf(jk.size.x, 0.001)
+	# evin havası: yatak odasında toz, huzmede görünür (orta ve üstü grafik ayarında)
+	var e := ($Ortam as WorldEnvironment).environment
+	e.volumetric_fog_enabled = true
+	e.volumetric_fog_density = 0.03
+	e.volumetric_fog_albedo = Color(0.8, 0.75, 0.7)
+	e.volumetric_fog_emission_energy = 0.0
+	e.volumetric_fog_ambient_inject = 0.0
+	e.volumetric_fog_length = 14.0
+	# soluk, yorgun renkler; oda geri kalanı karanlık
+	e.ambient_light_energy = 0.2
+	e.adjustment_saturation = 0.72
+	e.adjustment_contrast = 1.14
+	e.tonemap_exposure = 1.0
+	var yl := get_node_or_null("Isiklar/YatakLamba") as OmniLight3D
+	if yl: yl.light_energy = 0.22
+
+
+## Jaluzi: ışığın önüne konan yatay çizgili desen (model değil, ışığın kendisi çizgili düşer).
+func _jaluzi_deseni() -> Texture2D:
+	var im := Image.create(256, 256, false, Image.FORMAT_L8)
+	for y in 256:
+		var cizgi := fmod(float(y), 21.0) < 14.0
+		var v := 1.0 if cizgi else 0.04
+		for x in 256:
+			# kenarlara doğru yumuşak sönüş, ışık dikdörtgen pencereden geçiyormuş gibi
+			var kx := smoothstep(0.0, 0.08, float(x) / 255.0) * smoothstep(1.0, 0.92, float(x) / 255.0)
+			var ky := smoothstep(0.0, 0.06, float(y) / 255.0) * smoothstep(1.0, 0.94, float(y) / 255.0)
+			im.set_pixel(x, y, Color(v * kx * ky, 0, 0))
+	return ImageTexture.create_from_image(im)
+
+
+## Kamera görüntüsü: film greni ve köşe kararması (ekranın üstüne ince bir katman).
+func _film_katmani() -> void:
+	var cl := CanvasLayer.new()
+	cl.layer = 4
+	add_child(cl)
+	var r := ColorRect.new()
+	r.set_anchors_preset(Control.PRESET_FULL_RECT)
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mat := ShaderMaterial.new()
+	var sh := Shader.new()
+	sh.code = """shader_type canvas_item;
+float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+void fragment() {
+	vec2 m = UV - 0.5;
+	float kose = smoothstep(0.32, 0.95, length(m * vec2(1.25, 1.0)));
+	float gren = h(UV * 900.0 + fract(TIME * 13.0) * 97.0);
+	COLOR = vec4(vec3(gren), 0.06 * gren * (1.0 - kose)) ;
+	COLOR = mix(COLOR, vec4(0.0, 0.0, 0.0, 1.0), kose * 0.62);
+}"""
+	mat.shader = sh
+	r.material = mat
+	cl.add_child(r)
 
 
 ## parcalar'dan [a, b] aralığını çıkarır.

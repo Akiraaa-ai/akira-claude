@@ -201,7 +201,7 @@ func _dugum_kalitesi(n: Node) -> void:
 	if n is Light3D and not n is DirectionalLight3D:
 		var l := n as Light3D
 		if not l.has_meta("asil_golge"): l.set_meta("asil_golge", l.shadow_enabled)
-		var onemli := l.name == "Fener" or l.name == "Ampul" or l.name == "TVIsigi"
+		var onemli := l.name == "Fener" or l.name == "Ampul" or l.name == "TVIsigi" or l.name == "SokakLambasi"
 		l.shadow_enabled = bool(l.get_meta("asil_golge")) and (kalite >= 1 or onemli)
 		# uzaktaki sokak lambaları düşük ayarda daha erken söner: ekran kartı aynı anda daha az ışık hesaplar
 		if l.distance_fade_enabled:
