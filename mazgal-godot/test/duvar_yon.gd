@@ -2,6 +2,9 @@ extends SceneTree
 ## Test: odalardaki büyük dikey yüzeylerin hangi yöne baktığını ve nerede durduğunu yazar.
 func _init() -> void:
 	for yol in ["res://modeller2/seliminevi/interior_8_bedroom.glb", "res://modeller2/seliminevi/interior_15_mini_loft (1).glb", "res://modeller2/seliminevi/kitchen.glb", "res://modeller2/seliminevi/mildly_depressing_bathroom.glb"]:
+		if not ResourceLoader.exists(yol):
+			print("atlandı (dosya yok): ", yol)
+			continue
 		var s: Node3D = (load(yol) as PackedScene).instantiate()
 		if "kitchen" in yol: s.scale = Vector3.ONE * 33
 		root.add_child(s)
