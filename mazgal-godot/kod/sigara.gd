@@ -25,6 +25,7 @@ const CAKMAK_TUTUS := Transform3D(Basis(Vector3(0, 1, 0), Vector3(-1, 0, 0), Vec
 var kamera: Camera3D
 var eller: Node
 var paket := Vector3.ZERO
+var kul := Vector3.INF   # kül tablasının içi (dünyada); verilirse sigara sonunda orada söndürülür ve izmarit kalır
 
 var _sigara: Node3D
 var _cakmak: Node3D
@@ -156,6 +157,26 @@ func oynat(t: float) -> bool:
 			_durum = "elde"
 			_indir(0.8)
 		if _bir_kez("ufle%d" % (i + 1), t, u): _ufle_bas()
+	# son: kül tablası varsa sigarayı içine bastırıp söndürür, izmarit orada kalır
+	if kul != Vector3.INF:
+		if _bir_kez("kula", t, SURE - 2.4):
+			_durum = "elde"
+			eller.uzan("sag", kul + Vector3(0, 0.07, 0), 0.8)
+			eller.yumruk("sag", 0.4, 0.4)
+		if _bir_kez("bastir", t, SURE - 1.5):
+			eller.uzan("sag", kul + Vector3(0, 0.035, 0), 0.35)
+		if _bir_kez("sondu", t, SURE - 1.15):
+			_duman.emitting = false
+			_koz_parca.emitting = false
+			_ses_cal("paket", -18.0)
+		if _bir_kez("izmarit", t, SURE - 0.8):
+			_durum = "yok"
+			# izmarit kül tablasında yan yatar, ezik ucu tablanın ortasında
+			_sigara.global_transform = Transform3D(Basis(Vector3.UP, 0.6) * Basis(Vector3.FORWARD, -0.15), kul + Vector3(0.02, 0.006, 0.0))
+			eller.birak("sag", 0.8)
+			eller.yumruk("sag", 0.0)
+		_cekis = cekis * (1.0 - smoothstep(SURE - 1.5, SURE - 1.15, t))
+		return t >= SURE
 	# son: sigara elde aşağıda kalır, el iner (söndürülmüş sayılır)
 	if _bir_kez("son", t, SURE - 1.6):
 		eller.birak("sag", 0.9)

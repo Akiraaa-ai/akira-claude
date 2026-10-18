@@ -97,6 +97,13 @@ const HOL_KAPILAR := [["-x", 3.3, -3.45], ["-x", 3.3, 1.6], ["-z", 0.95, 8.05], 
 # kapı eşiklerinde odanın zemini ile hol arasında kalan aralık
 const HOL_ESIK := [[3.2, 1.0, 3.4, 2.2], [3.1, -4.0, 3.4, -2.9], [5.05, 2.2, 6.2, 2.4], [7.5, 0.8, 8.6, 1.0]]
 const HOL_TAVAN := 2.6
+## Holün dış duvarındaki pencere: [kenar, sabit, orta], genişlik, denizlik ve üst kenar yüksekliği.
+## Önüne alp'in perdesi (PERDE_MODELI) gelir; dışarısı gece.
+const HOL_PENCERE := ["+z", 2.22, 9.45]
+const PENCERE_EN := 0.9
+const PENCERE_ALT := 0.9
+const PENCERE_UST := 2.05
+const PERDE_MODELI := "res://modeller2/seliminevi/perde.glb"
 const HOL_LAMBALAR := [Vector3(3.9, 2.3, -1.8), Vector3(5.6, 2.3, 1.6), Vector3(9.0, 2.3, 1.6)]
 const HOL_TITREYEN := 1   # bu ampul arada bir çakıp söner
 # Selim'in evde dolaşabileceği yerler (duvarlardan ~0.28 m içeride): odalar, hol ve kapı geçitleri
@@ -1327,11 +1334,19 @@ func _s_sigara() -> void:
 			sigara = Sigara.new()
 			add_child(sigara)
 		sigara.kur(kamera, eller, pk)
-	_yol([[0.0, otur + Vector3(0.1, 0.3, 0.2), Vector3(3.97, 1.4, -3.4)], [0.9, otur, pk], [2.4, otur, pk + Vector3(-0.3, 0.55, -0.3)],
-		[8.0, otur + Vector3(0, -0.02, 0), Vector3(1.17, 1.15, -5.4)], [14.0, otur + Vector3(0.02, -0.03, 0), Vector3(0.77, 1.2, -5.0)],
-		[Sigara.SURE, otur, Vector3(0.97, 1.15, -5.1)]], ft)
+		sigara.kul = KUL_YERI + Vector3(0, _kul_derinlik, 0) if kul_tablasi else Vector3.INF
+	var yol := [[0.0, otur + Vector3(0.1, 0.3, 0.2), Vector3(3.97, 1.4, -3.4)], [0.9, otur, pk], [2.4, otur, pk + Vector3(-0.3, 0.55, -0.3)],
+		[8.0, otur + Vector3(0, -0.02, 0), Vector3(1.17, 1.15, -5.4)], [14.0, otur + Vector3(0.02, -0.03, 0), Vector3(0.77, 1.2, -5.0)]]
+	var son := Vector3(0.97, 1.15, -5.1)
+	if kul_tablasi:
+		# son nefesten sonra gözü kül tablasına iner, sigarayı orada söndürür
+		son = KUL_YERI + Vector3(-0.15, 0.25, -0.1)
+		yol.append_array([[Sigara.SURE - 3.0, otur, Vector3(0.97, 1.15, -5.1)], [Sigara.SURE - 2.2, otur, KUL_YERI], [Sigara.SURE, otur, son]])
+	else:
+		yol.append([Sigara.SURE, otur, son])
+	_yol(yol, ft)
 	if sigara.oynat(ft):
-		_mutfaktan_cik(otur, Vector3(0.97, 1.15, -5.1))
+		_mutfaktan_cik(otur, son)
 
 
 ## Kalkar, mutfak kapısını karanlığa doğru iter, holde gözünü açar; salona kendi yürür.
@@ -2250,10 +2265,72 @@ func _yeni_esyalar() -> void:
 		k.rotation_degrees = Vector3(-90, 75, 0)
 		var kutu := _dunya_kutusu(k)
 		k.global_position += Vector3(6.13, 0.445, -2.205) - Vector3(kutu.get_center().x, kutu.position.y, kutu.get_center().z)
+	_ev_daginikligi(ana)
 	for p in _paketler: (_paketler[p] as Node).free()
 	_paketler.clear()
 	_merdiven_isiklar = merdiven_kur(ana, MERDIVEN_YERI, MERDIVEN_ARA, MERDIVEN_KAT, true)
 	if not _merdiven_isiklar.is_empty(): _merdiven_engeller()
+
+
+## Evin dağınıklığı, alp'in klasörlerindeki modellerle: yatak odasında eski çalışma masası (üstünde kupa,
+## el feneri, pil), salonda açılmamış koliler ve sehpada kupa. Koli ve masaya görünmez çarpışma kutusu konur.
+const SELIM_EVI := "res://modeller2/seliminevi/"
+const RAF_ACI := 180.0    # rafın önü modelde +x; çevrilince arkası duvara (+x) gelir
+const KUL_TABLASI := "res://modeller2/modeller2/promo_ashtray_-_jakob_haberfeld_vodka_factory.glb"
+const KUL_YERI := KASE + Vector3(-0.25, -0.01, 0.04)   # masanın Selim tarafı, kâğıdın yanı
+var kul_tablasi: Node3D
+var _kul_derinlik := 0.0
+const OFIS := "res://modeller2/mazgala düşüşsten sonraki haritalar/ofis koridoru/"
+const KUPALAR := "res://modeller2/modeller2/coffee__tea_mugs_free (1).glb"
+const FENER := "res://modeller2/el feneri ve pil/"
+func _ev_daginikligi(ana: Node3D) -> void:
+	# kül tablası mutfak masasında, sigara paketinin yanında (model 36 birim geliyor, gerçek eni 14 cm)
+	kul_tablasi = _parca_koy(KUL_TABLASI, "", KUL_YERI, 20.0, 0.14 / 35.9, ana)
+	if kul_tablasi: _kul_derinlik = _dunya_kutusu(kul_tablasi).size.y * 0.35
+	var masa := _parca_koy(OFIS + "game_ready_-_old_office_desk.glb", "", Vector3(2.88, 0.0, -0.9), -90.0, 0.76 / 36.66, ana)
+	if masa:
+		_esya_engeli(masa)
+		var ust := _dunya_kutusu(masa).end.y
+		_boyla(KUPALAR, "Cups_Cup1_0", Vector3(2.95, ust, -0.35), 30.0, 0.1, ana)
+		_parca_koy(FENER + "flashlight.glb", "", Vector3(2.85, ust, -1.25), 70.0, 0.25 / 494.5, ana)
+		_parca_koy(FENER + "simple_battery (1).glb", "", Vector3(3.0, ust, -1.05), 0.0, 0.05 / 3.38, ana)
+	_boyla(KUPALAR, "Cups_Cup2_0", Vector3(6.02, 0.445, -2.42), 140.0, 0.1, ana)
+	for k: Array in [[Vector3(9.4, 0.0, -4.33), 0.0], [Vector3(9.43, 0.38, -4.32), 8.0], [Vector3(9.95, 0.0, -3.88), 90.0], [Vector3(2.75, 0.0, 2.95), 90.0]]:
+		var koli := _parca_koy(OFIS + "cardboard_box.glb", "", k[0], k[1], 1.0, ana)
+		if koli and float((k[0] as Vector3).y) == 0.0: _esya_engeli(koli)
+	# alp'in 18 Ekim'de attıkları: yatağın yanında İran halısı, holde ince yolluk, köşede kirli sepeti,
+	# mutfakta çöp poşetleri, salonda kolilerin yanında kâğıt yığını ve koltuğun dibinde boş şişeler,
+	# masanın üstünde duvar rafı
+	_parca_koy(SELIM_EVI + "persian_rug__carpet.glb", "", Vector3(1.3, 0.0, 0.0), 90.0, 1.0, ana)
+	_parca_koy(YENI_MODELLER + "wine_rug.glb", "", Vector3(3.9, 0.004, -1.6), 0.0, 0.8 / 0.169, ana)
+	var sepet := _parca_koy(SELIM_EVI + "kirli_camasir.glb", "", Vector3(-2.2, 0.0, 3.0), 15.0, 1.0, ana)
+	if sepet: _esya_engeli(sepet)
+	var cop := _parca_koy(SELIM_EVI + "animal_crossing_new_horizons_trash_bags (1).glb", "", Vector3(-0.35, 0.0, -2.85), 0.0, 0.06, ana)
+	if cop: _esya_engeli(cop)
+	_parca_koy(SELIM_EVI + "ai.maker_present_a_stack_of_old_papers.glb", "", Vector3(8.6, 0.0, -4.35), 10.0, 0.45 / 0.83, ana)
+	_parca_koy(YENI_MODELLER + "tf2_hd_bottle_pack.glb", "", Vector3(5.2, 0.0, -0.95), 30.0, 0.015, ana)
+	_parca_koy(SELIM_EVI + "wall_shelf_with_clutter.glb", "", Vector3(3.08, 1.35, -0.9), RAF_ACI, 1.0, ana)
+
+
+## Parçayı gerçek boyuna (yükseklik, metre) getirerek koyar.
+func _boyla(yol: String, ad: String, yer: Vector3, aci: float, boy: float, ana: Node3D) -> Node3D:
+	var n := _parca_koy(yol, ad, yer, aci, 1.0, ana)
+	if n == null: return null
+	var h := _dunya_kutusu(n).size.y
+	n.free()
+	return _parca_koy(yol, ad, yer, aci, boy / maxf(h, 0.001), ana)
+
+
+func _esya_engeli(n: Node3D) -> void:
+	var k := _dunya_kutusu(n)
+	var govde := StaticBody3D.new()
+	var sekil := CollisionShape3D.new()
+	var kutu := BoxShape3D.new()
+	kutu.size = Vector3(k.size.x, maxf(k.size.y, 1.0), k.size.z)
+	sekil.shape = kutu
+	govde.add_child(sekil)
+	add_child(govde)
+	govde.global_position = k.get_center() + Vector3(0, (kutu.size.y - k.size.y) * 0.5, 0)
 
 
 ## Yeni TV ve sehpası (alp'in modeli): eski tüplü TV ile sehpanın yerine geçer, yayın düz ekrana basılır.
@@ -2266,8 +2343,8 @@ func _yeni_tv(em: Material) -> void:
 	m.rotation_degrees.y = -90.0
 	var ekran := m.find_child("Cube_001_Material_003_0", true, false) as MeshInstance3D
 	var kutu := _dunya_kutusu(m)
-	# sehpa salonun duvarına (x 38.8) dayanır, ekranın ortası eski ekranın hizasına gelir
-	m.global_position += Vector3(38.8 - kutu.end.x, -kutu.position.y, 0.0)
+	# sehpa salonun doğu duvarına dayanır, ekranın ortası eski ekranın hizasına gelir
+	m.global_position += Vector3(SALON.x + 2.8 - kutu.end.x, -kutu.position.y, 0.0)
 	if ekran:
 		var e := _dunya_kutusu(ekran)
 		m.global_position.z += EKRAN.z - e.get_center().z
@@ -3322,6 +3399,16 @@ func _hol_kur(duvar: Material, zemin: Material, tavan: Material) -> void:
 					var ebat := Vector3(k, HOL_TAVAN + 0.1 - ust, KAPI_EN) if x_kenari else Vector3(KAPI_EN, HOL_TAVAN + 0.1 - ust, k)
 					var yer := Vector3(orta_k, (ust + HOL_TAVAN + 0.1) * 0.5, kapi_u) if x_kenari else Vector3(kapi_u, (ust + HOL_TAVAN + 0.1) * 0.5, orta_k)
 					kutular.append([yer, ebat, duvar, false])
+			if HOL_PENCERE[0] == kenar[0] and absf(float(HOL_PENCERE[1]) - c) < 0.001 and float(HOL_PENCERE[2]) > float(kenar[2]) and float(HOL_PENCERE[2]) < float(kenar[3]):
+				var pu: float = HOL_PENCERE[2]
+				parcalar = _aralik_cikar(parcalar, pu - PENCERE_EN * 0.5, pu + PENCERE_EN * 0.5)
+				var orta_p := c + dis * k * 0.5
+				for y in [[-0.05, PENCERE_ALT, true], [PENCERE_UST, HOL_TAVAN + 0.1, false]]:
+					var h: float = y[1] - y[0]
+					var ebat := Vector3(k, h, PENCERE_EN) if x_kenari else Vector3(PENCERE_EN, h, k)
+					var yer := Vector3(orta_p, (y[0] + y[1]) * 0.5, pu) if x_kenari else Vector3(pu, (y[0] + y[1]) * 0.5, orta_p)
+					kutular.append([yer, ebat, duvar, y[2]])
+				_pencere_kur(Vector3(orta_p, 0, pu) if x_kenari else Vector3(pu, 0, orta_p), dis, x_kenari, k)
 			for pr in parcalar:
 				var u0: float = pr[0]
 				var u1: float = pr[1]
@@ -3357,6 +3444,66 @@ func _hol_kur(duvar: Material, zemin: Material, tavan: Material) -> void:
 		l.position = HOL_LAMBALAR[i]
 		add_child(l)
 		_hol_lambalar.append(l)
+
+
+## Pencere boşluğuna cam, dışarıya gece (koyu lacivert gök ve içeri vuran soğuk ay ışığı), perde modeli varsa önüne perde.
+## Cam duvarın ortasında; görünmez bir kutu Selim'in dışarı çıkmasını engeller.
+func _pencere_kur(orta: Vector3, dis: float, x_kenari: bool, k: float) -> void:
+	var y := (PENCERE_ALT + PENCERE_UST) * 0.5
+	var h := PENCERE_UST - PENCERE_ALT
+	var yon := Vector3(dis, 0, 0) if x_kenari else Vector3(0, 0, dis)
+	var cam := MeshInstance3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(PENCERE_EN, h)
+	var cm := StandardMaterial3D.new()
+	cm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	cm.albedo_color = Color(0.55, 0.62, 0.7, 0.12)
+	cm.metallic = 0.6
+	cm.roughness = 0.05
+	cm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	qm.material = cm
+	cam.mesh = qm
+	add_child(cam)
+	cam.position = orta + Vector3(0, y, 0)
+	cam.rotation.y = PI * 0.5 if x_kenari else 0.0
+	var gok := MeshInstance3D.new()
+	var gq := QuadMesh.new()
+	gq.size = Vector2(8.0, 6.0)
+	var gm := StandardMaterial3D.new()
+	gm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	gm.albedo_color = Color(0.02, 0.03, 0.06)
+	gm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	gq.material = gm
+	gok.mesh = gq
+	add_child(gok)
+	gok.position = orta + yon * 4.0 + Vector3(0, y, 0)
+	gok.rotation.y = cam.rotation.y
+	var ay := SpotLight3D.new()
+	ay.light_color = Color(0.6, 0.7, 0.95)
+	ay.light_energy = 1.2
+	ay.spot_range = 6.0
+	ay.spot_angle = 28.0
+	ay.shadow_enabled = true
+	add_child(ay)
+	ay.position = orta + yon * 1.6 + Vector3(0, PENCERE_UST + 0.6, 0)
+	ay.look_at(orta - yon * 1.2 + Vector3(0, 0, 0))
+	var engel := StaticBody3D.new()
+	var sekil := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(k, 3.0, PENCERE_EN) if x_kenari else Vector3(PENCERE_EN, 3.0, k)
+	sekil.shape = bs
+	engel.add_child(sekil)
+	add_child(engel)
+	engel.position = orta + Vector3(0, 1.5, 0)
+	if ResourceLoader.exists(PERDE_MODELI):
+		var perde := _parca_koy(PERDE_MODELI, "", orta - yon * (k * 0.5 + 0.08) + Vector3(0, 0, 0), 0.0, 1.0, self)
+		if perde:
+			# perde pencereyi kaplar: tavandan yere kadar boyu holün tavanına göre ayarlanır
+			var pk := _dunya_kutusu(perde)
+			perde.scale *= (HOL_TAVAN - 0.15) / maxf(pk.size.y, 0.001)
+			if (pk.size.x < pk.size.z) != x_kenari: perde.rotation_degrees.y = 90.0
+			pk = _dunya_kutusu(perde)
+			perde.global_position += orta - yon * (k * 0.5 + 0.08 + pk.size.z * 0.5 if not x_kenari else k * 0.5 + 0.08 + pk.size.x * 0.5) - Vector3(pk.get_center().x, pk.position.y, pk.get_center().z) + Vector3(0, 0.02, 0)
 
 
 ## parcalar'dan [a, b] aralığını çıkarır.
