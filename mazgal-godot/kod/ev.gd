@@ -101,14 +101,17 @@ const HOL_TAVAN := 2.6
 ## Holün dış duvarındaki pencere: [kenar, sabit, orta], genişlik, denizlik ve üst kenar yüksekliği.
 ## Önüne alp'in perdesi (PERDE_MODELI) gelir; dışarısı gece.
 const HOL_PENCERE := ["+z", 2.22, 9.45]
-const PENCERE_EN := 0.9
-const PENCERE_ALT := 0.9
-const PENCERE_UST := 2.05
+## alp'in pencere modeli (window.glb, 3,44 x 2,56 birim) bütün pencerelerde aynı ölçüde: 1,3 m enine boşluk,
+## yüksekliği modelin oranından (denizlik 95 cm, üst kenar 1,96 m)
+const PENCERE_MODELI := "res://modeller2/seliminevi/window.glb"
+const PENCERE_EN := 1.3
+const PENCERE_ALT := 0.95
+const PENCERE_UST := 1.96
 const PERDE_MODELI := "res://modeller2/seliminevi/perde.glb"
 ## Yatak odasının dış duvarındaki (+z) pencere: ortası (x), eni. Gece; içeriye sokak lambasının
 ## turuncu ışığı jaluzi çizgileriyle tek, sert bir huzme olarak düşer, havadaki toz huzmede görünür.
 const YATAK_PENCERE_X := 0.35
-const YATAK_PENCERE_EN := 1.25
+const YATAK_PENCERE_EN := PENCERE_EN
 const JALUZI_MODELI := "res://modeller2/seliminevi/jaluzi.glb"   # alp gönderince pencerenin önüne
 const HOL_LAMBALAR := [Vector3(3.9, 2.3, -1.8), Vector3(5.6, 2.3, 1.6), Vector3(9.0, 2.3, 1.6)]
 const HOL_TITREYEN := 1   # bu ampul arada bir çakıp söner
@@ -2414,6 +2417,18 @@ func _ev_daginikligi(ana: Node3D) -> void:
 	_boyla(KUPALAR, "Cups_Cup1_0", Vector3(5.35, 0.0, -3.5), 75.0, 0.1, ana)
 	_parca_koy(SELIM_EVI + "newspaper.glb", "", Vector3(8.9, 0.012, -1.4), 130.0, 0.04, ana)
 	_parca_koy(SELIM_EVI + "some_chinese_books.glb", "", Vector3(9.0, 0.0, -4.45), 90.0, 0.24 / 0.771, ana)
+	# pencereler (alp: her odaya): salonun TV duvarında, mutfağın dip duvarında; dışarısı gece
+	var py := (PENCERE_ALT + PENCERE_UST) * 0.5
+	_pencere_modeli(Vector3(10.33, py, -0.2), Vector3(-1, 0, 0), true)
+	_pencere_modeli(Vector3(1.3, py, -9.985), Vector3(0, 0, 1), true)
+	# alp'in ocağı tezgâhtaki tencerelerin altında (tezgâhın 0,8 m'lik boşluğu, önü mutfağa bakar); ocağın üstü
+	# tezgâhla aynı hizada, tencereler gözlerin üstünde kalır. Mutfak modelinin kendi davlumbazı ve düğmeleri gizlenir.
+	var ocak := _parca_koy(SELIM_EVI + "mutfakiçinocak.glb", "", Vector3(-1.0, 0.03, -6.09), 90.0, 1.0, ana)
+	if ocak:
+		_esya_engeli(ocak)
+		for ad in ["Plinta_standardSurface1_0", "pCylinder1_standardSurface1_0", "pCylinder2_standardSurface1_0"]:
+			var n := $Mutfak.find_child(ad, true, false) as Node3D
+			if n: n.visible = false
 	_parca_koy(SELIM_EVI + "newspaper.glb", "", Vector3(6.85, 0.012, -3.6), 25.0, 0.04, ana)
 	_boyla(SELIM_EVI + "wine_bottle_-_matthew.glb", "", Vector3(-1.05, 0.98, -5.4), 0.0, 0.3, ana)
 	_parca_koy(SELIM_EVI + "toilet_paper.glb", "", Vector3(5.0, 0.0, 4.75), 0.0, 1.0, ana)
@@ -3609,6 +3624,7 @@ func _pencere_kur(orta: Vector3, dis: float, x_kenari: bool, k: float) -> void:
 	add_child(ay)
 	ay.position = orta + yon * 1.6 + Vector3(0, PENCERE_UST + 0.6, 0)
 	ay.look_at(orta - yon * 1.2 + Vector3(0, 0, 0))
+	_pencere_modeli(orta + Vector3(0, y, 0), -yon, false)
 	var engel := StaticBody3D.new()
 	var sekil := CollisionShape3D.new()
 	var bs := BoxShape3D.new()
@@ -3682,6 +3698,7 @@ func _yatak_penceresi() -> void:
 	add_child(lamba)
 	lamba.position = Vector3(YATAK_PENCERE_X + 1.4, 3.8, z + 3.2)
 	lamba.look_at(Vector3(YATAK_PENCERE_X - 0.7, 0.0, 1.0))
+	_pencere_modeli(Vector3(YATAK_PENCERE_X, y, z), Vector3(0, 0, -1), false)
 	var engel := StaticBody3D.new()
 	var sekil := CollisionShape3D.new()
 	var bs := BoxShape3D.new()
@@ -3710,6 +3727,26 @@ func _yatak_penceresi() -> void:
 	e.tonemap_exposure = 1.0
 	var yl := get_node_or_null("Isiklar/YatakLamba") as OmniLight3D
 	if yl: yl.light_energy = 0.22
+
+
+## alp'in pencere modeli: orta = duvar yüzünde pencerenin ortası, ice = odanın içine doğru.
+## sahte: duvarda delik yok (modelin kendi duvarı), camın arkasına gece karanlığı konur.
+func _pencere_modeli(orta: Vector3, ice: Vector3, sahte: bool) -> void:
+	var s := (PENCERE_EN + 0.06) / 3.437
+	var h := 2.563 * s
+	var w := _parca_koy(PENCERE_MODELI, "", orta - Vector3(0, h * 0.5, 0), rad_to_deg(atan2(ice.x, ice.z)), s, self)
+	if w == null or not sahte: return
+	var gece := MeshInstance3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(PENCERE_EN, PENCERE_UST - PENCERE_ALT)
+	var gm := StandardMaterial3D.new()
+	gm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	gm.albedo_color = Color(0.02, 0.025, 0.04)
+	qm.material = gm
+	gece.mesh = qm
+	add_child(gece)
+	gece.position = orta + ice * 0.004
+	gece.rotation.y = atan2(ice.x, ice.z)
 
 
 ## Jaluzi: ışığın önüne konan yatay çizgili desen (model değil, ışığın kendisi çizgili düşer).
