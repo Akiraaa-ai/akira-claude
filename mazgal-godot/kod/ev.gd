@@ -43,9 +43,9 @@ const SALON := Vector3(7.45, 0, -1.905)
 const KOLTUK := Vector3(5.15, 1.12, -2.355)        # Selim'in koltuktaki göz hizası
 const EKRAN := Vector3(9.998, 0.85, -2.305)        # TV ekranının ortası
 const SAAT_YERI := Vector3(10.335, 2.05, -2.305)     # duvar saati (TV'nin üstünde)
-const KASE := Vector3(2.37, 0.625, -4.94)            # Nesquik kâsesinin yeri (model gelince konacak)
+const KASE := Vector3(2.37, 0.771, -4.94)            # Nesquik kâsesinin yeri (model gelince konacak)
 const TEL_YATAK := Vector3(-1.5, 0.652, 0.8)        # uyanınca telefon yatağın üstünde
-const TEL_MASA := Vector3(2.07, 0.602, -4.9)       # mutfak masasında
+const TEL_MASA := Vector3(2.07, 0.748, -4.9)       # mutfak masasında
 const TEL_OLCEK := 0.0217
 const ALARM_KAPAN := 7.3
 const BANYO_LAMBA := Vector3(5.94, 2.3, 4.6)
@@ -258,6 +258,7 @@ var _gorev_hedef := 0.0
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_HIDDEN
 	_mutfak_mobilyasi()
+	_mutfak_takimi()
 	$Aksam.rotation_degrees = Vector3(-14, -115, 0)
 	for n in $Salon.find_children("Sphere*", "Node3D", true, false):
 		(n as Node3D).visible = false
@@ -1207,7 +1208,7 @@ func _s_dolap() -> void:
 		else: eller.birak("sag", 0.7)
 	if ft >= 4.6:
 		_oyuna_don()
-		_esya("masa", Vector3(2.32, 0.6, -5.05), 1.9)
+		_esya("masa", Vector3(2.32, 0.746, -5.05), 1.9)
 
 
 func _s_masa() -> void:
@@ -1253,7 +1254,7 @@ func _s_masa() -> void:
 
 func _s_tel_al() -> void:
 	var otur := Vector3(2.37, 1.25, -4.15)
-	_yol([[0.0, _bas_konum, _bas_bakis], [0.8, otur, TEL_MASA], [2.2, otur + Vector3(0, -0.02, 0), Vector3(2.37, 0.65, -4.92)]], ft)
+	_yol([[0.0, _bas_konum, _bas_bakis], [0.8, otur, TEL_MASA], [2.2, otur + Vector3(0, -0.02, 0), Vector3(2.37, 0.796, -4.92)]], ft)
 	if ft > 0.3 and not _eylem.has("t_el"):
 		_eylem["t_el"] = true
 		eller.uzan("sag", TEL_MASA + Vector3(0, 0.03, 0.04), 0.6)
@@ -1284,7 +1285,7 @@ func _tel_elde(sallan := 0.0) -> Transform3D:
 ## Telefonda video kaydırır; bir süre sonra bildirim gelir, Q ile telefon masaya ters bırakılır.
 func _tel_kaydir() -> void:
 	var otur := Vector3(2.37, 1.25, -4.15)
-	_yol([[0.0, otur + Vector3(0, -0.02, 0), Vector3(2.37, 0.65, -4.92)], [20.0, otur + Vector3(0, -0.03, 0), Vector3(2.39, 0.64, -4.9)]], ft)
+	_yol([[0.0, otur + Vector3(0, -0.02, 0), Vector3(2.37, 0.796, -4.92)], [20.0, otur + Vector3(0, -0.03, 0), Vector3(2.39, 0.786, -4.9)]], ft)
 	sallanti = 0.6
 	# telefon avuçta; el hafifçe sallanır, telefon onunla birlikte
 	eller.esyayla("sag", _tel_elde(1.0), Eller.telefon_tutusu(), 0.01)
@@ -1301,7 +1302,7 @@ func _tel_kaydir() -> void:
 
 func _s_tel_birak() -> void:
 	var otur := Vector3(2.37, 1.25, -4.15)
-	_yol([[0.0, otur, Vector3(2.39, 0.64, -4.9)], [1.2, otur, TEL_MASA], [3.4, otur + Vector3(0.1, 0.3, 0.2), Vector3(3.97, 1.4, -3.4)]], ft)
+	_yol([[0.0, otur, Vector3(2.39, 0.786, -4.9)], [1.2, otur, TEL_MASA], [3.4, otur + Vector3(0.1, 0.3, 0.2), Vector3(3.97, 1.4, -3.4)]], ft)
 	if not _eylem.has("tb"):
 		_eylem["tb"] = true
 		_gorev("")
@@ -2168,6 +2169,34 @@ func _tuvale_resim(mi: MeshInstance3D, xf: Transform3D, tex: Texture2D) -> void:
 ## etrafında gerçek boyuna küçültülür (masa 75 cm, koltuk 90 cm, hasır sehpa 59 cm, tabure 52 cm).
 const MUTFAK_MOBILYA := {"Stol_Main": 0.58, "Divanus": 0.6, "Divan": 0.7, "Styl": 0.6}
 
+## alp'in yeni mutfak masası ve sandalyesi (bahçe takımı seti, milimetre birimli): eski masa, koltuklar ve tabure
+## gizlenir. Masa 74,6 cm boyunda, uzun kenarı duvara paralel; Selim'in oturduğu sandalye masanın güney kenarında.
+const MUTFAK_TAKIMI := "res://modeller2/seliminevi/low_poly_outdoor_table_patio_chairs__stool_1.glb"
+const MASA_BOYU := 0.746
+const MASA_YERI := Vector3(2.3, 0.0, -5.1)
+const SANDALYE_YERI := Vector3(2.37, 0.0, -4.32)
+const SANDALYE_ACI := 0.0
+func _mutfak_takimi() -> void:
+	if not ResourceLoader.exists(MUTFAK_TAKIMI): return
+	for ad in MUTFAK_MOBILYA:
+		var n := $Mutfak.find_child(ad, true, false) as Node3D
+		if n: n.visible = false
+	var ana := Node3D.new()
+	ana.name = "MutfakTakimi"
+	add_child(ana)
+	var masa := _boyla(MUTFAK_TAKIMI, "Ultra4", MASA_YERI, 90.0, MASA_BOYU, ana)
+	if masa: _carpisma_ekle(masa)
+	var olcek := masa.scale.x if masa else 0.00075
+	_parca_koy(MUTFAK_TAKIMI, "Ultra2", SANDALYE_YERI, SANDALYE_ACI, olcek, ana)
+	for p in _paketler: (_paketler[p] as Node).free()
+	_paketler.clear()
+
+
+func _carpisma_ekle(n: Node3D) -> void:
+	for m in n.find_children("*", "MeshInstance3D", true, false):
+		(m as MeshInstance3D).create_trimesh_collision()
+
+
 func _mutfak_mobilyasi() -> void:
 	for ad in MUTFAK_MOBILYA:
 		var n := $Mutfak.find_child(ad, true, false) as Node3D
@@ -2310,6 +2339,12 @@ func _ev_daginikligi(ana: Node3D) -> void:
 	_parca_koy(SELIM_EVI + "ai.maker_present_a_stack_of_old_papers.glb", "", Vector3(8.6, 0.0, -4.35), 10.0, 0.45 / 0.83, ana)
 	_parca_koy(YENI_MODELLER + "tf2_hd_bottle_pack.glb", "", Vector3(5.2, 0.0, -0.95), 30.0, 0.015, ana)
 	_parca_koy(SELIM_EVI + "wall_shelf_with_clutter.glb", "", Vector3(3.08, 1.35, -0.9), RAF_ACI, 1.0, ana)
+	# salon halısında uyuyan kedi, koltuğun önünde yere düşmüş gazete, mutfak tezgâhında boş şarap şişesi,
+	# banyoda lavabo ile klozet arasında yerde tuvalet kâğıdı
+	_parca_koy(SELIM_EVI + "sleeping_cat_scan.glb", "", Vector3(6.9, 0.012, -1.1), 40.0, 1.0, ana)
+	_parca_koy(SELIM_EVI + "newspaper.glb", "", Vector3(6.85, 0.012, -3.6), 25.0, 0.04, ana)
+	_boyla(SELIM_EVI + "wine_bottle_-_matthew.glb", "", Vector3(-1.05, 0.98, -5.4), 0.0, 0.3, ana)
+	_parca_koy(SELIM_EVI + "toilet_paper.glb", "", Vector3(5.0, 0.0, 4.75), 0.0, 1.0, ana)
 
 
 ## Parçayı gerçek boyuna (yükseklik, metre) getirerek koyar.
@@ -3496,14 +3531,23 @@ func _pencere_kur(orta: Vector3, dis: float, x_kenari: bool, k: float) -> void:
 	add_child(engel)
 	engel.position = orta + Vector3(0, 1.5, 0)
 	if ResourceLoader.exists(PERDE_MODELI):
-		var perde := _parca_koy(PERDE_MODELI, "", orta - yon * (k * 0.5 + 0.08) + Vector3(0, 0, 0), 0.0, 1.0, self)
+		var perde := _parca_koy(PERDE_MODELI, "", orta, 0.0, 1.0, self)
 		if perde:
-			# perde pencereyi kaplar: tavandan yere kadar boyu holün tavanına göre ayarlanır
+			# perde (alp'in modeli 5,4 m eninde geliyor) pencereyi kaplar: boyu tavandan yere, eni pencereden 50 cm geniş,
+			# kalınlığı 12 cm; kıvrımlar sıklaşır
 			var pk := _dunya_kutusu(perde)
-			perde.scale *= (HOL_TAVAN - 0.15) / maxf(pk.size.y, 0.001)
 			if (pk.size.x < pk.size.z) != x_kenari: perde.rotation_degrees.y = 90.0
 			pk = _dunya_kutusu(perde)
-			perde.global_position += orta - yon * (k * 0.5 + 0.08 + pk.size.z * 0.5 if not x_kenari else k * 0.5 + 0.08 + pk.size.x * 0.5) - Vector3(pk.get_center().x, pk.position.y, pk.get_center().z) + Vector3(0, 0.02, 0)
+			var duvar_boyu := pk.size.z if x_kenari else pk.size.x
+			var kalin := pk.size.x if x_kenari else pk.size.z
+			var en_f := (PENCERE_EN + 0.5) / maxf(duvar_boyu, 0.001)
+			var boy_f := (HOL_TAVAN - 0.1) / maxf(pk.size.y, 0.001)
+			var kalin_f := 0.12 / maxf(kalin, 0.001)
+			perde.scale = Vector3(en_f if not x_kenari else kalin_f, boy_f, kalin_f if not x_kenari else en_f) * perde.scale.x \
+				if perde.rotation_degrees.y == 0.0 else Vector3(kalin_f if not x_kenari else en_f, boy_f, en_f if not x_kenari else kalin_f) * perde.scale.x
+			pk = _dunya_kutusu(perde)
+			var hedef := orta - yon * (k * 0.5 + 0.02 + (pk.size.x if x_kenari else pk.size.z) * 0.5)
+			perde.global_position += Vector3(hedef.x - pk.get_center().x, 0.02 - pk.position.y, hedef.z - pk.get_center().z)
 
 
 ## parcalar'dan [a, b] aralığını çıkarır.
@@ -3882,7 +3926,7 @@ func _kagitlar_kur() -> void:
 		["", 12, koyu, 0],
 		["ödenecek... maaş yatınca", 18, Color(0.1, 0.14, 0.45), 2, true],
 	])
-	Kagit.yapistir(self, fatura, Vector3(1.92, 0.62, -5.02), Vector2(0.15, 0.21), Vector3.DOWN, 0.35, 0.12)
+	Kagit.yapistir(self, fatura, Vector3(1.92, 0.766, -5.02), Vector2(0.15, 0.21), Vector3.DOWN, 0.35, 0.12)
 	var zarf := Kagit.yazi_dokusu(self, Vector2i(560, 320), Color(0.82, 0.76, 0.62), [
 		["T.C.", 18, koyu, 0],
 		["BELEDİYE FEN İŞLERİ MÜDÜRLÜĞÜ", 18, koyu, 0],
@@ -3890,7 +3934,7 @@ func _kagitlar_kur() -> void:
 		["Sn. SELİM", 24, koyu, 1],
 		["KİŞİYE ÖZEL", 20, Color(0.6, 0.1, 0.08), 1],
 	])
-	Kagit.yapistir(self, zarf, Vector3(2.47, 0.62, -5.15), Vector2(0.23, 0.13), Vector3.DOWN, -0.2, 0.12)
+	Kagit.yapistir(self, zarf, Vector3(2.47, 0.766, -5.15), Vector2(0.23, 0.13), Vector3.DOWN, -0.2, 0.12)
 
 
 var _crt: AudioStreamPlayer3D
