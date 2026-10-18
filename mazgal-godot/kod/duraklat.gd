@@ -11,6 +11,9 @@ const KAYIT := "user://kayit.cfg"
 const Ceviri := preload("res://kod/ceviri.gd")
 const KALITELER := ["DÜŞÜK", "ORTA", "YÜKSEK", "ULTRA"]
 const DILLER := ["tr", "en"]
+## SADECE TEST (alp, 18 Ekim): E basılı tutulunca oyun 8 kat hızlı akar, sahneler hızla geçilir.
+## Çıkıştan önce false yapılacak (alp: oyunda atlama tuşu olmasın).
+const TEST_HIZLI_E := true
 
 var ses := 0.9
 var muzik := 0.8
@@ -172,6 +175,8 @@ func _kanal(akis: AudioStream) -> String:
 	return "Efekt"
 
 func _process(dt: float) -> void:
+	if TEST_HIZLI_E and not acik:
+		Engine.time_scale = 8.0 if Input.is_physical_key_pressed(KEY_E) else 1.0
 	_kayit_guncelle(dt)
 	_bus_sayac -= dt
 	if _bus_sayac > 0.0: return
