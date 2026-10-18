@@ -2423,7 +2423,12 @@ func _parca_koy(yol: String, ad: String, yer: Vector3, aci: float, olcek: float,
 	if not ResourceLoader.exists(yol):
 		return null
 	if not _paketler.has(yol):
-		_paketler[yol] = (load(yol) as PackedScene).instantiate()
+		# model içe aktarılamadıysa (bozuk ya da yarım kalmış import) oyun durmasın, o eşya atlanır
+		var paket := load(yol) as PackedScene
+		if paket == null:
+			push_warning("Model yüklenemedi: " + yol)
+			return null
+		_paketler[yol] = paket.instantiate()
 	var kok: Node = _paketler[yol]
 	var kaynak: Node3D = kok as Node3D if ad == "" else kok.find_child(ad, true, false) as Node3D
 	if kaynak == null:
@@ -2436,6 +2441,11 @@ func _parca_koy(yol: String, ad: String, yer: Vector3, aci: float, olcek: float,
 			n = n.get_parent()
 	var kopya := kaynak.duplicate() as Node3D
 	kopya.transform = don
+	# küçük eşyalar ışık sekmesi (VoxelGI) hesabına girmez, sadece ondan ışık alır: yoğun taranmış modeller
+	# (kedi, kâğıt yığını, raf) hesabı dakikalarca uzatıp yükleme ekranında bekletiyordu
+	for g in kopya.find_children("*", "GeometryInstance3D", true, false):
+		(g as GeometryInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
+	if kopya is GeometryInstance3D: (kopya as GeometryInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC
 	# kopyanın kendi içindeki kutusu
 	var kutu := AABB()
 	var ilk := true
