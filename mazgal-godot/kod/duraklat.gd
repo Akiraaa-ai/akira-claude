@@ -11,6 +11,9 @@ const KAYIT := "user://kayit.cfg"
 const Ceviri := preload("res://kod/ceviri.gd")
 const KALITELER := ["DÜŞÜK", "ORTA", "YÜKSEK", "ULTRA"]
 const DILLER := ["tr", "en"]
+## SADECE TEST (alp, 18 Ekim): E basılı tutulunca oyun 8 kat hızlı akar, sahneler hızla geçilir.
+## Çıkıştan önce false yapılacak (alp: oyunda atlama tuşu olmasın).
+const TEST_HIZLI_E := true
 
 var ses := 0.9
 var muzik := 0.8
@@ -172,6 +175,8 @@ func _kanal(akis: AudioStream) -> String:
 	return "Efekt"
 
 func _process(dt: float) -> void:
+	if TEST_HIZLI_E and not acik:
+		Engine.time_scale = 8.0 if Input.is_physical_key_pressed(KEY_E) else 1.0
 	_kayit_guncelle(dt)
 	_bus_sayac -= dt
 	if _bus_sayac > 0.0: return
@@ -201,7 +206,7 @@ func _dugum_kalitesi(n: Node) -> void:
 	if n is Light3D and not n is DirectionalLight3D:
 		var l := n as Light3D
 		if not l.has_meta("asil_golge"): l.set_meta("asil_golge", l.shadow_enabled)
-		var onemli := l.name == "Fener" or l.name == "Ampul" or l.name == "TVIsigi"
+		var onemli := l.name == "Fener" or l.name == "Ampul" or l.name == "TVIsigi" or l.name == "SokakLambasi"
 		l.shadow_enabled = bool(l.get_meta("asil_golge")) and (kalite >= 1 or onemli)
 		# uzaktaki sokak lambaları düşük ayarda daha erken söner: ekran kartı aynı anda daha az ışık hesaplar
 		if l.distance_fade_enabled:
@@ -232,6 +237,7 @@ func _kaliteyi_uygula(kok: Node) -> void:
 			env.set_meta("asil_ssao", env.ssao_enabled); env.set_meta("asil_ssr", env.ssr_enabled)
 			env.set_meta("asil_hacim", env.volumetric_fog_enabled); env.set_meta("asil_glow", env.glow_enabled)
 			env.set_meta("asil_ssil", env.ssil_enabled)
+		# düşük kalitede SSAO kapalı: Iris Xe'de ekran kartı belleği yetmiyor
 		env.ssao_enabled = env.get_meta("asil_ssao") and kalite >= 1
 		env.ssr_enabled = env.get_meta("asil_ssr") and kalite >= 2
 		env.volumetric_fog_enabled = env.get_meta("asil_hacim") and kalite >= 1
@@ -255,6 +261,8 @@ func _kaliteyi_uygula(kok: Node) -> void:
 	vp.positional_shadow_atlas_size = golge
 	var yumusak := [RenderingServer.SHADOW_QUALITY_SOFT_VERY_LOW, RenderingServer.SHADOW_QUALITY_SOFT_LOW, RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM, RenderingServer.SHADOW_QUALITY_SOFT_HIGH][kalite] as RenderingServer.ShadowQuality
 	RenderingServer.directional_soft_shadow_filter_set_quality(yumusak)
+	var ao := [RenderingServer.ENV_SSAO_QUALITY_VERY_LOW, RenderingServer.ENV_SSAO_QUALITY_LOW, RenderingServer.ENV_SSAO_QUALITY_MEDIUM, RenderingServer.ENV_SSAO_QUALITY_HIGH][kalite] as RenderingServer.EnvironmentSSAOQuality
+	RenderingServer.environment_set_ssao_quality(ao, kalite <= 1, 0.5, 2, 50.0, 300.0)
 	RenderingServer.positional_soft_shadow_filter_set_quality(yumusak)
 
 

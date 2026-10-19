@@ -56,8 +56,9 @@ const DUS_KAPI := Vector3(6.05, 1.05, 4.26)   # duş kabininin kapısı (yan cam
 const DUS_GENIS := 4.61   # kabin kapısının serbest kenarı (dünya z); modeldeki 0.64 dardı
 const DUS_UST := 1.75    # kapı camların üst hizasına kadar uzar
 const DOLAP := Vector3(-0.65, 1.9, -9.1)            # mutfağın üst dolabı (Nesquik, kâse)
-const BUZDOLABI_MODELI := "res://modeller2/seliminevi/buzdolabi.glb"   # alp gönderince
-const BUZDOLABI_YERI := Vector3(-0.83, 1.0, -3.6)
+## alp'in eski buzdolabı (gerçek ölçüsünde, 85 cm boyunda tezgâh altı); önü holün tarafına (+x) bakar
+const BUZDOLABI_MODELI := "res://modeller2/modeller2/abandoned_retro_refrigerator_-_post-apocalyptic.glb"
+const BUZDOLABI_YERI := Vector3(-0.83, 0.62, -3.6)
 # Oyuncunun dolaşabileceği alanlar (odalar ve kapının önündeki koridor)
 const BANYO_ALAN := [AABB(Vector3(5.1, 0, 2.51), Vector3(2.1, 3, 1.12)), AABB(Vector3(5.1, 0, 3.51), Vector3(0.92, 3, 2.5))]   # banyo (duş kabininin camları dışında)
 const MUTFAK_ALAN := [AABB(Vector3(-1.33, 0, -9.5), Vector3(4.15, 3, 6.8))]
@@ -100,10 +101,18 @@ const HOL_TAVAN := 2.6
 ## Holün dış duvarındaki pencere: [kenar, sabit, orta], genişlik, denizlik ve üst kenar yüksekliği.
 ## Önüne alp'in perdesi (PERDE_MODELI) gelir; dışarısı gece.
 const HOL_PENCERE := ["+z", 2.22, 9.45]
-const PENCERE_EN := 0.9
-const PENCERE_ALT := 0.9
-const PENCERE_UST := 2.05
+## alp'in pencere modeli (window.glb, 3,44 x 2,56 birim) bütün pencerelerde aynı ölçüde: 1,3 m enine boşluk,
+## yüksekliği modelin oranından (denizlik 95 cm, üst kenar 1,96 m)
+const PENCERE_MODELI := "res://modeller2/seliminevi/window.glb"
+const PENCERE_EN := 1.3
+const PENCERE_ALT := 0.95
+const PENCERE_UST := 1.96
 const PERDE_MODELI := "res://modeller2/seliminevi/perde.glb"
+## Yatak odasının dış duvarındaki (+z) pencere: ortası (x), eni. Gece; içeriye sokak lambasının
+## turuncu ışığı jaluzi çizgileriyle tek, sert bir huzme olarak düşer, havadaki toz huzmede görünür.
+const YATAK_PENCERE_X := 0.35
+const YATAK_PENCERE_EN := PENCERE_EN
+const JALUZI_MODELI := "res://modeller2/seliminevi/jaluzi.glb"   # alp gönderince pencerenin önüne
 const HOL_LAMBALAR := [Vector3(3.9, 2.3, -1.8), Vector3(5.6, 2.3, 1.6), Vector3(9.0, 2.3, 1.6)]
 const HOL_TITREYEN := 1   # bu ampul arada bir çakıp söner
 # Selim'in evde dolaşabileceği yerler (duvarlardan ~0.28 m içeride): odalar, hol ve kapı geçitleri
@@ -115,7 +124,7 @@ const HOL_ALAN := [AABB(Vector3(3.58, 0, -3.92), Vector3(0.63, 3, 4.92)), AABB(V
 var EV_ALAN: Array = YATAK_ALAN + HOL_ALAN + BANYO_ALAN + MUTFAK_ALAN + SALON_ALAN
 const ODA_GIRIS := {
 	"banyo": AABB(Vector3(4.9, 0, 2.55), Vector3(2.3, 3, 3.5)),
-	"mutfak": AABB(Vector3(-1.5, 0, -9.9), Vector3(4.6, 3, 7.2)),
+	"mutfak": AABB(Vector3(-1.5, 0, -9.9), Vector3(5.0, 3, 7.2)),   # x 3.5'e kadar: kapı eşiği de sayılır
 	"salon_kapisi": AABB(Vector3(4.7, 0, -4.7), Vector3(5.5, 3, 5.5)),
 }
 const KAPI_EN := 1.07
@@ -265,11 +274,24 @@ func _ready() -> void:
 	for oda in [$YatakOdasi, $Banyo, $Mutfak, $Salon]:
 		_camlari_duzelt(oda)
 	# Modellerin açık kalan duvarlarını odanın kendi duvar malzemesiyle kapat; kapıların yerinde boşluk kalır
-	var tugla := _duvar_malzemesi($YatakOdasi, "Plane_002_Material_002_0", 0.6)
-	var mutfak_duvar := _duvar_malzemesi($Mutfak, "pCube38_standardSurface1_0", 0.0)
-	var beton_z := _duvar_malzemesi($Salon, "Plane_Material_003_0", 0.2)
-	var beton_x := _duvar_malzemesi($Salon, "Plane_Material_002_0", 0.19)
-	_kabuk(Vector3(-2.40, -0.04, -2.40), Vector3(3.22, 4.25, 3.35), {"+x": tugla, "+z": tugla}, null, {"+x": KAPI_YATAK[0].z})
+	# alp (18 Ekim): tuğla yok; bütün odalarda aynı kirli sıva duvar, aynı tavan, aynı siyah parke
+	var siva_duvar := _duvar_malzemesi($Salon, "Plane_Material_002_0", 0.19)
+	if siva_duvar is StandardMaterial3D: (siva_duvar as StandardMaterial3D).albedo_color *= Color(0.95, 0.92, 0.86)   # açık, hafif sararmış sıva
+	_ev_duvar = siva_duvar
+	_ev_tavan = siva_duvar.duplicate()
+	if _ev_tavan is StandardMaterial3D: (_ev_tavan as StandardMaterial3D).albedo_color *= Color(0.92, 0.92, 0.9)
+	_ev_parke = _duvar_malzemesi($YatakOdasi, "Plane_Material_001_0", 0.3)
+	if _ev_parke is StandardMaterial3D:
+		(_ev_parke as StandardMaterial3D).albedo_color = Color(0.13, 0.115, 0.105)
+		(_ev_parke as StandardMaterial3D).metallic = 0.0
+		(_ev_parke as StandardMaterial3D).roughness = 0.55
+	var tugla := siva_duvar
+	var mutfak_duvar := siva_duvar
+	var beton_z := siva_duvar
+	var beton_x := siva_duvar
+	_kabuk(Vector3(-2.40, -0.04, -2.40), Vector3(3.22, 4.25, 3.35), {"+x": tugla, "+z": tugla}, null, {"+x": KAPI_YATAK[0].z}, {"+z": [YATAK_PENCERE_X, YATAK_PENCERE_EN]})
+	_yatak_penceresi()
+	_film_katmani()
 	_kabuk(Vector3(-0.55, 0, -3.99) + Vector3(-1.03, 0, -6.0), Vector3(4.25, 2.82, 3.50) + Vector3(-1.03, 0, -6.0), {"-x": mutfak_duvar, "+x": mutfak_duvar, "-z": mutfak_duvar, "+z": mutfak_duvar}, mutfak_duvar, {"+x": KAPI_MUTFAK[0].z})
 	_kabuk(Vector3(-2.855, 0, -2.855) + SALON, Vector3(2.855, 2.7, 2.855) + SALON, {"+x": beton_x, "+z": beton_z}, beton_x, {"+z": KAPI_SALON[0].x})
 	kapi_yatak = _kapi_kur(KAPI_YATAK)
@@ -287,9 +309,8 @@ func _ready() -> void:
 	_dus_kur()
 	_ayna_kur()
 	# tuğla hol; holdeki kapılar Selim'den öteye, karanlığa doğru itilerek açılır
-	var tahta := _duvar_malzemesi($YatakOdasi, "Plane_Material_001_0", 0.3)
-	var siva := _duvar_malzemesi($YatakOdasi, "Plane_004_Material_004_0", 0.25)
-	_hol_kur(tugla, tahta, siva)
+	_hol_kur(_ev_duvar, _ev_parke, _ev_tavan)
+	_tek_tip_ev()
 	_ampuller_kur()
 	_tablolar_kur()
 	kapi_dis = _kapi_kur(KAPI_DIS)
@@ -338,7 +359,18 @@ const ISIK_SEKMESI := [   # [köşe, ölçü]
 ]
 
 func _isik_sekmesi_kur() -> void:
+	_malzemeleri_duzelt()   # sekme hesaplanmadan önce: yüzeyler doğru pürüzlülükle sekmeye girsin
+	# gürültü dokuları arka planda üretilir; hazır olmadan sekme hesaplanırsa boş doku okunur
+	for t in _gurultuler:
+		var bekle := 0
+		while t.get_image() == null and bekle < 120:
+			await get_tree().process_frame
+			bekle += 1
+	# odalar tek tek, her biri ayrı karede hesaplanır: hepsi aynı anda yapılınca
+	# paylaşımlı ekran kartı (Intel Iris Xe) belleği doluyor ve oyun yükleme ekranında çöküyordu
 	for r in ISIK_SEKMESI:
+		await get_tree().process_frame
+		await get_tree().process_frame
 		var g := VoxelGI.new()
 		g.subdiv = VoxelGI.SUBDIV_64
 		g.size = r[1]
@@ -347,6 +379,180 @@ func _isik_sekmesi_kur() -> void:
 		g.data = VoxelGIData.new()
 		g.data.propagation = 0.7
 		g.bake()
+
+# ---------------------------------------------------------------- gerçekçi malzemeler
+## Oda modellerinden gelen bazı malzemeler yanlış dışa aktarılmış: kumaş ve ahşap pürüzlülük 0 ve yarı metal
+## olduğu için plastik gibi parlıyordu. Her malzeme türüne kendi değeri verilir; kumaşa dokuma, sıvaya ve
+## parkeye dünya hizasında kir ve yüzey kabarıklığı eklenir. Geometri ve modeller değişmez.
+const KUMAS := 0
+const AHSAP := 1
+const METAL := 2
+const KAGIT := 3
+const TARAMA := 4   # fotoğraftan taranmış eşyalar
+const ODA_MALZEMELERI := {
+	"YatakOdasi": {"Material.003": KUMAS, "Material.004": KUMAS, "Material.005": KUMAS, "Material.006": KUMAS,
+		"Material.007": KUMAS, "Material.008": KUMAS, "Material.015": KUMAS, "Material.017": KUMAS,
+		"Material.016": METAL, "Material.009": AHSAP, "Material.011": KAGIT, "Material.012": KAGIT,
+		"Material.010": TARAMA, "Material.014": TARAMA, "Material.019": TARAMA},
+	"Salon": {"Material.004": KUMAS, "Material.006": METAL, "Material.012": KAGIT, "Material.013": KAGIT,
+		"Material.014": KAGIT, "Material.005": TARAMA, "Material.007": TARAMA, "Material.010": TARAMA, "Material.011": TARAMA},
+}
+const METAL_ADLARI := ["metal", "steel", "chrome", "krom", "iron", "alumin", "brass", "faucet", "handle", "knob", "çelik"]
+const KUMAS_ADLARI := ["fabric", "cloth", "textile", "carpet", "rug", "pillow", "blanket", "sheet", "curtain", "towel",
+	"sofa", "couch", "cushion", "linen", "kumas", "hali", "halı", "yastik", "yastık", "perde", "havlu", "battaniye"]
+const ATLA_ADLARI := ["glass", "mirror", "screen", "ekran", "ayna", "water", "liquid"]
+
+var _gurultuler: Array[NoiseTexture2D] = []
+
+func _malzemeleri_duzelt() -> void:
+	var kumas_n := _gurultu_normali(0.07, 3, 3.0)
+	var kopya := {}
+	for oda_adi in ["YatakOdasi", "Banyo", "Mutfak", "Salon"]:
+		var oda := get_node_or_null(oda_adi)
+		if oda: _malzeme_gez(oda, ODA_MALZEMELERI.get(oda_adi, {}), kumas_n, kopya)
+	# sonradan konan eşyalar (alp'in modelleri) ve hol
+	for c in get_children():
+		if c is Node3D and not (c.name in ["YatakOdasi", "Banyo", "Mutfak", "Salon", "Kamera", "Isiklar"]):
+			_malzeme_gez(c, {}, kumas_n, kopya)
+	_yuzey_detayi()
+	# ampullerin gölgesi: küçük ışık kaynağı, yumuşak ve titremeyen kenarlar
+	for l in find_children("*", "OmniLight3D", true, false):
+		var o := l as OmniLight3D
+		if o.shadow_enabled and o.omni_range <= 8.0:
+			o.light_size = 0.04
+			o.shadow_blur = 1.2
+			o.shadow_normal_bias = 1.5
+
+
+func _malzeme_gez(kok: Node, tablo: Dictionary, kumas_n: Texture2D, kopya: Dictionary) -> void:
+	var dugumler: Array = kok.find_children("*", "MeshInstance3D", true, false)
+	if kok is MeshInstance3D: dugumler.append(kok)
+	for n in dugumler:
+		var mi := n as MeshInstance3D
+		if mi.mesh == null or mi.material_override: continue
+		for i in mi.mesh.get_surface_count():
+			if mi.get_surface_override_material(i): continue
+			var m := mi.mesh.surface_get_material(i) as BaseMaterial3D
+			if m == null or m.resource_name == "": continue   # kodun kendi malzemeleri olduğu gibi kalır
+			if kopya.has(m):
+				if kopya[m]: mi.set_surface_override_material(i, kopya[m])
+				continue
+			var yeni := _malzeme_ayarla(m, tablo, mi.name.to_lower(), kumas_n)
+			kopya[m] = yeni
+			if yeni: mi.set_surface_override_material(i, yeni)
+
+
+## Değişiklik gerekmiyorsa null döner.
+func _malzeme_ayarla(m: BaseMaterial3D, tablo: Dictionary, mesh_adi: String, kumas_n: Texture2D) -> BaseMaterial3D:
+	if m.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED or m.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED:
+		return null
+	var ad := (m.resource_name + " " + mesh_adi).to_lower()
+	for k in ATLA_ADLARI:
+		if ad.contains(k): return null
+	var tur := -1
+	if tablo.has(m.resource_name):
+		tur = tablo[m.resource_name]
+	else:
+		for k in METAL_ADLARI:
+			if ad.contains(k): tur = METAL
+		if tur < 0:
+			for k in KUMAS_ADLARI:
+				if ad.contains(k): tur = KUMAS
+	var r := m.duplicate() as BaseMaterial3D
+	var pur_doku := r.roughness_texture != null
+	var met_doku := r.metallic_texture != null
+	match tur:
+		KUMAS:
+			r.metallic = 0.0
+			if not pur_doku: r.roughness = 0.95
+			r.metallic_specular = 0.3
+			# kumaşın kenarlarda hafif açılan tüyü
+			r.rim_enabled = true
+			r.rim = 0.25
+			r.rim_tint = 0.6
+			if not r.normal_enabled:
+				r.normal_enabled = true
+				r.normal_texture = kumas_n
+				r.normal_scale = 0.6
+		AHSAP:
+			r.metallic = 0.0
+			if not pur_doku: r.roughness = 0.62
+			r.metallic_specular = 0.45
+		METAL:
+			if not met_doku: r.metallic = maxf(r.metallic, 0.8)
+			if not pur_doku: r.roughness = clampf(r.roughness, 0.3, 0.55)
+		KAGIT:
+			r.metallic = 0.0
+			if not pur_doku: r.roughness = 0.8
+		TARAMA:
+			r.metallic = 0.0
+			if not pur_doku: r.roughness = 0.82
+		_:
+			# bilinmeyen eşya: yalnızca açıkça hatalı değerler düzeltilir
+			var degisti := false
+			if not met_doku and r.metallic > 0.05 and r.metallic < 0.9:
+				r.metallic = 0.0; degisti = true
+			if not pur_doku and r.roughness < 0.15:
+				r.roughness = 0.6; degisti = true
+			if not degisti: return null
+	return r
+
+
+## Dikişsiz gürültüden üretilen yüzey kabarıklığı (normal) dokusu.
+func _gurultu_normali(siklik: float, oktav: int, guc: float) -> NoiseTexture2D:
+	var g := FastNoiseLite.new()
+	g.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	g.frequency = siklik
+	g.fractal_octaves = oktav
+	var t := NoiseTexture2D.new()
+	t.width = 512; t.height = 512
+	t.seamless = true
+	t.as_normal_map = true
+	t.bump_strength = guc
+	t.noise = g
+	_gurultuler.append(t)
+	return t
+
+
+## Dünya hizasında, büyük ölçekli renk farkı (kir, sararma, toz) dokusu.
+func _gurultu_lekesi(siklik: float, koyu: Color, acik: Color) -> NoiseTexture2D:
+	var g := FastNoiseLite.new()
+	g.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	g.frequency = siklik
+	g.fractal_octaves = 5
+	var rampa := Gradient.new()
+	rampa.set_color(0, koyu)
+	rampa.set_color(1, acik)
+	var t := NoiseTexture2D.new()
+	t.width = 512; t.height = 512
+	t.seamless = true
+	t.noise = g
+	t.color_ramp = rampa
+	_gurultuler.append(t)
+	return t
+
+
+## Sıva duvar, tavan ve parke: tekrarlanan dokunun üstüne dünya hizasında kir ve kabarıklık.
+func _yuzey_detayi() -> void:
+	var siva_n := _gurultu_normali(0.02, 5, 2.0)
+	for d in [[_ev_duvar, 0.92, _gurultu_lekesi(0.006, Color(0.7, 0.66, 0.6), Color(1, 1, 1)), BaseMaterial3D.BLEND_MODE_MUL, 0.45],
+			[_ev_tavan, 0.95, _gurultu_lekesi(0.006, Color(0.8, 0.78, 0.74), Color(1, 1, 1)), BaseMaterial3D.BLEND_MODE_MUL, 0.3],
+			[_ev_parke, 0.5, _gurultu_lekesi(0.01, Color(0, 0, 0), Color(0.05, 0.045, 0.04)), BaseMaterial3D.BLEND_MODE_ADD, 0.0]]:
+		var m := d[0] as StandardMaterial3D
+		if m == null: continue
+		m.metallic = 0.0
+		m.roughness = d[1]
+		m.detail_enabled = true
+		m.detail_uv_layer = BaseMaterial3D.DETAIL_UV_2
+		m.detail_blend_mode = d[3]
+		m.detail_albedo = d[2]
+		if d[4] > 0.0 and not m.normal_enabled:
+			m.normal_enabled = true
+			m.normal_texture = siva_n
+			m.normal_scale = d[4]
+		m.uv2_triplanar = true
+		m.uv2_world_triplanar = true
+		m.uv2_scale = Vector3.ONE * 0.35
 
 
 # ---------------------------------------------------------------- akış
@@ -471,6 +677,9 @@ const RUYA_SIRA := [
 var _ruya_kok: Node3D
 var _ruya_env: Environment
 var _ev_env: Environment
+var _ev_duvar: Material
+var _ev_tavan: Material
+var _ev_parke: Material
 var _ruya_gunes: DirectionalLight3D
 var ses_piyano: AudioStreamPlayer
 var ses_ruya_yagmur: AudioStreamPlayer
@@ -718,7 +927,7 @@ func _ruya_bitir() -> void:
 	if _ruya_kok: _ruya_kok.queue_free()
 	_ruya_kok = null
 	($Ortam as WorldEnvironment).environment = _ev_env
-	$Aksam.visible = true
+	$Aksam.visible = false   # uyanınca gece; ışık yalnız yatak odası penceresinden, sokak lambasından gelir
 	if ses_piyano: ses_piyano.stop()
 	if ses_ruya_yagmur: ses_ruya_yagmur.stop()
 	if ses_ambiyans and ses_ambiyans.stream and not ses_ambiyans.playing: ses_ambiyans.play()
@@ -1503,6 +1712,20 @@ func _ev_cikis() -> void:
 		($Isiklar/SalonLamba as Light3D).light_energy = 0.0
 		if _salon_ampul: _salon_ampul.light_energy = 0.0
 	_kapi_ac(kapi_dis, ft, 0.3, 1.2)
+	# merdiven modeli varsa kararma yok: kapı açılınca görüntü merdiven boşluğuna yumuşakça geçer,
+	# kapının kapanması, kilit ve otomatik lamba sesleri orada, karanlık sahanlıkta duyulur
+	if not _merdiven_isiklar.is_empty():
+		if ft > 1.25:
+			_capraz_gecis(0.8)
+			_merdiven_basla()
+			var t := get_tree()
+			t.create_timer(0.6, false).timeout.connect(func() -> void: _ses_cal("dolap", -4.0))
+			t.create_timer(1.2, false).timeout.connect(func() -> void: _ses_cal("anahtar", -10.0))
+			t.create_timer(1.7, false).timeout.connect(func() -> void: _ses_cal("kilit", -6.0))
+			t.create_timer(2.4, false).timeout.connect(func() -> void:
+				_ses_cal("otomat", -8.0)
+				_merdiven_isik(true))
+		return
 	karartma = _egri([[0, 0], [1.0, 0], [1.8, 1]], ft)
 	if ft > 1.9 and not _eylem.has("kapi_kapa"):
 		_eylem["kapi_kapa"] = true
@@ -1515,14 +1738,29 @@ func _ev_cikis() -> void:
 		_eylem["otomat"] = true
 		_ses_cal("otomat", -8.0)
 		_merdiven_isik(true)
-	if _merdiven_isiklar.is_empty(): _merdiven_in(ft)
-	elif ft >= 4.0: _merdiven_basla()
+	_merdiven_in(ft)
+
+
+## Ekranın o anki görüntüsünü üstte tutup yavaşça eritir: iki yer arasında siyah ekransız geçiş.
+func _capraz_gecis(sure: float) -> void:
+	var resim := get_viewport().get_texture().get_image()
+	var tr := TextureRect.new()
+	tr.texture = ImageTexture.create_from_image(resim)
+	tr.set_anchors_preset(Control.PRESET_FULL_RECT)
+	tr.stretch_mode = TextureRect.STRETCH_SCALE
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	siyah.get_parent().add_child(tr)
+	siyah.get_parent().move_child(tr, siyah.get_index())
+	var tw := create_tween()
+	tw.tween_property(tr, "modulate:a", 0.0, sure).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_callback(tr.queue_free)
 
 
 ## Ev tek parça olunca odaların modellerinde fazla kalan parçalar: salonun hola bakan pencereleri,
 ## banyonun kapı önündeki hol döşemesi.
 func _ev_parcalari_gizle() -> void:
-	for ad in ["Plane_002_Material_006_0", "Plane_002_Material_012_0", "Plane_004_Material_006_0", "Plane_004_Material_013_0", "Plane_Material_006_0"]:
+	# aile ve düğün fotoğraflarının büyük çerçeveleri (Plane_002/_004 ..._006/_012/_013) artık gizlenmiyor
+	for ad in ["Plane_Material_006_0"]:
 		var n := $Salon.find_child(ad, true, false) as Node3D
 		if n: n.visible = false
 	var h := $Banyo.find_child("HallFlag__0", true, false) as Node3D
@@ -1860,7 +2098,7 @@ func _duvar_malzemesi(oda: Node, mesh_adi: String, yogunluk: float) -> Material:
 
 ## Odanın açık kalan kenarlarına o odanın kendi duvar malzemesiyle duvar (ve istenirse tavan) çeker.
 ## kenarlar: {"+x": malzeme, ...}; kapilar: {"+x": kapının duvar boyunca ortası} — orada kapı boşluğu bırakılır.
-func _kabuk(a: Vector3, b: Vector3, kenarlar: Dictionary, tavan: Material, kapilar := {}) -> void:
+func _kabuk(a: Vector3, b: Vector3, kenarlar: Dictionary, tavan: Material, kapilar := {}, pencereler := {}) -> void:
 	var k := 0.1
 	var bosluk := 0.03
 	var boy := b.y - a.y
@@ -1887,6 +2125,13 @@ func _kabuk(a: Vector3, b: Vector3, kenarlar: Dictionary, tavan: Material, kapil
 			dilimler.append([u0, k0, a.y, b.y])
 			dilimler.append([k1, u1, a.y, b.y])
 			dilimler.append([k0, k1, ust, b.y])
+		elif pencereler.has(kenar):
+			var p0: float = pencereler[kenar][0] - pencereler[kenar][1] * 0.5
+			var p1: float = pencereler[kenar][0] + pencereler[kenar][1] * 0.5
+			dilimler.append([u0, p0, a.y, b.y])
+			dilimler.append([p1, u1, a.y, b.y])
+			dilimler.append([p0, p1, a.y, PENCERE_ALT])
+			dilimler.append([p0, p1, PENCERE_UST, b.y])
 		else:
 			dilimler.append([u0, u1, a.y, b.y])
 		for d in dilimler:
@@ -2323,6 +2568,8 @@ func _ev_daginikligi(ana: Node3D) -> void:
 		_boyla(KUPALAR, "Cups_Cup1_0", Vector3(2.95, ust, -0.35), 30.0, 0.1, ana)
 		_parca_koy(FENER + "flashlight.glb", "", Vector3(2.85, ust, -1.25), 70.0, 0.25 / 494.5, ana)
 		_parca_koy(FENER + "simple_battery (1).glb", "", Vector3(3.0, ust, -1.05), 0.0, 0.05 / 3.38, ana)
+		# alp'in kitap sırası masanın duvar tarafında (modelde kitap boyu 77 birim, gerçekte 24 cm)
+		_parca_koy(SELIM_EVI + "some_chinese_books.glb", "", Vector3(3.08, ust, -0.68), 0.0, 0.24 / 0.771, ana)
 	_boyla(KUPALAR, "Cups_Cup2_0", Vector3(6.02, 0.445, -2.42), 140.0, 0.1, ana)
 	for k: Array in [[Vector3(9.4, 0.0, -4.33), 0.0], [Vector3(9.43, 0.38, -4.32), 8.0], [Vector3(9.95, 0.0, -3.88), 90.0], [Vector3(2.75, 0.0, 2.95), 90.0]]:
 		var koli := _parca_koy(OFIS + "cardboard_box.glb", "", k[0], k[1], 1.0, ana)
@@ -2341,10 +2588,37 @@ func _ev_daginikligi(ana: Node3D) -> void:
 	_parca_koy(SELIM_EVI + "wall_shelf_with_clutter.glb", "", Vector3(3.08, 1.35, -0.9), RAF_ACI, 1.0, ana)
 	# salon halısında uyuyan kedi, koltuğun önünde yere düşmüş gazete, mutfak tezgâhında boş şarap şişesi,
 	# banyoda lavabo ile klozet arasında yerde tuvalet kâğıdı
-	_parca_koy(SELIM_EVI + "sleeping_cat_scan.glb", "", Vector3(6.9, 0.012, -1.1), 40.0, 1.0, ana)
+	_parca_koy(SELIM_EVI + "sleeping_cat_scan.glb", "", Vector3(7.0, 0.012, 1.85), 40.0, 1.0, ana)   # koridorda, duvar dibinde
+	# salon daha dağınık (alp'in dosyaları tekrar kullanılır): koliler, kâğıt, şişeler, kupa, gazete
+	for k: Array in [[Vector3(5.05, 0.0, 0.55), 20.0], [Vector3(9.95, 0.0, 0.5), 0.0], [Vector3(9.97, 0.38, 0.52), 12.0]]:
+		var koli2 := _parca_koy(OFIS + "cardboard_box.glb", "", k[0], k[1], 1.0, ana)
+		if koli2 and float((k[0] as Vector3).y) == 0.0: _esya_engeli(koli2)
+	_parca_koy(SELIM_EVI + "ai.maker_present_a_stack_of_old_papers.glb", "", Vector3(9.95, 0.0, -0.95), 70.0, 0.35 / 0.83, ana)
+	_parca_koy(YENI_MODELLER + "tf2_hd_bottle_pack.glb", "", Vector3(6.3, 0.0, 0.6), 140.0, 0.015, ana)
+	_boyla(KUPALAR, "Cups_Cup1_0", Vector3(5.35, 0.0, -3.5), 75.0, 0.1, ana)
+	_parca_koy(SELIM_EVI + "newspaper.glb", "", Vector3(8.9, 0.012, -1.4), 130.0, 0.04, ana)
+	_parca_koy(SELIM_EVI + "some_chinese_books.glb", "", Vector3(9.0, 0.0, -4.45), 90.0, 0.24 / 0.771, ana)
+	_posterler_kur(ana)
+	# pencereler (alp: her odaya): salonun TV duvarında, mutfağın dip duvarında; dışarısı gece
+	var py := (PENCERE_ALT + PENCERE_UST) * 0.5
+	_pencere_modeli(Vector3(10.33, py, -0.2), Vector3(-1, 0, 0), true)
+	_pencere_modeli(Vector3(1.3, py, -9.985), Vector3(0, 0, 1), true)
+	# alp'in ocağı tezgâhtaki tencerelerin altında (tezgâhın 0,8 m'lik boşluğu, önü mutfağa bakar); ocağın üstü
+	# tezgâhla aynı hizada, tencereler gözlerin üstünde kalır. Mutfak modelinin kendi davlumbazı ve düğmeleri gizlenir.
+	var ocak := _parca_koy(SELIM_EVI + "mutfakiçinocak.glb", "", Vector3(-1.0, 0.03, -6.09), 90.0, 1.0, ana)
+	if ocak:
+		_esya_engeli(ocak)
+		for ad in ["Plinta_standardSurface1_0", "pCylinder1_standardSurface1_0", "pCylinder2_standardSurface1_0"]:
+			var n := $Mutfak.find_child(ad, true, false) as Node3D
+			if n: n.visible = false
 	_parca_koy(SELIM_EVI + "newspaper.glb", "", Vector3(6.85, 0.012, -3.6), 25.0, 0.04, ana)
 	_boyla(SELIM_EVI + "wine_bottle_-_matthew.glb", "", Vector3(-1.05, 0.98, -5.4), 0.0, 0.3, ana)
 	_parca_koy(SELIM_EVI + "toilet_paper.glb", "", Vector3(5.0, 0.0, 4.75), 0.0, 1.0, ana)
+	# eski buzdolabı mutfakta; ikinci kirli sepeti yatak odasında pencerenin yanında (modelde 1,85 birim, gerçek eni 60 cm)
+	var buz := _parca_koy(BUZDOLABI_MODELI, "", Vector3(BUZDOLABI_YERI.x - 0.27, 0.0, BUZDOLABI_YERI.z), 90.0, 1.0, ana)
+	if buz: _esya_engeli(buz)
+	var sepet2 := _parca_koy(YENI_MODELLER + "laundry_basket.glb", "", Vector3(1.75, 0.0, 3.08), 0.0, 0.6 / 1.845, ana)
+	if sepet2: _esya_engeli(sepet2)
 
 
 ## Parçayı gerçek boyuna (yükseklik, metre) getirerek koyar.
@@ -3338,7 +3612,7 @@ func _ev_guncelle(dt: float) -> void:
 		# holün ortasındaki ampul: çoğu zaman yanar, arada bir titreyip söner
 		var l := _hol_lambalar[HOL_TITREYEN]
 		var d := fmod(T, 9.0)
-		l.light_energy = 0.75 if d < 7.6 or fmod(d * 7.3 + sin(T * 31.0), 1.0) > 0.45 else 0.05
+		l.light_energy = 0.35 if d < 7.6 or fmod(d * 7.3 + sin(T * 31.0), 1.0) > 0.45 else 0.05
 	if _zaman.has("banyo_kapi"): _banyo_kapisi(T - float(_zaman["banyo_kapi"]) + 0.5)
 	if _zaman.has("mutfak_kapi"):
 		_kapi_ac(kapi_mutfak, T - float(_zaman["mutfak_kapi"]), 0.0, 1.1)
@@ -3352,9 +3626,9 @@ func _ev_guncelle(dt: float) -> void:
 		var t := T - float(_zaman["banyo_isik"])
 		var lamba := $Isiklar/BanyoLamba as OmniLight3D
 		if t < 1.4:
-			lamba.light_energy = 1.3 if fmod(t * 6.1 + sin(t * 23.0) * 0.4, 1.0) > 0.6 else 0.04
+			lamba.light_energy = 0.42 if fmod(t * 6.1 + sin(t * 23.0) * 0.4, 1.0) > 0.6 else 0.04
 		else:
-			lamba.light_energy = 1.3 + sin(T * 120.0) * 0.015
+			lamba.light_energy = 0.42 + sin(T * 120.0) * 0.006
 	damla_hedef = move_toward(damla_hedef, 0.0, dt * 0.07)
 	damla = move_toward(damla, damla_hedef, dt * 2.0)
 	_damla_mat.set_shader_parameter("miktar", damla)
@@ -3482,7 +3756,7 @@ func _hol_kur(duvar: Material, zemin: Material, tavan: Material) -> void:
 	for i in HOL_LAMBALAR.size():
 		var l := OmniLight3D.new()
 		l.light_color = Color(1.0, 0.8, 0.58)
-		l.light_energy = 0.75
+		l.light_energy = 0.35
 		l.omni_range = 4.2
 		l.omni_attenuation = 1.4
 		l.shadow_enabled = i == 0 or i == HOL_TITREYEN
@@ -3532,6 +3806,7 @@ func _pencere_kur(orta: Vector3, dis: float, x_kenari: bool, k: float) -> void:
 	add_child(ay)
 	ay.position = orta + yon * 1.6 + Vector3(0, PENCERE_UST + 0.6, 0)
 	ay.look_at(orta - yon * 1.2 + Vector3(0, 0, 0))
+	_pencere_modeli(orta + Vector3(0, y, 0), -yon, false)
 	var engel := StaticBody3D.new()
 	var sekil := CollisionShape3D.new()
 	var bs := BoxShape3D.new()
@@ -3558,6 +3833,212 @@ func _pencere_kur(orta: Vector3, dis: float, x_kenari: bool, k: float) -> void:
 			pk = _dunya_kutusu(perde)
 			var hedef := orta - yon * (k * 0.5 + 0.02 + (pk.size.x if x_kenari else pk.size.z) * 0.5)
 			perde.global_position += Vector3(hedef.x - pk.get_center().x, 0.02 - pk.position.y, hedef.z - pk.get_center().z)
+
+
+## Yatak odası penceresi: cam, dışarıda gece göğü, karşı kaldırımdaki sokak lambasının ışığı.
+## Işık jaluzi çizgileriyle (ışığın önüne konan desen) yere ve yatağın ayak ucuna düşer; hacimli sis huzmeyi gösterir.
+func _yatak_penceresi() -> void:
+	var z := 3.35 + 0.03 + 0.05
+	var y := (PENCERE_ALT + PENCERE_UST) * 0.5
+	var h := PENCERE_UST - PENCERE_ALT
+	var cam := MeshInstance3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(YATAK_PENCERE_EN, h)
+	var cm := StandardMaterial3D.new()
+	cm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	cm.albedo_color = Color(0.5, 0.52, 0.5, 0.18)   # kirli cam
+	cm.metallic = 0.5
+	cm.roughness = 0.25
+	cm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	qm.material = cm
+	cam.mesh = qm
+	add_child(cam)
+	cam.position = Vector3(YATAK_PENCERE_X, y, z)
+	var gok := MeshInstance3D.new()
+	var gq := QuadMesh.new()
+	gq.size = Vector2(10.0, 7.0)
+	var gm := StandardMaterial3D.new()
+	gm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	gm.albedo_color = Color(0.05, 0.035, 0.03)   # lamba ışığının boyadığı gece göğü
+	gm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	gq.material = gm
+	gok.mesh = gq
+	add_child(gok)
+	gok.position = Vector3(YATAK_PENCERE_X, y, z + 5.0)
+	# sokak lambası: yukarıdan, pencereye çapraz; sodyum turuncusu
+	var lamba := SpotLight3D.new()
+	lamba.light_color = Color(1.0, 0.62, 0.3)
+	lamba.light_energy = 9.0
+	lamba.light_volumetric_fog_energy = 4.0
+	lamba.spot_range = 11.0
+	lamba.spot_angle = 16.0
+	lamba.spot_attenuation = 0.6
+	lamba.shadow_enabled = true
+	lamba.shadow_blur = 0.6
+	lamba.light_projector = _jaluzi_deseni()
+	lamba.name = "SokakLambasi"   # düşük grafik ayarında da gölgesi açık kalır, yoksa duvardan sızar
+	add_child(lamba)
+	lamba.position = Vector3(YATAK_PENCERE_X + 1.4, 3.8, z + 3.2)
+	lamba.look_at(Vector3(YATAK_PENCERE_X - 0.7, 0.0, 1.0))
+	_pencere_modeli(Vector3(YATAK_PENCERE_X, y, z), Vector3(0, 0, -1), false)
+	var engel := StaticBody3D.new()
+	var sekil := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(YATAK_PENCERE_EN, 3.0, 0.1)
+	sekil.shape = bs
+	engel.add_child(sekil)
+	add_child(engel)
+	engel.position = Vector3(YATAK_PENCERE_X, 1.5, z)
+	if ResourceLoader.exists(JALUZI_MODELI):
+		var j := _parca_koy(JALUZI_MODELI, "", Vector3(YATAK_PENCERE_X, PENCERE_ALT, z - 0.08), 0.0, 1.0, self)
+		if j:
+			var jk := _dunya_kutusu(j)
+			j.scale *= (YATAK_PENCERE_EN + 0.06) / maxf(jk.size.x, 0.001)
+	# evin havası: yatak odasında toz, huzmede görünür (orta ve üstü grafik ayarında)
+	var e := ($Ortam as WorldEnvironment).environment
+	e.volumetric_fog_enabled = true
+	e.volumetric_fog_density = 0.03
+	e.volumetric_fog_albedo = Color(0.8, 0.75, 0.7)
+	e.volumetric_fog_emission_energy = 0.0
+	e.volumetric_fog_ambient_inject = 0.0
+	e.volumetric_fog_length = 14.0
+	# soluk, yorgun renkler; oda geri kalanı karanlık
+	e.ambient_light_energy = 0.2
+	e.adjustment_saturation = 0.72
+	e.adjustment_contrast = 1.14
+	e.tonemap_exposure = 1.0
+	var yl := get_node_or_null("Isiklar/YatakLamba") as OmniLight3D
+	if yl: yl.light_energy = 0.22
+
+
+## alp'in posterleri (seliminevi/poster_1..4.jpg): duvara yapışık kâğıt, 50 cm eninde. [dosya, yer, yüzün baktığı açı]
+const POSTERLER := [
+	["poster_1.jpg", Vector3(-1.35, 1.6, 3.37), 180.0],   # yatak odası, pencerenin solu
+	["poster_4.jpg", Vector3(2.15, 1.6, 3.37), 180.0],    # yatak odası, pencerenin sağı
+	["poster_2.jpg", Vector3(3.24, 1.55, 0.45), -90.0],   # yatak odası, masa ile kapı arası
+	["poster_3.jpg", Vector3(6.4, 1.65, -4.75), 0.0],     # salon
+]
+func _posterler_kur(ana: Node3D) -> void:
+	for p in POSTERLER:
+		var yol: String = SELIM_EVI + p[0]
+		if not ResourceLoader.exists(yol): continue
+		var tex: Texture2D = load(yol)
+		var mi := MeshInstance3D.new()
+		var qm := QuadMesh.new()
+		qm.size = Vector2(0.5, 0.5 * float(tex.get_height()) / float(tex.get_width()))
+		var m := StandardMaterial3D.new()
+		m.albedo_texture = tex
+		m.albedo_color = Color(0.85, 0.82, 0.76)   # eskimiş kâğıt
+		m.roughness = 0.85
+		m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+		qm.material = m
+		mi.mesh = qm
+		ana.add_child(mi)
+		mi.global_position = p[1]
+		mi.rotation_degrees.y = p[2]
+
+
+## alp'in pencere modeli: orta = duvar yüzünde pencerenin ortası, ice = odanın içine doğru.
+## sahte: duvarda delik yok (modelin kendi duvarı), camın arkasına gece karanlığı konur.
+func _pencere_modeli(orta: Vector3, ice: Vector3, sahte: bool) -> void:
+	var s := (PENCERE_EN + 0.06) / 3.437
+	var h := 2.563 * s
+	var w := _parca_koy(PENCERE_MODELI, "", orta - Vector3(0, h * 0.5, 0), rad_to_deg(atan2(ice.x, ice.z)), s, self)
+	if w == null or not sahte: return
+	var gece := MeshInstance3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(PENCERE_EN, PENCERE_UST - PENCERE_ALT)
+	var gm := StandardMaterial3D.new()
+	gm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	gm.albedo_color = Color(0.02, 0.025, 0.04)
+	qm.material = gm
+	gece.mesh = qm
+	add_child(gece)
+	gece.position = orta + ice * 0.004
+	gece.rotation.y = atan2(ice.x, ice.z)
+
+
+## Jaluzi: ışığın önüne konan yatay çizgili desen (model değil, ışığın kendisi çizgili düşer).
+func _jaluzi_deseni() -> Texture2D:
+	var im := Image.create(256, 256, false, Image.FORMAT_L8)
+	for y in 256:
+		var cizgi := fmod(float(y), 21.0) < 14.0
+		var v := 1.0 if cizgi else 0.04
+		for x in 256:
+			# kenarlara doğru yumuşak sönüş, ışık dikdörtgen pencereden geçiyormuş gibi
+			var kx := smoothstep(0.0, 0.08, float(x) / 255.0) * smoothstep(1.0, 0.92, float(x) / 255.0)
+			var ky := smoothstep(0.0, 0.06, float(y) / 255.0) * smoothstep(1.0, 0.94, float(y) / 255.0)
+			im.set_pixel(x, y, Color(v * kx * ky, 0, 0))
+	return ImageTexture.create_from_image(im)
+
+
+## Kamera görüntüsü: film greni ve köşe kararması (ekranın üstüne ince bir katman).
+func _film_katmani() -> void:
+	var cl := CanvasLayer.new()
+	cl.layer = 4
+	add_child(cl)
+	var r := ColorRect.new()
+	r.set_anchors_preset(Control.PRESET_FULL_RECT)
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mat := ShaderMaterial.new()
+	var sh := Shader.new()
+	sh.code = """shader_type canvas_item;
+float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+void fragment() {
+	vec2 m = UV - 0.5;
+	float kose = smoothstep(0.32, 0.95, length(m * vec2(1.25, 1.0)));
+	float gren = h(UV * 900.0 + fract(TIME * 13.0) * 97.0);
+	COLOR = vec4(vec3(gren), 0.06 * gren * (1.0 - kose)) ;
+	COLOR = mix(COLOR, vec4(0.0, 0.0, 0.0, 1.0), kose * 0.62);
+}"""
+	mat.shader = sh
+	r.material = mat
+	cl.add_child(r)
+
+
+## Bütün odalar aynı: tavan EV_TAVAN yüksekliğinde ve aynı renkte, zemin aynı siyah parke (banyo kendi fayansında kalır),
+## modelin tuğla duvarları sıvayla kaplanır, salonun halısı odayı kaplar.
+const EV_TAVAN := 2.6
+const EV_ODALARI := [   # [x0, z0, x1, z1]
+	[-2.4, -2.4, 3.22, 3.35],       # yatak odası
+	[-1.58, -9.99, 3.22, -2.5],     # mutfak
+	[4.595, -4.76, 10.305, 0.95],   # salon
+]
+func _tek_tip_ev() -> void:
+	# modelin kendi zeminleri gizlenir, yerine (aynı yükseklikte, çarpışmalı) siyah parke gelir; mutfağın zemini
+	# modelin içinde ayrı parça olmadığı için parke onun 3 mm üstünde durur
+	for ad in ["Plane_Material_001_0"]:
+		for oda in [$YatakOdasi, $Salon]:
+			var z := oda.find_child(ad, true, false) as Node3D
+			if z: z.visible = false
+	for i in EV_ODALARI.size():
+		var r: Array = EV_ODALARI[i]
+		var o := Vector3((r[0] + r[2]) * 0.5, 0.0, (r[1] + r[3]) * 0.5)
+		var en := Vector3(r[2] - r[0], 0.0, r[3] - r[1])
+		var ust := 0.003 if i == 1 else 0.0
+		for p in [[o + Vector3(0, ust - 0.025, 0), Vector3(en.x, 0.05, en.z), _ev_parke, true], [o + Vector3(0, EV_TAVAN + 0.05, 0), Vector3(en.x + 0.3, 0.1, en.z + 0.3), _ev_tavan, false]]:
+			var mi := MeshInstance3D.new()
+			var bm := BoxMesh.new()
+			bm.size = p[1]
+			bm.material = p[2]
+			mi.mesh = bm
+			mi.position = p[0]
+			add_child(mi)
+			if p[3]: mi.create_trimesh_collision()
+	for ad in ["Plane_001_Material_002_0", "Plane_002_Material_002_0", "Plane_009_Material_002_0", "Plane_010_Material_002_0"]:
+		var d := $YatakOdasi.find_child(ad, true, false) as MeshInstance3D
+		if d: d.material_override = _ev_duvar
+	for ad in ["Plane_Material_002_0", "Plane_Material_003_0"]:
+		var d := $Salon.find_child(ad, true, false) as MeshInstance3D
+		if d: d.material_override = _ev_duvar
+	# salonun halısı bütün zemini kaplar
+	var hali := $Salon.find_child("Plane_001_Material_004_0", true, false) as MeshInstance3D
+	if hali:
+		var k: AABB = hali.global_transform * hali.get_aabb()
+		var r: Array = EV_ODALARI[2]
+		var hedef := Vector3((r[0] + r[2]) * 0.5, k.get_center().y, (r[1] + r[3]) * 0.5)
+		var s := Vector3((r[2] - r[0] - 0.1) / maxf(k.size.x, 0.01), 1.0, (r[3] - r[1] - 0.1) / maxf(k.size.z, 0.01))
+		hali.global_transform = Transform3D(Basis.from_scale(s), hedef) * Transform3D(Basis(), -k.get_center()) * hali.global_transform
 
 
 ## parcalar'dan [a, b] aralığını çıkarır.
@@ -3993,9 +4474,10 @@ const AMPUL_MODELI := "res://modeller2/seliminevi/led_light_bulb_9w.glb"
 const AMPUL_OLCEK := 0.032   # model 3,8 birim boyunda; gerçek ampul 12 cm
 ## [ampulün tavana değdiği nokta, ışığın adı ya da yeni ışık için boş, menzil, parlaklık]
 const AMPULLER := [
-	[Vector3(0.4, 3.88, 0.47), "", 7.0, 0.9],                 # yatak odası (model tavanı)
-	[Vector3(0.82, 2.85, -6.25), "MutfakLamba", 7.5, 1.5],   # mutfak (_kabuk tavanı)
-	[Vector3(7.45, 2.73, -1.905), "", 7.5, 1.0],                 # salon (_kabuk tavanı)
+	# depresyondaki birinin evi: ampuller loş (alp)
+	[Vector3(0.4, EV_TAVAN, 0.47), "", 6.0, 0.3],                 # yatak odası
+	[Vector3(0.82, EV_TAVAN, -6.25), "MutfakLamba", 6.0, 0.5],   # mutfak
+	[Vector3(7.45, EV_TAVAN, -1.905), "", 6.0, 0.4],                 # salon
 	[Vector3(5.94, 2.215, 4.59), "BanyoLamba", 0.0, 0.0],   # banyo: modelin tavan armatürünün altında, floresan gibi çakar
 ]
 var _ampuller := []   # [ışık, parlayan malzeme, ilk parlaklık]

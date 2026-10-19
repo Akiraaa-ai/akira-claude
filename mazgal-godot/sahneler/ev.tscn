@@ -29,8 +29,10 @@ ambient_light_energy = 0.35
 tonemap_mode = 3
 tonemap_exposure = 1.1
 ssao_enabled = true
-ssao_radius = 0.6
-ssao_intensity = 1.4
+ssao_radius = 0.9
+ssao_intensity = 1.8
+ssao_detail = 0.6
+ssao_light_affect = 0.12
 glow_enabled = true
 glow_intensity = 0.5
 glow_bloom = 0.05
@@ -79,27 +81,27 @@ shadow_enabled = true
 [node name="BanyoLamba" type="OmniLight3D" parent="Isiklar"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.94, 2.05, 4.59)
 light_color = Color(1, 0.86, 0.68, 1)
-light_energy = 1.3
+light_energy = 0.42
 omni_range = 6.0
 shadow_enabled = true
 
 [node name="MutfakLamba" type="OmniLight3D" parent="Isiklar"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.17, 2.4, -5.6)
 light_color = Color(1, 0.84, 0.62, 1)
-light_energy = 1.5
+light_energy = 0.5
 omni_range = 7.5
 shadow_enabled = true
 
 [node name="MutfakTezgah" type="OmniLight3D" parent="Isiklar"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.73, 1.45, -7.0)
 light_color = Color(1, 0.9, 0.75, 1)
-light_energy = 0.5
+light_energy = 0.2
 omni_range = 3.0
 
 [node name="SalonLamba" type="OmniLight3D" parent="Isiklar"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.15, 1.9, -3.505)
 light_color = Color(1, 0.66, 0.4, 1)
-light_energy = 0.55
+light_energy = 0.3
 omni_range = 5.0
 shadow_enabled = true
 
