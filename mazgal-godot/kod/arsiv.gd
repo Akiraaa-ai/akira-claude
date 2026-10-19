@@ -137,10 +137,6 @@ var _sesler := {}
 
 
 func _ready() -> void:
-	if not InputMap.has_action("etkiles"):
-		InputMap.add_action("etkiles")
-		var e := InputEventKey.new(); e.physical_keycode = KEY_E
-		InputMap.action_add_event("etkiles", e)
 	oyuncu = $Selim
 	kamera = $Selim/Kafa/Kamera
 	kamera.current = true
@@ -217,8 +213,10 @@ func _kutu(ana: Node3D, merkez: Vector3, boy: Vector3, mat: Material, carp := tr
 func _model(yol: String, boy: float, yer: Vector3, aci: float, ana: Node3D, eksen := 1, carp := false) -> Node3D:
 	if not ResourceLoader.exists(yol): return null
 	if not _paketler.has(yol):
-		var p := (load(yol) as PackedScene).instantiate() as Node3D
-		_paketler[yol] = p
+		# model içe aktarılamadıysa (bozuk ya da yarım kalmış import) oyun durmasın, o eşya atlanır
+		var paket := load(yol) as PackedScene
+		if paket == null: return null
+		_paketler[yol] = paket.instantiate() as Node3D
 	var m := (_paketler[yol] as Node3D).duplicate() as Node3D
 	ana.add_child(m)
 	var kutu := _kutu_olc(m)

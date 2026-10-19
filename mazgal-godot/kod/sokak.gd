@@ -511,10 +511,6 @@ const Atmosfer := preload("res://kod/atmosfer.gd")
 var atmosfer: Atmosfer
 
 func _yolculuk_kur() -> void:
-	if not InputMap.has_action("etkiles"):
-		InputMap.add_action("etkiles")
-		var e := InputEventKey.new(); e.physical_keycode = KEY_E
-		InputMap.action_add_event("etkiles", e)
 	oyuncu = $Selim
 	oyuncu_kamera = $Selim/Kafa/Kamera
 	oyuncu_kamera.current = true
@@ -1215,10 +1211,12 @@ var _sigara_paketi: Node3D
 ## metre olur (0 ise modelin kendi ölçüsü), alt yüzünün ortası kulübedeki `yer`e oturur.
 func _model_koy(yol: String, parcalar: Array, boy: float, yer: Vector3, aci: float) -> Node3D:
 	if not ResourceLoader.exists(yol): return null
+	var paket := load(yol) as PackedScene
+	if paket == null: return null
 	var kap := Node3D.new()
 	kap.name = yol.get_file().get_basename()
 	$Kulube.add_child(kap)
-	var n: Node3D = (load(yol) as PackedScene).instantiate()
+	var n: Node3D = paket.instantiate()
 	kap.add_child(n)
 	var a := AABB(); var ilk := true
 	for m in n.find_children("*", "MeshInstance3D", true, false):
