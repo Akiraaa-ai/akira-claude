@@ -405,7 +405,11 @@ const ATLA_ADLARI := ["glass", "mirror", "screen", "ekran", "ayna", "water", "li
 var _gurultuler: Array[NoiseTexture2D] = []
 
 func _malzemeleri_duzelt() -> void:
-	var kumas_n := _gurultu_normali(0.07, 3, 3.0)
+	# düşük kalitede (Iris Xe) yalnızca pürüzlülük/metal değerleri düzelir: ek doku ve yumuşak gölge yok,
+	# ekran kartı belleği yetmiyor (alp'in PC'si 19 Ekim'de çöktü)
+	var d := get_node_or_null("/root/Duraklat")
+	var dusuk: bool = d != null and int(d.kalite) == 0
+	var kumas_n: Texture2D = null if dusuk else _gurultu_normali(0.07, 3, 3.0)
 	var kopya := {}
 	for oda_adi in ["YatakOdasi", "Banyo", "Mutfak", "Salon"]:
 		var oda := get_node_or_null(oda_adi)
@@ -414,7 +418,8 @@ func _malzemeleri_duzelt() -> void:
 	for c in get_children():
 		if c is Node3D and not (c.name in ["YatakOdasi", "Banyo", "Mutfak", "Salon", "Kamera", "Isiklar"]):
 			_malzeme_gez(c, {}, kumas_n, kopya)
-	_yuzey_detayi()
+	_yuzey_detayi(dusuk)
+	if dusuk: return
 	# ampullerin gölgesi: küçük ışık kaynağı, yumuşak ve titremeyen kenarlar
 	for l in find_children("*", "OmniLight3D", true, false):
 		var o := l as OmniLight3D
@@ -470,7 +475,7 @@ func _malzeme_ayarla(m: BaseMaterial3D, tablo: Dictionary, mesh_adi: String, kum
 			r.rim_enabled = true
 			r.rim = 0.25
 			r.rim_tint = 0.6
-			if not r.normal_enabled:
+			if not r.normal_enabled and kumas_n:
 				r.normal_enabled = true
 				r.normal_texture = kumas_n
 				r.normal_scale = 0.6
@@ -533,15 +538,19 @@ func _gurultu_lekesi(siklik: float, koyu: Color, acik: Color) -> NoiseTexture2D:
 
 
 ## Sıva duvar, tavan ve parke: tekrarlanan dokunun üstüne dünya hizasında kir ve kabarıklık.
-func _yuzey_detayi() -> void:
+func _yuzey_detayi(dusuk: bool) -> void:
+	for d in [[_ev_duvar, 0.92], [_ev_tavan, 0.95], [_ev_parke, 0.5]]:
+		var m := d[0] as StandardMaterial3D
+		if m == null: continue
+		m.metallic = 0.0
+		m.roughness = d[1]
+	if dusuk: return
 	var siva_n := _gurultu_normali(0.02, 5, 2.0)
 	for d in [[_ev_duvar, 0.92, _gurultu_lekesi(0.006, Color(0.7, 0.66, 0.6), Color(1, 1, 1)), BaseMaterial3D.BLEND_MODE_MUL, 0.45],
 			[_ev_tavan, 0.95, _gurultu_lekesi(0.006, Color(0.8, 0.78, 0.74), Color(1, 1, 1)), BaseMaterial3D.BLEND_MODE_MUL, 0.3],
 			[_ev_parke, 0.5, _gurultu_lekesi(0.01, Color(0, 0, 0), Color(0.05, 0.045, 0.04)), BaseMaterial3D.BLEND_MODE_ADD, 0.0]]:
 		var m := d[0] as StandardMaterial3D
 		if m == null: continue
-		m.metallic = 0.0
-		m.roughness = d[1]
 		m.detail_enabled = true
 		m.detail_uv_layer = BaseMaterial3D.DETAIL_UV_2
 		m.detail_blend_mode = d[3]
