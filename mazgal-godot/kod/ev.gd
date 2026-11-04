@@ -117,7 +117,8 @@ const HOL_LAMBALAR := [Vector3(3.9, 2.3, -1.8), Vector3(5.6, 2.3, 1.6), Vector3(
 const HOL_TITREYEN := 1   # bu ampul arada bir çakıp söner
 # Selim'in evde dolaşabileceği yerler (duvarlardan ~0.28 m içeride): odalar, hol ve kapı geçitleri
 const YATAK_ALAN := [AABB(Vector3(-2.1, 0, -2.1), Vector3(5.1, 3, 5.1))]
-const HOL_ALAN := [AABB(Vector3(3.58, 0, -3.92), Vector3(0.63, 3, 4.92)), AABB(Vector3(3.58, 0, 1.23), Vector3(6.45, 3, 0.71)),
+const HOL_ALAN := [AABB(Vector3(3.58, 0, -3.92), Vector3(0.63, 3, 5.86)),   # kuzey-güney kolu doğu-batı koluna kadar uzanır (aradaki 23 cm boşlukta takılıyordu)
+	AABB(Vector3(3.58, 0, 1.23), Vector3(6.45, 3, 0.71)),
 	AABB(Vector3(2.9, 0, 1.2), Vector3(0.8, 3, 0.8)), AABB(Vector3(2.7, 0, -3.85), Vector3(1.0, 3, 0.8)),
 	AABB(Vector3(7.65, 0, 0.6), Vector3(0.8, 3, 0.8)), AABB(Vector3(5.23, 0, 1.9), Vector3(0.8, 3, 0.8))]
 # hedef odaya girilince o odanın işi başlar
