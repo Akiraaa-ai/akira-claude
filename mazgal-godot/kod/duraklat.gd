@@ -15,7 +15,8 @@ const DILLER := ["tr", "en"]
 ## Çıkıştan önce false yapılacak (alp: oyunda atlama tuşu olmasın).
 const TEST_HIZLI_E := true
 ## SADECE TEST (alp, 4 Kasım): en düşük grafik. Menüdeki kalite ayarı değişmez, bunun üstüne uygulanır:
-## gölge, ışık sekmesi (VoxelGI), SSAO, hacimli sis, parlama, kenar yumuşatma kapalı; çözünürlük %60.
+## gölge, ışık sekmesi (VoxelGI), SSAO, hacimli sis, parlama, kenar yumuşatma kapalı; çözünürlük %50.
+## Proje kökündeki override.cfg de oyunu hafif (Compatibility) çiziciyle açar; onu da silince tamamen normale döner.
 ## Normale dönmek için false yap.
 const TEST_EN_DUSUK := true
 var en_dusuk := TEST_EN_DUSUK   # ev.gd buradan okur
@@ -60,6 +61,7 @@ func _ready() -> void:
 	_buslari_kur()
 	_yukle()
 	_uygula()
+	if TEST_EN_DUSUK: _en_dusuk_uygula([], get_viewport())   # ilk sahne yüklenmeden önce de
 	_kur()
 	_kok.visible = false
 	_kayit_arayuzu_kur()
@@ -232,8 +234,8 @@ func _dugum_kalitesi(n: Node) -> void:
 		(n as GPUParticles3D).amount_ratio = [0.35, 0.6, 1.0, 1.0][kalite]
 	if TEST_EN_DUSUK:
 		if n is Light3D: (n as Light3D).shadow_enabled = false
-		elif n is Camera3D: (n as Camera3D).far = minf((n as Camera3D).far, 150.0)
-		elif n is GPUParticles3D: (n as GPUParticles3D).amount_ratio = 0.2
+		elif n is Camera3D: (n as Camera3D).far = minf((n as Camera3D).far, 100.0)
+		elif n is GPUParticles3D: (n as GPUParticles3D).amount_ratio = 0.1
 
 func _kaliteyi_uygula(kok: Node) -> void:
 	if not is_instance_valid(kok): return
@@ -294,9 +296,10 @@ func _en_dusuk_uygula(ortamlar: Array, vp: Viewport) -> void:
 	vp.msaa_3d = Viewport.MSAA_DISABLED
 	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
 	vp.use_taa = false
-	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR
-	vp.scaling_3d_scale = 0.6
-	vp.mesh_lod_threshold = 2.0
+	# override.cfg ile uyumlu: Compatibility'de FSR yok, düz küçültme
+	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+	vp.scaling_3d_scale = 0.5
+	vp.mesh_lod_threshold = 4.0
 	RenderingServer.directional_shadow_atlas_set_size(1024, true)
 	vp.positional_shadow_atlas_size = 1024
 	RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_HARD)
