@@ -366,6 +366,8 @@ func _isik_sekmesi_kur() -> void:
 		while t.get_image() == null and bekle < 120:
 			await get_tree().process_frame
 			bekle += 1
+	var dd := get_node_or_null("/root/Duraklat")
+	if dd and bool(dd.en_dusuk): return   # en düşük test ayarı: ışık sekmesi yok
 	# odalar tek tek, her biri ayrı karede hesaplanır: hepsi aynı anda yapılınca
 	# paylaşımlı ekran kartı (Intel Iris Xe) belleği doluyor ve oyun yükleme ekranında çöküyordu
 	for r in ISIK_SEKMESI:
@@ -408,7 +410,7 @@ func _malzemeleri_duzelt() -> void:
 	# düşük kalitede (Iris Xe) yalnızca pürüzlülük/metal değerleri düzelir: ek doku ve yumuşak gölge yok,
 	# ekran kartı belleği yetmiyor (alp'in PC'si 19 Ekim'de çöktü)
 	var d := get_node_or_null("/root/Duraklat")
-	var dusuk: bool = d != null and int(d.kalite) == 0
+	var dusuk: bool = d != null and (int(d.kalite) == 0 or bool(d.en_dusuk))
 	var kumas_n: Texture2D = null if dusuk else _gurultu_normali(0.07, 3, 3.0)
 	var kopya := {}
 	for oda_adi in ["YatakOdasi", "Banyo", "Mutfak", "Salon"]:

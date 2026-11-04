@@ -14,6 +14,11 @@ const DILLER := ["tr", "en"]
 ## SADECE TEST (alp, 18 Ekim): E basılı tutulunca oyun 8 kat hızlı akar, sahneler hızla geçilir.
 ## Çıkıştan önce false yapılacak (alp: oyunda atlama tuşu olmasın).
 const TEST_HIZLI_E := true
+## SADECE TEST (alp, 4 Kasım): en düşük grafik. Menüdeki kalite ayarı değişmez, bunun üstüne uygulanır:
+## gölge, ışık sekmesi (VoxelGI), SSAO, hacimli sis, parlama, kenar yumuşatma kapalı; çözünürlük %60.
+## Normale dönmek için false yap.
+const TEST_EN_DUSUK := true
+var en_dusuk := TEST_EN_DUSUK   # ev.gd buradan okur
 
 var ses := 0.9
 var muzik := 0.8
@@ -225,6 +230,10 @@ func _dugum_kalitesi(n: Node) -> void:
 		c.far = minf(c.get_meta("asil_uzak"), [180.0, 260.0, 4000.0, 4000.0][kalite])
 	elif n is GPUParticles3D:
 		(n as GPUParticles3D).amount_ratio = [0.35, 0.6, 1.0, 1.0][kalite]
+	if TEST_EN_DUSUK:
+		if n is Light3D: (n as Light3D).shadow_enabled = false
+		elif n is Camera3D: (n as Camera3D).far = minf((n as Camera3D).far, 150.0)
+		elif n is GPUParticles3D: (n as GPUParticles3D).amount_ratio = 0.2
 
 func _kaliteyi_uygula(kok: Node) -> void:
 	if not is_instance_valid(kok): return
@@ -264,6 +273,34 @@ func _kaliteyi_uygula(kok: Node) -> void:
 	var ao := [RenderingServer.ENV_SSAO_QUALITY_VERY_LOW, RenderingServer.ENV_SSAO_QUALITY_LOW, RenderingServer.ENV_SSAO_QUALITY_MEDIUM, RenderingServer.ENV_SSAO_QUALITY_HIGH][kalite] as RenderingServer.EnvironmentSSAOQuality
 	RenderingServer.environment_set_ssao_quality(ao, kalite <= 1, 0.5, 2, 50.0, 300.0)
 	RenderingServer.positional_soft_shadow_filter_set_quality(yumusak)
+	if TEST_EN_DUSUK: _en_dusuk_uygula(ortamlar, vp)
+
+
+func _en_dusuk_uygula(ortamlar: Array, vp: Viewport) -> void:
+	for o in ortamlar:
+		var env := (o as WorldEnvironment).environment
+		if env == null: continue
+		env.ssao_enabled = false
+		env.ssr_enabled = false
+		env.ssil_enabled = false
+		env.sdfgi_enabled = false
+		env.glow_enabled = false
+		# hacimli sis yerine ucuz derinlik sisi (düşük ayardaki gibi)
+		if env.volumetric_fog_enabled or env.get_meta("asil_hacim", false):
+			env.fog_enabled = true
+			env.fog_density = maxf(env.fog_density, env.volumetric_fog_density * 0.6)
+			env.fog_light_color = env.volumetric_fog_albedo * 0.12
+		env.volumetric_fog_enabled = false
+	vp.msaa_3d = Viewport.MSAA_DISABLED
+	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
+	vp.use_taa = false
+	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR
+	vp.scaling_3d_scale = 0.6
+	vp.mesh_lod_threshold = 2.0
+	RenderingServer.directional_shadow_atlas_set_size(1024, true)
+	vp.positional_shadow_atlas_size = 1024
+	RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_HARD)
+	RenderingServer.positional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_HARD)
 
 
 # ---------------- görünüm ----------------
